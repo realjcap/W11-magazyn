@@ -102,7 +102,7 @@ footer{margin-top:20px;font-size:13px}
 
 <div class="grid" id="grid"></div>
 
-<footer class="mu">Dane są zapisane w tej przeglądarce, na tym urządzeniu. Regularnie eksportuj kopię, a na innym urządzeniu wczytaj ją tą samą drogą.</footer>
+<footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj kopię” robi kopię zapasową.</footer>
 
 <dialog id="op">
   <h2 id="opT"></h2>
@@ -153,18 +153,20 @@ footer{margin-top:20px;font-size:13px}
 
 <div id="lock" hidden>
   <form id="lf" autocomplete="off">
-    <h2>Wpisz hasło</h2>
+    <h2>Zaloguj się</h2>
+    <input type="text" id="llg" placeholder="Login" aria-label="Login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
     <input type="password" id="lpw" placeholder="Hasło" aria-label="Hasło" autocomplete="current-password">
     <div id="lerr" role="alert"></div>
     <button class="p">Wejdź</button>
   </form>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
 const K = 'magazyn-ubran-v1';
-let S;
-try { S = JSON.parse(localStorage.getItem(K)); } catch (e) {}
-if (!S || !Array.isArray(S.products)) S = { products: [], log: [] };
+const S = { products: [], log: [] };
+let unlocked = false;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -184,9 +186,66 @@ function dlg(text, confirmMode) {
 }
 const say = t => dlg(t, false);
 const ask = t => dlg(t, true);
-function save() {
-  try { localStorage.setItem(K, JSON.stringify(S)); }
-  catch (e) { say('Brak miejsca w pamięci przeglądarki. Wyeksportuj kopię i usuń część zdjęć.'); }
+const FB = {
+  apiKey: "AIzaSyD7vt5RXkznpgCulMyP7ox77mcWJMhmb9A",
+  authDomain: "w11-magazyn.firebaseapp.com",
+  databaseURL: "https://w11-magazyn-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "w11-magazyn",
+  storageBucket: "w11-magazyn.firebasestorage.app",
+  messagingSenderId: "282270664528",
+  appId: "1:282270664528:web:de84ce67324ff55782ce55"
+};
+const ROOT = 'w11-7hq4mz9c2xk8';
+let R = null, db = null, connected = false, loaded = false, migChecked = false, busy = false;
+let P = {}, PH = {}, LG = {};
+const toObj = o => Array.isArray(o) ? Object.fromEntries(o.map((v, i) => [String(i), v]).filter(x => x[1] != null)) : (o || {});
+const cleanKey = k => String(k).replace(/[.$#\[\]\/]/g, '');
+const setConn = t => { $('#conn').textContent = t; };
+function rebuild() {
+  S.products = Object.values(P).filter(p => p && p.name).map(p => ({ ...p, sizes: toObj(p.sizes), ev: toObj(p.ev), photo: PH[p.id] || null }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  S.log = Object.keys(LG).sort().reverse().map(k => LG[k]);
+  if (unlocked) rr();
+}
+function rr() { render(); maybeMigrate(); }
+function online() {
+  if (!R) { say('Nie udało się wczytać bazy (brak internetu?). Odśwież stronę.'); return false; }
+  if (!connected) { say('Brak połączenia z bazą. Spróbuj ponownie, gdy będzie internet.'); return false; }
+  return true;
+}
+async function uploadAll(prods, logs) {
+  const pr = {}, ph = {}, lg = {};
+  prods.forEach(p => {
+    const id = String(p.id || R.push().key);
+    const sz = o => Object.fromEntries(Object.entries(toObj(o)).map(([k, v]) => [cleanKey(k), Math.max(0, parseInt(v) || 0)]).filter(x => x[0]));
+    pr[id] = { id, name: String(p.name), sku: String(p.sku), sizes: sz(p.sizes) };
+    const ev = sz(p.ev); Object.keys(ev).forEach(k => { if (!ev[k]) delete ev[k]; });
+    if (Object.keys(ev).length) pr[id].ev = ev;
+    if (p.photo) ph[id] = p.photo;
+  });
+  logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = JSON.parse(JSON.stringify(l)); });
+  await R.update({ products: pr, photos: ph, log: lg });
+}
+async function maybeMigrate() {
+  if (migChecked || !loaded || !unlocked) return;
+  migChecked = true;
+  if (Object.keys(P).length) return;
+  let old = null, done = false;
+  try { old = JSON.parse(localStorage.getItem(K)); done = localStorage.getItem(K + ':m') === '1'; } catch (e) {}
+  if (done || !old || !Array.isArray(old.products) || !old.products.length) return;
+  const yes = await ask('Na tym urządzeniu są dane z poprzedniej wersji strony (' + old.products.length + ' modeli). Wgrać je do wspólnej bazy?');
+  try { localStorage.setItem(K + ':m', '1'); } catch (e) {}
+  if (yes && online()) { try { await uploadAll(old.products, old.log || []); } catch (x) { say('Nie udało się wgrać danych do bazy.'); } }
+}
+try {
+  firebase.initializeApp(FB); db = firebase.database(); R = db.ref(ROOT);
+} catch (e) { setConn('brak połączenia z Firebase'); }
+if (R) {
+  setConn('łączenie…');
+  R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
+  R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
+  R.child('log').limitToLast(100).on('value', s => { LG = s.val() || {}; rebuild(); }, () => {});
+  db.ref('.info/connected').on('value', s => { connected = !!s.val(); setConn(connected ? 'online, zmiany na żywo' : 'brak połączenia'); });
 }
 
 function render() {
@@ -275,37 +334,54 @@ $('#opList').onclick = e => {
   if (b) pickItem(S.products.find(p => p.id === b.dataset.id));
 };
 $('#opBack').onclick = () => { showPick(); $('#opQ').focus(); };
+async function applyMove(id, m, d, note) {
+  let err = null, lost = null, name = '', sku = '';
+  const res = await R.child('products/' + id).transaction(p => {
+    err = null; lost = null;
+    if (!p) return p;
+    p = JSON.parse(JSON.stringify(p));
+    p.sizes = toObj(p.sizes); p.ev = toObj(p.ev);
+    name = p.name; sku = p.sku;
+    if (m !== 'in') {
+      const src = m === 'evin' ? p.ev : p.sizes;
+      for (const s in d) if (d[s] > (src[s] || 0)) { err = 'Za mało sztuk w rozmiarze ' + s + ' (' + (m === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[s] || 0) + ').'; return; }
+    }
+    for (const s in d) {
+      if (m === 'in') p.sizes[s] = (p.sizes[s] || 0) + d[s];
+      else if (m === 'out') p.sizes[s] -= d[s];
+      else if (m === 'evout') { p.sizes[s] -= d[s]; p.ev[s] = (p.ev[s] || 0) + d[s]; }
+      else { p.ev[s] -= d[s]; p.sizes[s] = (p.sizes[s] || 0) + d[s]; }
+    }
+    if (m === 'evin') { lost = {}; for (const s in p.ev) if (p.ev[s] > 0) lost[s] = p.ev[s]; p.ev = {}; }
+    else for (const s in p.ev) if (p.ev[s] === 0) delete p.ev[s];
+    return p;
+  });
+  if (!res.committed) { if (err) await say(err); return false; }
+  if (!res.snapshot.val()) { await say('Ten model został w międzyczasie usunięty.'); return false; }
+  const entry = { t: firebase.database.ServerValue.TIMESTAMP, name, sku, m, d };
+  if (lost && Object.keys(lost).length) entry.lost = lost;
+  if (note) entry.note = note;
+  await R.child('log').push(entry);
+  return true;
+}
 $('#opOk').onclick = async e => {
   e.preventDefault();
-  if (!cur) return;
+  if (!cur || busy) return;
   const d = {};
   $('#opF').querySelectorAll('input').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n; });
   if (!Object.keys(d).length) return say('Wpisz ilość przynajmniej w jednym rozmiarze.');
-  if (mode !== 'in') {
-    const src = mode === 'evin' ? (cur.ev || {}) : cur.sizes;
-    for (const s in d) if (d[s] > (src[s] || 0)) return say('Za mało sztuk w rozmiarze ' + s + ' (' + (mode === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[s] || 0) + ').');
-  }
-  let lost = null;
   if (mode === 'evin') {
     const rest = {};
     for (const s in cur.ev || {}) { const r = cur.ev[s] - (d[s] || 0); if (r > 0) rest[s] = r; }
-    if (Object.keys(rest).length) {
-      if (!await ask('Nie wróciło: ' + Object.entries(rest).map(([s, n]) => s + ' × ' + n).join(', ') + '. Te sztuki zostaną usunięte z eventu i nie wrócą do stanu magazynu. Kontynuować?')) return;
-      lost = rest;
-    }
+    if (Object.keys(rest).length && !await ask('Nie wróciło: ' + Object.entries(rest).map(([s, n]) => s + ' × ' + n).join(', ') + '. Te sztuki zostaną usunięte z eventu i nie wrócą do stanu magazynu. Kontynuować?')) return;
   }
-  cur.ev = cur.ev || {};
-  for (const s in d) {
-    if (mode === 'in') cur.sizes[s] = (cur.sizes[s] || 0) + d[s];
-    else if (mode === 'out') cur.sizes[s] -= d[s];
-    else if (mode === 'evout') { cur.sizes[s] -= d[s]; cur.ev[s] = (cur.ev[s] || 0) + d[s]; }
-    else { cur.ev[s] -= d[s]; cur.sizes[s] = (cur.sizes[s] || 0) + d[s]; }
-    if (cur.ev[s] === 0) delete cur.ev[s];
-  }
-  if (mode === 'evin') cur.ev = {};
-  S.log.unshift({ t: Date.now(), name: cur.name, sku: cur.sku, m: mode, d, lost: lost || undefined, note: $('#opNote').value.trim() });
-  S.log = S.log.slice(0, 300);
-  save(); render(); $('#op').close();
+  if (!online()) return;
+  busy = true; $('#opOk').disabled = true;
+  let ok = false;
+  try { ok = await applyMove(cur.id, mode, d, $('#opNote').value.trim()); }
+  catch (x) { await say('Nie udało się zapisać w bazie.'); }
+  busy = false; $('#opOk').disabled = false;
+  if (ok) $('#op').close();
 };
 
 // --- dodawanie / edycja modelu
@@ -326,11 +402,11 @@ function toData(file) {
     fr.onload = () => {
       const im = new Image();
       im.onload = () => {
-        const k = Math.min(1, 520 / Math.max(im.width, im.height));
+        const k = Math.min(1, 420 / Math.max(im.width, im.height));
         const c = document.createElement('canvas');
         c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
         c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-        res(c.toDataURL('image/jpeg', .78));
+        res(c.toDataURL('image/jpeg', .7));
       };
       im.onerror = () => res(null);
       im.src = fr.result;
@@ -342,24 +418,40 @@ $('#pdOk').onclick = async e => {
   e.preventDefault();
   const name = $('#pn').value.trim(), sku = $('#ps').value.trim();
   if (!name || !sku) return say('Podaj nazwę i SKU.');
-  if (S.products.some(p => p !== ed && p.sku.toLowerCase() === sku.toLowerCase())) return say('Model z takim SKU już istnieje.');
-  const sizes = [...new Set($('#pz').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean))];
+  if (S.products.some(p => p.id !== (ed && ed.id) && p.sku.toLowerCase() === sku.toLowerCase())) return say('Model z takim SKU już istnieje.');
+  const sizes = [...new Set($('#pz').value.split(',').map(s => cleanKey(s.trim().toUpperCase())).filter(Boolean))];
   if (!sizes.length) return say('Podaj co najmniej jeden rozmiar.');
   const old = ed ? ed.sizes : {};
   const lost = Object.keys(old).filter(s => !sizes.includes(s) && old[s] > 0);
   if (lost.length && !await ask('Rozmiary ' + lost.join(', ') + ' mają stan większy niż 0 i zostaną usunięte razem ze stanem. Kontynuować?')) return;
-  const ns = {}; sizes.forEach(s => ns[s] = old[s] || 0);
+  if (!online()) return;
   const f = $('#pf').files[0];
   const photo = f ? await toData(f) : null;
-  if (ed) { Object.assign(ed, { name, sku, sizes: ns }); if (photo) ed.photo = photo; }
-  else S.products.push({ id: Date.now().toString(36), name, sku, sizes: ns, photo });
-  save(); render(); $('#pd').close();
+  const id = ed ? ed.id : Date.now().toString(36);
+  try {
+    if (ed) {
+      await R.child('products/' + id).transaction(p => {
+        if (!p) return p;
+        const o = toObj(p.sizes), n = {};
+        sizes.forEach(s => { n[s] = o[s] || 0; });
+        p.name = name; p.sku = sku; p.sizes = n;
+        return p;
+      });
+    } else {
+      const n = {}; sizes.forEach(s => { n[s] = 0; });
+      await R.child('products/' + id).set({ id, name, sku, sizes: n });
+    }
+    if (photo) await R.child('photos/' + id).set(photo);
+  } catch (x) { return say('Nie udało się zapisać w bazie.'); }
+  $('#pd').close();
 };
 $('#pdDel').onclick = async e => {
   e.preventDefault();
-  if (!await ask('Usunąć model ' + ed.name + ' wraz ze stanem?')) return;
-  S.products = S.products.filter(p => p !== ed);
-  save(); render(); $('#pd').close();
+  if (!ed || !await ask('Usunąć model ' + ed.name + ' wraz ze stanem?')) return;
+  if (!online()) return;
+  try { await R.child('products/' + ed.id).remove(); await R.child('photos/' + ed.id).remove(); }
+  catch (x) { return say('Nie udało się usunąć.'); }
+  $('#pd').close();
 };
 
 // --- zdarzenia
@@ -384,24 +476,23 @@ $('#logB').onclick = () => {
 };
 $('#ex').onclick = () => {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ products: S.products, log: S.log })], { type: 'application/json' }));
   a.download = 'magazyn-' + new Date().toISOString().slice(0, 10) + '.json';
   a.click();
 };
 $('#im').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
-  try {
-    const d = JSON.parse(await f.text());
-    if (!Array.isArray(d.products)) throw 0;
-    if (!await ask('Zastąpić obecne dane danymi z pliku?')) return;
-    S = { products: d.products, log: d.log || [] };
-    save(); render();
-  } catch (x) { say('To nie jest poprawny plik kopii.'); }
+  let d = null;
+  try { d = JSON.parse(await f.text()); if (!Array.isArray(d.products)) d = null; } catch (x) { d = null; }
   e.target.value = '';
+  if (!d) return say('To nie jest poprawny plik kopii.');
+  if (!online()) return;
+  if (!await ask('Zastąpić dane w bazie danymi z pliku? Zmiana będzie widoczna na wszystkich urządzeniach.')) return;
+  try { await uploadAll(d.products, d.log || []); } catch (x) { say('Nie udało się wgrać danych do bazy.'); }
 };
 
 // --- hasło (zabezpieczenie na poziomie strony, nie prawdziwa ochrona danych)
-const PW = '7659e2ba512870bb72ecfe4b5fa6b149e83db5269ae90e5106605714668fa7ab';
+const PW = ['d9c5d19b674ee1951dd08f33bb2389872a691e7333e7f600f59d9bfaf33e2b2c', 'ce7daa1ff98e5e1261f317227b1c7680d5b119a3c733c8e3936395de66287a80'];
 async function sha(t) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -409,22 +500,21 @@ async function sha(t) {
 function lockUI(on) {
   $('#lock').hidden = !on;
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
-  if (on) $('#lpw').focus();
+  if (on) $('#llg').focus();
 }
-let unlocked = false;
 try { unlocked = sessionStorage.getItem('mag-ok') === '1'; } catch (e) {}
 lockUI(!unlocked);
-if (unlocked) render();
+if (unlocked) rr();
 $('#lf').onsubmit = async e => {
   e.preventDefault();
   let h = '';
-  try { h = await sha($('#lpw').value); } catch (x) {}
-  if (h === PW) {
+  try { h = await sha($('#llg').value.trim().toLowerCase() + ':' + $('#lpw').value); } catch (x) {}
+  if (PW.includes(h)) {
     try { sessionStorage.setItem('mag-ok', '1'); } catch (x) {}
-    $('#lpw').value = ''; $('#lerr').textContent = '';
-    lockUI(false); render();
+    $('#llg').value = ''; $('#lpw').value = ''; $('#lerr').textContent = '';
+    unlocked = true; lockUI(false); rr();
   } else {
-    $('#lerr').textContent = 'Nieprawidłowe hasło.';
+    $('#lerr').textContent = 'Nieprawidłowy login lub hasło.';
     $('#lpw').select();
   }
 };
