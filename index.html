@@ -178,7 +178,10 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sum = p => Object.values(p.sizes).reduce((a, b) => a + b, 0);
 const evSum = p => Object.values(p.ev || {}).reduce((a, b) => a + b, 0);
-const chipKeys = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])];
+const ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '3XL', '4XL', '5XL'];
+const sizeRank = k => { const i = ORDER.indexOf(k); if (i >= 0) return i; const n = parseFloat(k); return isNaN(n) ? 1000 : 100 + n; };
+const bySize = (a, b) => sizeRank(a) - sizeRank(b) || a.localeCompare(b);
+const chipKeys = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 function dlg(text, confirmMode) {
   return new Promise(res => {
     const d = $('#msg');
@@ -302,7 +305,7 @@ const MODES = {
 const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu' };
 const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev' };
 let cur = null, mode = 'in';
-const sizesOf = p => [...new Set([...SIZES, ...Object.keys(p.sizes), ...Object.keys(p.ev || {})])];
+const sizesOf = p => [...new Set([...SIZES, ...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 function openOp(m, id) {
   mode = m;
   $('#opT').textContent = MODES[m].t;
@@ -409,7 +412,7 @@ function openPd(id) {
   $('#pdT').textContent = ed ? 'Edytuj model' : 'Nowy model';
   $('#pn').value = ed ? ed.name : '';
   $('#ps').value = ed ? ed.sku : '';
-  $('#pz').value = ed ? Object.keys(ed.sizes).join(', ') : 'XS, S, M, L, XL, XXL';
+  $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : 'XS, S, M, L, XL, XXL';
   $('#pf').value = '';
   $('#pdDel').style.display = ed ? '' : 'none';
   $('#pd').showModal();
@@ -492,9 +495,15 @@ $('#logB').onclick = () => {
     || '<p class="mu">Brak zapisanych zmian.</p>';
   $('#log').showModal();
 };
-$('#ex').onclick = () => {
+$('#ex').onclick = async () => {
+  if (!online()) return;
+  let log;
+  try {
+    const v = (await R.child('log').once('value')).val() || {};
+    log = Object.keys(v).sort().reverse().map(k => v[k]);
+  } catch (x) { return say('Nie udało się pobrać całej historii z bazy. Spróbuj ponownie.'); }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify({ products: S.products, log: S.log })], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ products: S.products, log })], { type: 'application/json' }));
   a.download = 'magazyn-' + new Date().toISOString().slice(0, 10) + '.json';
   a.click();
 };
