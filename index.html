@@ -21,6 +21,7 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .bar input[type=search]{flex:1 1 200px}
 input,button,.btn{font:inherit;color:inherit}
+select{font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--bd);border-radius:6px;background:var(--card);width:100%}
 input{padding:9px 11px;border:1px solid var(--bd);border-radius:6px;background:var(--card);width:100%}
 button,.btn{padding:9px 13px;border:1px solid var(--bd);border-radius:6px;background:var(--card);cursor:pointer;display:inline-block}
 button:hover,.btn:hover{border-color:var(--ac)}
@@ -140,6 +141,13 @@ footer{margin-top:20px;font-size:13px}
   <h2 id="pdT"></h2>
   <label class="f"><small>Nazwa</small><input id="pn" maxlength="80"></label>
   <label class="f"><small>SKU</small><input id="ps" maxlength="40"></label>
+  <label class="f"><small>Rodzaj</small>
+    <select id="pt">
+      <option value="clothes">Ubranie (XS–XXL)</option>
+      <option value="one">One size (czapki, dodatki)</option>
+      <option value="socks">Skarpetki (35-38, 39-42, 43-46)</option>
+      <option value="custom">Własne rozmiary</option>
+    </select></label>
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
@@ -305,7 +313,7 @@ const MODES = {
 const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu' };
 const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev' };
 let cur = null, mode = 'in';
-const sizesOf = p => [...new Set([...SIZES, ...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
+const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 function openOp(m, id) {
   mode = m;
   $('#opT').textContent = MODES[m].t;
@@ -406,13 +414,19 @@ $('#opOk').onclick = async e => {
 };
 
 // --- dodawanie / edycja modelu
+const PRESETS = { clothes: 'XS, S, M, L, XL, XXL', one: 'ONE SIZE', socks: '35-38, 39-42, 43-46' };
+const parseSizes = t => t.split(',').map(x => x.trim().toUpperCase()).filter(Boolean).join(', ');
+const presetOf = t => Object.keys(PRESETS).find(k => PRESETS[k] === parseSizes(t)) || 'custom';
+$('#pt').onchange = () => { const v = $('#pt').value; if (PRESETS[v]) $('#pz').value = PRESETS[v]; else $('#pz').focus(); };
+$('#pz').oninput = () => { $('#pt').value = presetOf($('#pz').value); };
 let ed = null;
 function openPd(id) {
   ed = id ? S.products.find(p => p.id === id) : null;
   $('#pdT').textContent = ed ? 'Edytuj model' : 'Nowy model';
   $('#pn').value = ed ? ed.name : '';
   $('#ps').value = ed ? ed.sku : '';
-  $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : 'XS, S, M, L, XL, XXL';
+  $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : PRESETS.clothes;
+  $('#pt').value = presetOf($('#pz').value);
   $('#pf').value = '';
   $('#pdDel').style.display = ed ? '' : 'none';
   $('#pd').showModal();
