@@ -220,10 +220,23 @@ let P = {}, PH = {}, LG = {};
 const toObj = o => Array.isArray(o) ? Object.fromEntries(o.map((v, i) => [String(i), v]).filter(x => x[1] != null)) : (o || {});
 const cleanKey = k => String(k).replace(/[.$#\[\]\/]/g, '');
 const setConn = t => { $('#conn').textContent = t; };
+// dane z bazy traktujemy jak niezaufane: wszystko jest oczyszczane, zanim trafi do widoku
+const num = v => Math.max(0, Math.floor(Number(v)) || 0);
+const txt = (v, n) => String(v == null ? '' : v).slice(0, n);
+const okId = id => /^[A-Za-z0-9_-]{1,40}$/.test(id);
+const safePhoto = u => (typeof u === 'string' && u.length < 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(u)) ? u : null;
+const numMap = o => Object.fromEntries(Object.entries(toObj(o)).map(([k, v]) => [txt(k, 30), num(v)]));
+function cleanLogEntry(l) {
+  const o = { t: Number(l.t) || 0, name: txt(l.name, 120), sku: txt(l.sku, 60), m: LOGT[l.m] ? l.m : 'in', d: numMap(l.d), by: txt(l.by, 40), note: txt(l.note, 200) };
+  const lost = numMap(l.lost);
+  if (Object.keys(lost).length) o.lost = lost;
+  return o;
+}
 function rebuild() {
-  S.products = Object.values(P).filter(p => p && p.name).map(p => ({ ...p, sizes: toObj(p.sizes), ev: toObj(p.ev), photo: PH[p.id] || null }))
+  S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
+    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-  S.log = Object.keys(LG).sort().reverse().map(k => LG[k]);
+  S.log = Object.keys(LG).sort().reverse().map(k => cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}));
   if (unlocked) rr();
 }
 function rr() { render(); maybeMigrate(); }
@@ -235,14 +248,14 @@ function online() {
 async function uploadAll(prods, logs) {
   const pr = {}, ph = {}, lg = {};
   prods.forEach(p => {
-    const id = String(p.id || R.push().key);
+    let id = String(p.id || ''); if (!okId(id)) id = R.push().key;
     const sz = o => Object.fromEntries(Object.entries(toObj(o)).map(([k, v]) => [cleanKey(k), Math.max(0, parseInt(v) || 0)]).filter(x => x[0]));
-    pr[id] = { id, name: String(p.name), sku: String(p.sku), sizes: sz(p.sizes) };
+    pr[id] = { id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: sz(p.sizes) };
     const ev = sz(p.ev); Object.keys(ev).forEach(k => { if (!ev[k]) delete ev[k]; });
     if (Object.keys(ev).length) pr[id].ev = ev;
-    if (p.photo) ph[id] = p.photo;
+    const ph1 = safePhoto(p.photo); if (ph1) ph[id] = ph1;
   });
-  logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = JSON.parse(JSON.stringify(l)); });
+  logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   await R.update({ products: pr, photos: ph, log: lg });
 }
 async function maybeMigrate() {
@@ -284,8 +297,8 @@ function render() {
   const evT = S.products.reduce((a, p) => a + evSum(p), 0);
   $('#tot').textContent = S.products.length + ' modeli, ' + S.products.reduce((a, p) => a + sum(p), 0) + ' szt. w magazynie' + (evT ? ', ' + evT + ' szt. na evencie' : '');
   $('#grid').innerHTML = list.map(p => `
-    <article class="card" data-id="${p.id}">
-      ${p.photo ? `<img class="ph" src="${p.photo}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
+    <article class="card" data-id="${esc(p.id)}">
+      ${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
       <div class="cb">
         <div class="top">
           <div><div class="nm">${esc(p.name)}</div><div class="sku">SKU ${esc(p.sku)}</div></div>
@@ -336,8 +349,8 @@ function showPick() {
 function fillList() {
   const q = $('#opQ').value.trim().toLowerCase();
   const l = S.products.filter(p => (mode !== 'evin' || evSum(p) > 0) && (p.name + ' ' + p.sku).toLowerCase().includes(q));
-  $('#opList').innerHTML = l.map(p => `<button type="button" class="pi" data-id="${p.id}">
-    ${p.photo ? `<img src="${p.photo}" alt="">` : '<i></i>'}
+  $('#opList').innerHTML = l.map(p => `<button type="button" class="pi" data-id="${esc(p.id)}">
+    ${p.photo ? `<img src="${esc(p.photo)}" alt="">` : '<i></i>'}
     <span>${esc(p.name)}<small>SKU ${esc(p.sku)}</small></span><b>${mode === 'evin' ? evSum(p) : sum(p)}</b></button>`).join('')
     || '<p class="mu" style="padding:10px;margin:0">' + (mode === 'evin' && !S.products.some(p => evSum(p) > 0) ? 'Nic nie jest teraz na evencie.' : S.products.length ? 'Nic nie pasuje do wpisanego tekstu.' : 'Najpierw dodaj model ubrania.') + '</p>';
 }
