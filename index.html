@@ -150,6 +150,48 @@ dialog[open]{opacity:1;transform:none}
 .toast.out{animation:toastOut .25s ease-in forwards}
 @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(6px)}}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tabs button{flex:1;padding:10px}
+.tabs button.on{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:600}
+.st-ctl{align-items:center;flex-wrap:wrap}
+.seg{display:flex;flex:1 1 100%;border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:var(--card)}
+.seg button{flex:1;border:0;border-radius:0;background:transparent;box-shadow:none}
+.seg button.on{background:var(--ac);color:var(--acx);font-weight:600}
+.st-ctl select{flex:1 1 100%;min-width:0}
+.sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--mu);border-radius:8px;padding:10px 12px;animation:rise .4s cubic-bezier(.2,.8,.2,1) both}
+.tile b{font-size:22px;display:block;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile small{color:var(--mu)}
+.tile.cin{border-left-color:var(--in)}.tile.cout{border-left-color:var(--rd)}.tile.cev{border-left-color:var(--ev)}.tile.cevi{border-left-color:#6aa9ff}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:14px}
+.chart{display:flex;align-items:flex-end;gap:6px;height:150px;overflow-x:auto}
+.cg{flex:1 0 36px;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.cbars{flex:1;display:flex;align-items:flex-end;gap:2px;width:100%;justify-content:center}
+.cbars i{display:block;width:6px;border-radius:3px 3px 0 0;transform-origin:bottom}
+.chart.ga .cbars i{animation:grow .55s cubic-bezier(.2,.8,.2,1) both}
+.cg small{font-size:10px;color:var(--mu);white-space:nowrap}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12px;color:var(--mu);margin-top:10px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.bin{background:var(--in)}.bout{background:var(--rd)}.bev{background:var(--ev)}.bevi{background:#6aa9ff}
+h3.sh{font-size:15px;margin:18px 0 8px}
+.trow{display:grid;grid-template-columns:minmax(84px,1.6fr) repeat(4,minmax(44px,1fr));gap:6px;padding:9px 10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
+.trow>span:not(:first-child){text-align:center}
+.thead{color:var(--mu);font-size:12px;background:var(--card);border:1px solid var(--bd);border-radius:8px 8px 0 0}
+.tbl{background:var(--card);border:1px solid var(--bd);border-top:0;border-radius:0 0 8px 8px}
+.tbl .trow,.tbl summary.trow{border-bottom:1px solid var(--bd)}
+.tbl>:last-child{border-bottom:0}
+.tbl details>summary{list-style:none;cursor:pointer}
+.tbl summary::-webkit-details-marker{display:none}
+.tbl summary:hover{background:var(--bg)}
+.chev{display:inline-block;width:12px;color:var(--mu);transition:transform .2s}
+details[open]>summary .chev{transform:rotate(90deg)}
+.tbl .sub{background:var(--bg);border-bottom:1px solid var(--bd)}
+.tbl .sub .trow{border-bottom:1px solid var(--bd);padding-left:22px;font-size:13px}
+.tbl .sub .trow:last-child{border-bottom:0}
+.trow small{color:var(--mu);font-size:11px}
+.trow .sk{display:block}
+.c-in{color:var(--in)}.c-out{color:var(--rd)}.c-ev{color:var(--ev)}
+@keyframes grow{from{transform:scaleY(0)}to{transform:none}}
 </style>
 </head>
 <body>
@@ -158,6 +200,12 @@ dialog[open]{opacity:1;transform:none}
   <div class="hr"><span id="who"></span><span id="tot" hidden><b id="cM">0</b> modeli, <b id="cS">0</b> szt. w magazynie<span id="cEw" hidden>, <b id="cE">0</b> szt. na evencie</span></span></div>
 </header>
 
+<nav class="tabs">
+  <button class="on" data-v="wh">Magazyn</button>
+  <button data-v="st">Statystyki</button>
+</nav>
+
+<section id="vWh">
 <div class="bar big">
   <button class="g" id="bIn">Dostawa</button>
   <button class="r" id="bOut">Wysyłka na Mszczonowską</button>
@@ -173,6 +221,25 @@ dialog[open]{opacity:1;transform:none}
 </div>
 
 <div class="grid" id="grid"></div>
+</section>
+
+<section id="vSt" hidden>
+  <div class="bar st-ctl">
+    <div class="seg" id="stSeg"><button data-p="day" class="on">Dzień</button><button data-p="week">Tydzień</button><button data-p="month">Miesiąc</button></div>
+    <select id="stP" aria-label="Produkt"><option value="">Wszystkie produkty</option></select>
+  </div>
+  <div class="sumrow" id="stSum"></div>
+  <div class="panel">
+    <div class="chart" id="stChart"></div>
+    <div class="legend"><span><i class="bin"></i>Dostawy</span><span><i class="bout"></i>Wysyłki na Mszczonowską</span><span><i class="bev"></i>Wyjazdy na event</span><span><i class="bevi"></i>Przyjazdy z eventu</span></div>
+  </div>
+  <h3 class="sh">Według okresu <small class="mu">(sztuki, w nawiasie liczba operacji; kliknij okres, by zobaczyć produkty)</small></h3>
+  <div class="trow thead"><span>Okres</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
+  <div class="tbl" id="stPer"></div>
+  <h3 class="sh">Według produktu <small class="mu" id="stRange"></small></h3>
+  <div class="trow thead"><span>Produkt</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
+  <div class="tbl" id="stProd"></div>
+</section>
 
 <footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj” zapisuje kopię zapasową (JSON) albo zestawienie do Excela.</footer>
 
@@ -418,7 +485,7 @@ function startDb() {
   listening = true; logQ = R.child('log').limitToLast(100);
   R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
   R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
-  logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); }, () => {});
+  logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); statsRefresh(); }, () => {});
 }
 function stopDb() {
   if (!R) return;
@@ -846,6 +913,110 @@ $('#im').onchange = async e => {
   try { await uploadAll(d.products, d.log || []); } catch (x) { say('Nie udało się wgrać danych do bazy.'); }
 };
 
+
+// --- statystyki (podstrona #statystyki)
+let view = 'wh', per = 'day', stFilter = '', stRecs = null, stTimer = null, stAnim = true;
+const STM = ['in', 'out', 'evout', 'evin'];
+const DAYN = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'], MONN = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+const mk = () => ({ in: { q: 0, o: new Set() }, out: { q: 0, o: new Set() }, evout: { q: 0, o: new Set() }, evin: { q: 0, o: new Set() } });
+const fmtDM = t => { const d = new Date(t); return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1); };
+function bucketOf(t, p) {
+  const d = new Date(t), x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (p === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  if (p === 'month') x.setDate(1);
+  return x.getTime();
+}
+function bucketList(p) {
+  const n = p === 'day' ? 30 : 12, now = new Date(bucketOf(Date.now(), p)), out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    if (p === 'day') d.setDate(d.getDate() - i); else if (p === 'week') d.setDate(d.getDate() - 7 * i); else d.setMonth(d.getMonth() - i);
+    out.push(d.getTime());
+  }
+  return out;
+}
+function bLabel(t, p, short) {
+  const d = new Date(t);
+  if (p === 'day') return short ? String(d.getDate()) : fmtDM(t) + ' ' + DAYN[d.getDay()];
+  if (p === 'week') { const e = new Date(t); e.setDate(e.getDate() + 6); return short ? fmtDM(t) : fmtDM(t) + '–' + fmtDM(e.getTime()); }
+  return short ? MONN[d.getMonth()] : MONN[d.getMonth()] + ' ' + d.getFullYear();
+}
+function toRecs(log) {
+  const out = [];
+  log.map(cleanLogEntry).forEach((l, i) => {
+    if (!STM.includes(l.m)) return;
+    const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
+    its.forEach(it => {
+      const q = Object.values(it.d || {}).reduce((a, b) => a + b, 0);
+      if (q > 0) out.push({ id: i, t: l.t, m: l.m, sku: it.sku || it.name, name: it.name, q });
+    });
+  });
+  return out;
+}
+function aggregate(recs, p) {
+  const keys = bucketList(p), idx = new Map(keys.map((k, i) => [k, i]));
+  const B = keys.map(k => ({ t: k, tot: mk(), prod: new Map() })), T = mk(), P = new Map();
+  const add = (o, r) => { o[r.m].q += r.q; o[r.m].o.add(r.id); };
+  recs.forEach(r => {
+    const bi = idx.get(bucketOf(r.t, p));
+    if (bi === undefined) return;
+    add(B[bi].tot, r); add(T, r);
+    if (!B[bi].prod.has(r.sku)) B[bi].prod.set(r.sku, { name: r.name, ...mk() });
+    add(B[bi].prod.get(r.sku), r);
+    if (!P.has(r.sku)) P.set(r.sku, { name: r.name, ...mk() });
+    add(P.get(r.sku), r);
+  });
+  return { B, T, P };
+}
+const cell = x => x.q ? '<span><b>' + x.q + '</b> <small>(' + x.o.size + ')</small></span>' : '<span class="mu">–</span>';
+const rowCells = o => cell(o.in) + cell(o.out) + cell(o.evout) + cell(o.evin);
+const rowSum = o => STM.reduce((a, m) => a + o[m].q, 0);
+function renderStats() {
+  if (!stRecs) return;
+  const names = new Map(); stRecs.forEach(r => names.set(r.sku, r.name));
+  if (stFilter && !names.has(stFilter)) stFilter = '';
+  $('#stP').innerHTML = '<option value="">Wszystkie produkty</option>' + [...names].sort((a, b) => a[1].localeCompare(b[1], 'pl'))
+    .map(([k, n]) => `<option value="${esc(k)}"${k === stFilter ? ' selected' : ''}>${esc(n)} (${esc(k)})</option>`).join('');
+  const A = aggregate(stFilter ? stRecs.filter(r => r.sku === stFilter) : stRecs, per);
+  const tiles = [['cin', 'Dostawy', 'in'], ['cout', 'Wysyłki na Mszczonowską', 'out'], ['cev', 'Wyjazdy na event', 'evout'], ['cevi', 'Przyjazdy z eventu', 'evin']];
+  $('#stSum').innerHTML = tiles.map(([c, l, m], i) => `<div class="tile ${c}" style="animation-delay:${i * 50}ms"><small>${l}</small><b>${A.T[m].q} szt.</b><small>${A.T[m].o.size} ${A.T[m].o.size === 1 ? 'operacja' : 'operacji'}</small></div>`).join('');
+  const mx = Math.max(1, ...A.B.flatMap(b => STM.map(m => b.tot[m].q)));
+  const cls = ['bin', 'bout', 'bev', 'bevi'];
+  $('#stChart').className = 'chart' + (stAnim ? ' ga' : '');
+  $('#stChart').innerHTML = A.B.map(b => `<div class="cg" title="${esc(bLabel(b.t, per))}: dostawy ${b.tot.in.q}, wysyłki ${b.tot.out.q}, na event ${b.tot.evout.q}, z eventu ${b.tot.evin.q}"><div class="cbars">${STM.map((m, i) => `<i class="${cls[i]}" style="height:${b.tot[m].q ? Math.max(3, Math.round(b.tot[m].q / mx * 100)) : 0}%"></i>`).join('')}</div><small>${esc(bLabel(b.t, per, true))}</small></div>`).join('');
+  stAnim = false;
+  $('#stChart').scrollLeft = $('#stChart').scrollWidth;
+  const act = A.B.filter(b => rowSum(b.tot) > 0).reverse();
+  $('#stPer').innerHTML = act.map(b => `<details><summary class="trow"><span><span class="chev">▸</span>${esc(bLabel(b.t, per))}</span>${rowCells(b.tot)}</summary><div class="sub">${[...b.prod].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${esc(o.name)}<small class="sk">${esc(k)}</small></span>${rowCells(o)}</div>`).join('')}</div></details>`).join('')
+    || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
+  $('#stRange').textContent = '(' + (per === 'day' ? 'ostatnie 30 dni' : per === 'week' ? 'ostatnie 12 tygodni' : 'ostatnie 12 miesięcy') + ')';
+  $('#stProd').innerHTML = [...A.P].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${esc(o.name)}<small class="sk">${esc(k)}</small></span>${rowCells(o)}</div>`).join('')
+    || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
+}
+async function loadStats() {
+  if (!unlocked || !R) return;
+  const raw = await fullLog(); if (!raw) return;
+  stRecs = toRecs(raw); renderStats();
+}
+function statsRefresh() { if (view === 'st' && unlocked) { clearTimeout(stTimer); stTimer = setTimeout(loadStats, 600); } }
+function resetStats() { stRecs = null; ['#stSum', '#stChart', '#stPer', '#stProd'].forEach(q => { $(q).innerHTML = ''; }); }
+const viewFromHash = () => location.hash === '#statystyki' ? 'st' : 'wh';
+function showView(v) {
+  if (!unlocked) return;
+  view = v; $('#vWh').hidden = v !== 'wh'; $('#vSt').hidden = v !== 'st';
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  if (v === 'st') { stAnim = true; if (stRecs) renderStats(); else $('#stPer').innerHTML = '<p class="mu" style="padding:12px;margin:0">Ładowanie…</p>'; loadStats(); }
+}
+window.addEventListener('hashchange', () => showView(viewFromHash()));
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) location.hash = b.dataset.v === 'st' ? '#statystyki' : '#magazyn'; };
+$('#stSeg').onclick = e => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  per = b.dataset.p; stAnim = true;
+  $('#stSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderStats();
+};
+$('#stP').onchange = () => { stFilter = $('#stP').value; stAnim = true; renderStats(); };
+
 // --- logowanie przez Firebase Authentication
 const DOMAIN = '@dzik-w11.app';
 function lockUI(on) {
@@ -867,9 +1038,9 @@ if (auth) {
   auth.onAuthStateChanged(u => {
     if (u) {
       user = (u.email || '').split('@')[0];
-      unlocked = true; showWho(); lockUI(false); startDb(); rr();
+      unlocked = true; showWho(); lockUI(false); startDb(); rr(); showView(viewFromHash());
     } else {
-      user = null; unlocked = false; showWho(); stopDb(); cardEls.clear();
+      user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true;
       $('#grid').innerHTML = ''; $('#tot').hidden = true; ['cM', 'cS', 'cE'].forEach(id => { $('#' + id).__v = undefined; }); lockUI(true);
     }
   });
