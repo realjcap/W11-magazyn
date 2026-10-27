@@ -85,6 +85,37 @@ footer{margin-top:20px;font-size:13px}
 #lf{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:20px;width:min(340px,100%);display:grid;gap:12px}
 #lf h2{margin:0;font-size:17px}
 #lerr{color:var(--rd);font-size:14px;min-height:1.2em}
+
+/* animacje (subtelne, wyłączane przy ustawieniu "ogranicz ruch") */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes drop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes bump{0%{box-shadow:0 0 0 0 rgba(21,101,216,.55);transform:scale(1.12)}100%{box-shadow:0 0 0 9px rgba(21,101,216,0);transform:none}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(21,101,216,0)}50%{box-shadow:0 0 0 3px rgba(21,101,216,.2)}}
+header{animation:drop .45s cubic-bezier(.2,.8,.2,1) both}
+.bar{animation:fade .5s .12s ease-out both}
+.card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.12);border-color:var(--ac)}
+.card.fresh{animation:rise .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*45ms)}
+.card.fresh img.ph{animation:fade .6s ease-out both}
+.sz span{transition:background-color .3s,border-color .3s,color .3s}
+.sz span.bump{animation:bump .9s ease-out}
+.sz .e{animation:glow 3.2s ease-in-out infinite}
+button,.btn{transition:transform .12s ease,background-color .15s,border-color .15s,filter .15s,box-shadow .15s}
+button:hover:not(:disabled),.btn:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.14)}
+button:active:not(:disabled){transform:scale(.97);box-shadow:none}
+.pi:hover,.pi:active{transform:none;box-shadow:none}
+input,select{transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(21,101,216,.18);outline:none}
+dialog[open]{animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+dialog[open]::backdrop{animation:fade .22s ease-out}
+#lock{animation:fade .3s ease-out}
+#lf{animation:pop .3s .05s cubic-bezier(.2,.8,.2,1) both}
+#who a{transition:opacity .15s}
+#who a:hover{opacity:.75}
+.lg{animation:fade .3s ease-out}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -187,6 +218,7 @@ const cap = t => t ? t[0].toUpperCase() + t.slice(1) : '';
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sum = p => Object.values(p.sizes).reduce((a, b) => a + b, 0);
+const cardEls = new Map();
 const evSum = p => Object.values(p.ev || {}).reduce((a, b) => a + b, 0);
 const ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '3XL', '4XL', '5XL'];
 const sizeRank = k => { const i = ORDER.indexOf(k); if (i >= 0) return i; const n = parseFloat(k); return isNaN(n) ? 1000 : 100 + n; };
@@ -291,14 +323,8 @@ if (R) {
   db.ref('.info/connected').on('value', s => { connected = !!s.val(); setConn(connected ? 'online, zmiany na żywo' : 'brak połączenia'); });
 }
 
-function render() {
-  const q = $('#q').value.trim().toLowerCase();
-  const list = S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q));
-  const evT = S.products.reduce((a, p) => a + evSum(p), 0);
-  $('#tot').textContent = S.products.length + ' modeli, ' + S.products.reduce((a, p) => a + sum(p), 0) + ' szt. w magazynie' + (evT ? ', ' + evT + ' szt. na evencie' : '');
-  $('#grid').innerHTML = list.map(p => `
-    <article class="card" data-id="${esc(p.id)}">
-      ${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
+function cardInner(p) {
+  return `${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
       <div class="cb">
         <div class="top">
           <div><div class="nm">${esc(p.name)}</div><div class="sku">SKU ${esc(p.sku)}</div></div>
@@ -306,15 +332,52 @@ function render() {
         </div>
         <div class="sz">${chipKeys(p).map(s => {
           const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0;
-          return `<span class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}</span>`;
+          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}</span>`;
         }).join('')}</div>
         <div class="act">
           <button class="g" data-a="in">Dostawa</button>
           <button class="r" data-a="out">Wysyłka</button>
           <button class="e" data-a="edit" aria-label="Edytuj">Edytuj</button>
         </div>
-      </div>
-    </article>`).join('') || '<p class="mu">' + (S.products.length ? 'Nic nie pasuje do wyszukiwania.' : 'Magazyn jest pusty. Kliknij „Dodaj model”, żeby dodać pierwsze ubranie.') + '</p>';
+      </div>`;
+}
+function render() {
+  const q = $('#q').value.trim().toLowerCase();
+  const list = S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q));
+  const evT = S.products.reduce((a, p) => a + evSum(p), 0);
+  $('#tot').textContent = S.products.length + ' modeli, ' + S.products.reduce((a, p) => a + sum(p), 0) + ' szt. w magazynie' + (evT ? ', ' + evT + ' szt. na evencie' : '');
+  const grid = $('#grid');
+  if (!list.length) {
+    cardEls.clear();
+    grid.innerHTML = '<p class="mu">' + (S.products.length ? 'Nic nie pasuje do wyszukiwania.' : 'Magazyn jest pusty. Kliknij „Dodaj model”, żeby dodać pierwsze ubranie.') + '</p>';
+    return;
+  }
+  grid.querySelectorAll(':scope > p').forEach(x => x.remove());
+  // karty są stałymi elementami: zmienia się tylko ich wnętrze, dzięki czemu animacje nie startują od nowa przy każdej zmianie
+  const keep = new Set();
+  let prev = null;
+  list.forEach((p, i) => {
+    keep.add(p.id);
+    const html = cardInner(p), nv = {};
+    chipKeys(p).forEach(s => { nv[s] = (p.sizes[s] || 0) + ':' + ((p.ev && p.ev[s]) || 0); });
+    let el = cardEls.get(p.id);
+    if (!el) {
+      el = document.createElement('article');
+      el.className = 'card fresh';
+      el.style.setProperty('--i', Math.min(i, 10));
+      el.dataset.id = p.id;
+      el.innerHTML = html; el.__h = html; el.__n = nv;
+      cardEls.set(p.id, el);
+    } else if (el.__h !== html) {
+      const old = el.__n;
+      el.innerHTML = html; el.__h = html; el.__n = nv;
+      el.querySelectorAll('.sz span').forEach(sp => { const k = sp.dataset.s; if (old[k] !== undefined && old[k] !== nv[k]) sp.classList.add('bump'); });
+    }
+    const want = prev ? prev.nextSibling : grid.firstChild;
+    if (el !== want) grid.insertBefore(el, want);
+    prev = el;
+  });
+  for (const [id, el] of cardEls) if (!keep.has(id)) { el.remove(); cardEls.delete(id); }
 }
 
 // --- dostawa / wysyłka na Mszczonowską
@@ -325,8 +388,8 @@ const MODES = {
   evout: { t: 'Wyjazd na event', c: 'b', ok: 'Wyślij na event' },
   evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' }
 };
-const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu' };
-const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev' };
+const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model' };
+const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out' };
 let cur = null, mode = 'in';
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 function openOp(m, id) {
@@ -377,6 +440,12 @@ $('#opList').onclick = e => {
   if (b) pickItem(S.products.find(p => p.id === b.dataset.id));
 };
 $('#opBack').onclick = () => { showPick(); $('#opQ').focus(); };
+function logEv(m, name, sku, note) {
+  const e = { t: firebase.database.ServerValue.TIMESTAMP, name, sku, m };
+  if (user) e.by = user;
+  if (note) e.note = note;
+  return R.child('log').push(e);
+}
 async function applyMove(id, m, d, note) {
   let err = null, lost = null, name = '', sku = '';
   const res = await R.child('products/' + id).transaction(p => {
@@ -490,6 +559,7 @@ $('#pdOk').onclick = async e => {
     } else {
       const n = {}; sizes.forEach(s => { n[s] = 0; });
       await R.child('products/' + id).set({ id, name, sku, sizes: n });
+      await logEv('add', name, sku, 'rozmiary: ' + sizes.join(', '));
     }
     if (photo) await R.child('photos/' + id).set(photo);
   } catch (x) { return say('Nie udało się zapisać w bazie.'); }
@@ -499,7 +569,12 @@ $('#pdDel').onclick = async e => {
   e.preventDefault();
   if (!ed || !await ask('Usunąć model ' + ed.name + ' wraz ze stanem?')) return;
   if (!online()) return;
-  try { await R.child('products/' + ed.id).remove(); await R.child('photos/' + ed.id).remove(); }
+  const gone = ed;
+  const st = [...Object.entries(gone.sizes).filter(([, n]) => n > 0).map(([k, n]) => k + ' × ' + n), ...Object.entries(gone.ev || {}).filter(([, n]) => n > 0).map(([k, n]) => k + ' × ' + n + ' (event)')];
+  try {
+    await R.child('products/' + gone.id).remove(); await R.child('photos/' + gone.id).remove();
+    await logEv('del', gone.name, gone.sku, 'stan w chwili usunięcia: ' + (st.join(', ') || 'brak'));
+  }
   catch (x) { return say('Nie udało się usunąć.'); }
   $('#pd').close();
 };
@@ -520,7 +595,7 @@ $('#q').oninput = render;
 $('#logB').onclick = () => {
   $('#logL').innerHTML = S.log.map(l => `<div class="lg">
     <b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
-    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}: ${Object.entries(l.d).map(([s, n]) => esc(s) + ' × ' + n).join(', ')}${l.lost ? ', nie wróciło: ' + Object.entries(l.lost).map(([s, n]) => esc(s) + ' × ' + n).join(', ') : ''}${l.note ? ', ' + esc(l.note) : ''}</small></div>`).join('')
+    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${[Object.entries(l.d).map(([s, n]) => esc(s) + ' × ' + n).join(', '), l.lost ? 'nie wróciło: ' + Object.entries(l.lost).map(([s, n]) => esc(s) + ' × ' + n).join(', ') : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('')}</small></div>`).join('')
     || '<p class="mu">Brak zapisanych zmian.</p>';
   $('#log').showModal();
 };
@@ -570,7 +645,7 @@ if (auth) {
       user = (u.email || '').split('@')[0];
       unlocked = true; showWho(); lockUI(false); startDb(); rr();
     } else {
-      user = null; unlocked = false; showWho(); stopDb();
+      user = null; unlocked = false; showWho(); stopDb(); cardEls.clear();
       $('#grid').innerHTML = ''; $('#tot').textContent = ''; lockUI(true);
     }
   });
