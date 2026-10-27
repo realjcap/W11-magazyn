@@ -192,6 +192,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .trow .sk{display:block}
 .c-in{color:var(--in)}.c-out{color:var(--rd)}.c-ev{color:var(--ev)}
 @keyframes grow{from{transform:scaleY(0)}to{transform:none}}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin:8px 0}
+.chk input{width:auto}
+.danger{border-color:var(--rd)}
+.danger p{margin:4px 0 10px;font-size:13px;color:var(--mu)}
 </style>
 </head>
 <body>
@@ -239,6 +243,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <h3 class="sh">Według produktu <small class="mu" id="stRange"></small></h3>
   <div class="trow thead"><span>Produkt</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
   <div class="tbl" id="stProd"></div>
+  <div class="panel danger" id="rstBox" hidden style="margin-top:18px">
+    <b>Strefa ryzyka</b>
+    <p>Usuwa całą historię operacji, a razem z nią statystyki (są z niej liczone). Produkty i stany magazynowe zostają bez zmian. Dostępne tylko dla konta delma.</p>
+    <button class="r" id="rstOpen">Wyzeruj statystyki i historię…</button>
+  </div>
 </section>
 
 <footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj” zapisuje kopię zapasową (JSON) albo zestawienie do Excela.</footer>
@@ -267,6 +276,14 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <dialog id="msg">
   <p id="msgT" style="margin:0 0 4px"></p>
   <form method="dialog" class="btns"><button value="no" id="msgNo">Anuluj</button><button class="p" value="yes">OK</button></form>
+</dialog>
+
+<dialog id="rst">
+  <h2>Wyzeruj statystyki i historię</h2>
+  <p style="margin:0 0 10px;font-size:14px">Cała historia operacji zostanie trwale usunięta, a statystyki wrócą do zera. Tego nie da się cofnąć.</p>
+  <label class="f"><small>Aby potwierdzić, wpisz RESET</small><input id="rstIn" autocomplete="off" autocapitalize="characters"></label>
+  <label class="chk"><input type="checkbox" id="rstBk" checked> Najpierw zapisz kopię zapasową (JSON)</label>
+  <form method="dialog" class="btns"><button value="x">Anuluj</button><button class="r" id="rstOk" disabled>Wyzeruj</button></form>
 </dialog>
 
 <dialog id="exm">
@@ -566,8 +583,8 @@ const MODES = {
   evout: { t: 'Wyjazd na event', c: 'b', ok: 'Wyślij na event' },
   evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' }
 };
-const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model' };
-const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out' };
+const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki' };
+const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out' };
 let cur = null, mode = 'in', lines = [];
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 const plural = n => n + (n === 1 ? ' model' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' modele' : ' modeli');
@@ -835,8 +852,9 @@ async function fullLog() {
   } catch (x) { await say('Nie udało się pobrać całej historii z bazy. Spróbuj ponownie.'); return null; }
 }
 async function exportJson() {
-  const log = await fullLog(); if (!log) return;
+  const log = await fullLog(); if (!log) return false;
   saveBlob(new Blob([JSON.stringify({ products: S.products, log })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
+  return true;
 }
 // --- prosty zapis pliku .xlsx (bez zewnętrznych bibliotek)
 function crc32(buf) {
@@ -873,7 +891,7 @@ function sheetXml(rows, widths) {
         : '<c r="' + ref + '" t="inlineStr"' + (i === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + xe(v) + '</t></is></c>';
     }).join('') + '</row>').join('') + '</sheetData></worksheet>';
 }
-const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model' };
+const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki' };
 const fmtP = d => Object.entries(d || {}).map(([k, n]) => k + ' × ' + n).join(', ');
 const pad2 = n => String(n).padStart(2, '0');
 const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
@@ -1016,6 +1034,26 @@ $('#stSeg').onclick = e => {
   renderStats();
 };
 $('#stP').onchange = () => { stFilter = $('#stP').value; stAnim = true; renderStats(); };
+// --- zerowanie historii i statystyk (tylko konto delma; w bazie pilnują tego reguły)
+$('#rstOpen').onclick = () => {
+  if (user !== 'delma') return say('Tylko konto delma może wyzerować historię.');
+  $('#rstIn').value = ''; $('#rstOk').disabled = true; $('#rst').showModal(); $('#rstIn').focus();
+};
+$('#rstIn').oninput = () => { $('#rstOk').disabled = $('#rstIn').value.trim() !== 'RESET'; };
+$('#rstOk').onclick = async e => {
+  e.preventDefault();
+  if (user !== 'delma' || $('#rstIn').value.trim() !== 'RESET' || busy) return;
+  if (!online()) return;
+  busy = true; $('#rstOk').disabled = true;
+  try {
+    if ($('#rstBk').checked && !await exportJson()) { busy = false; $('#rstOk').disabled = false; return; }
+    await R.child('log').remove();
+    await logEv('reset', '', '', 'wyzerowano historię i statystyki');
+    stRecs = null; $('#rst').close(); loadStats();
+    toast('Historia i statystyki wyzerowane');
+  } catch (x) { await say('Nie udało się wyzerować. Sprawdź uprawnienia w bazie (reguły).'); }
+  busy = false; $('#rstOk').disabled = $('#rstIn').value.trim() !== 'RESET';
+};
 
 // --- logowanie przez Firebase Authentication
 const DOMAIN = '@dzik-w11.app';
@@ -1024,7 +1062,7 @@ function lockUI(on) {
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
   if (on) $('#llg').focus();
 }
-function showWho() { $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
+function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
 lockUI(true);
