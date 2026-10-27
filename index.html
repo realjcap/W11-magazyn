@@ -116,6 +116,14 @@ dialog[open]::backdrop{animation:fade .22s ease-out}
 #who a:hover{opacity:.75}
 .lg{animation:fade .3s ease-out}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.btns{flex-wrap:wrap}
+.lines{border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;max-height:28vh;overflow:auto}
+.lh{padding:6px 10px;color:var(--mu);font-size:13px;border-bottom:1px solid var(--bd)}
+.ln{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd);animation:fade .25s ease-out}
+.ln:last-child{border-bottom:0}
+.ln button{padding:2px 9px}
+.its{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--mu)}
+.its b{color:var(--tx)}
 </style>
 </head>
 <body>
@@ -134,16 +142,17 @@ dialog[open]::backdrop{animation:fade .22s ease-out}
   <input type="search" id="q" placeholder="Szukaj po nazwie lub SKU">
   <button class="p" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
-  <button id="ex">Eksportuj kopię</button>
+  <button id="ex">Eksportuj</button>
   <label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
 
 <div class="grid" id="grid"></div>
 
-<footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj kopię” robi kopię zapasową.</footer>
+<footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj” zapisuje kopię zapasową (JSON) albo zestawienie do Excela.</footer>
 
 <dialog id="op">
   <h2 id="opT"></h2>
+  <div class="lines" id="opLines" hidden></div>
   <div id="opPick">
     <input type="search" id="opQ" placeholder="Zacznij wpisywać nazwę lub SKU" autocomplete="off">
     <div class="pick" id="opList"></div>
@@ -151,14 +160,29 @@ dialog[open]::backdrop{animation:fade .22s ease-out}
   <div id="opSel" hidden>
     <div class="sel"><div><div class="nm" id="opN"></div><div class="sku" id="opS"></div></div><button type="button" id="opBack">Zmień</button></div>
     <div id="opF"></div>
-    <label class="f"><small>Notatka (opcjonalnie)</small><input id="opNote" maxlength="80" placeholder="np. numer dostawy, zamówienie"></label>
   </div>
-  <form method="dialog" class="btns"><button value="x">Anuluj</button><button id="opOk" hidden>Zapisz</button></form>
+  <label class="f" id="opNoteW" hidden><small>Notatka do całej listy (opcjonalnie)</small><input id="opNote" maxlength="80" placeholder="np. numer dostawy, zamówienie"></label>
+  <form method="dialog" class="btns">
+    <button value="x">Anuluj</button>
+    <button type="button" id="opMore" hidden>＋ Kolejny model</button>
+    <button id="opOk" hidden>Zapisz</button>
+  </form>
 </dialog>
 
 <dialog id="msg">
   <p id="msgT" style="margin:0 0 4px"></p>
   <form method="dialog" class="btns"><button value="no" id="msgNo">Anuluj</button><button class="p" value="yes">OK</button></form>
+</dialog>
+
+<dialog id="exm">
+  <h2>Eksportuj</h2>
+  <div class="evb">
+    <button class="p" id="exJson">Kopia zapasowa (JSON)</button>
+    <small class="mu">Pełna kopia ze zdjęciami. Można ją wczytać z powrotem przyciskiem „Wczytaj kopię”.</small>
+    <button class="p" id="exXls">Excel (.xlsx)</button>
+    <small class="mu">Arkusze „Stan” (rozmiary po kolei) i „Historia” (cała historia). Bez zdjęć.</small>
+  </div>
+  <form method="dialog" class="btns"><button value="x">Anuluj</button></form>
 </dialog>
 
 <dialog id="evm">
@@ -262,6 +286,8 @@ function cleanLogEntry(l) {
   const o = { t: Number(l.t) || 0, name: txt(l.name, 120), sku: txt(l.sku, 60), m: LOGT[l.m] ? l.m : 'in', d: numMap(l.d), by: txt(l.by, 40), note: txt(l.note, 200) };
   const lost = numMap(l.lost);
   if (Object.keys(lost).length) o.lost = lost;
+  const its = Object.values(toObj(l.items)).slice(0, 60).filter(it => it && typeof it === 'object');
+  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; return x; });
   return o;
 }
 function rebuild() {
@@ -390,10 +416,25 @@ const MODES = {
 };
 const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model' };
 const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out' };
-let cur = null, mode = 'in';
+let cur = null, mode = 'in', lines = [];
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
+const plural = n => n + (n === 1 ? ' model' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' modele' : ' modeli');
+const fmtD = d => Object.entries(d || {}).map(([k, n]) => esc(k) + ' × ' + n).join(', ');
+function renderLines() {
+  const box = $('#opLines');
+  box.hidden = !lines.length;
+  box.innerHTML = lines.length ? '<div class="lh">Na liście: ' + plural(lines.length) + '</div>' + lines.map((l, i) =>
+    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d)}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
+}
+function setStep(step) {
+  $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
+  $('#opMore').hidden = step !== 'sizes';
+  const can = step === 'sizes' || lines.length > 0;
+  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can;
+  renderLines();
+}
 function openOp(m, id) {
-  mode = m;
+  mode = m; lines = [];
   $('#opT').textContent = MODES[m].t;
   $('#opOk').className = MODES[m].c;
   $('#opOk').textContent = MODES[m].ok;
@@ -404,11 +445,7 @@ function openOp(m, id) {
   $('#op').showModal();
   if (!p) $('#opQ').focus();
 }
-function showPick() {
-  cur = null;
-  $('#opPick').hidden = false; $('#opSel').hidden = true; $('#opOk').hidden = true;
-  fillList();
-}
+function showPick() { cur = null; setStep('pick'); fillList(); }
 function fillList() {
   const q = $('#opQ').value.trim().toLowerCase();
   const l = S.products.filter(p => (mode !== 'evin' || evSum(p) > 0) && (p.name + ' ' + p.sku).toLowerCase().includes(q));
@@ -419,7 +456,7 @@ function fillList() {
 }
 function pickItem(p) {
   cur = p;
-  $('#opPick').hidden = true; $('#opSel').hidden = false; $('#opOk').hidden = false;
+  setStep('sizes');
   $('#opN').textContent = p.name; $('#opS').textContent = 'SKU ' + p.sku;
   $('#opF').innerHTML = sizesOf(p).map(s => {
     const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0, av = mode === 'evin' ? e : n;
@@ -427,6 +464,16 @@ function pickItem(p) {
     return `<label class="row"><span>${esc(s)} <small class="mu">${mode === 'evin' ? 'na evencie' : 'stan'} ${av}</small></span>
       <input type="number" inputmode="numeric" min="0"${lim} placeholder="0" data-s="${esc(s)}"></label>`;
   }).join('');
+}
+function collectCurrent() {
+  if (!cur || $('#opSel').hidden) return null;
+  const d = {};
+  $('#opF').querySelectorAll('input').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n; });
+  return Object.keys(d).length ? { id: cur.id, name: cur.name, sku: cur.sku, d } : null;
+}
+function addLine(L) {
+  const x = lines.find(l => l.id === L.id);
+  if (x) { for (const k in L.d) x.d[k] = (x.d[k] || 0) + L.d[k]; } else lines.push(L);
 }
 $('#opQ').oninput = fillList;
 $('#opQ').onkeydown = e => {
@@ -439,61 +486,82 @@ $('#opList').onclick = e => {
   const b = e.target.closest('.pi');
   if (b) pickItem(S.products.find(p => p.id === b.dataset.id));
 };
-$('#opBack').onclick = () => { showPick(); $('#opQ').focus(); };
+$('#opBack').onclick = () => { $('#opQ').value = ''; showPick(); $('#opQ').focus(); };
+$('#opMore').onclick = () => {
+  const L = collectCurrent();
+  if (L) addLine(L);
+  $('#opQ').value = ''; showPick(); $('#opQ').focus();
+};
+$('#opLines').onclick = e => {
+  const b = e.target.closest('button[data-i]');
+  if (!b) return;
+  lines.splice(+b.dataset.i, 1);
+  setStep($('#opSel').hidden ? 'pick' : 'sizes');
+};
 function logEv(m, name, sku, note) {
   const e = { t: firebase.database.ServerValue.TIMESTAMP, name, sku, m };
   if (user) e.by = user;
   if (note) e.note = note;
   return R.child('log').push(e);
 }
-async function applyMove(id, m, d, note) {
-  let err = null, lost = null, name = '', sku = '';
-  const res = await R.child('products/' + id).transaction(p => {
-    err = null; lost = null;
-    if (!p) return p;
-    p = JSON.parse(JSON.stringify(p));
-    p.sizes = toObj(p.sizes); p.ev = toObj(p.ev);
-    name = p.name; sku = p.sku;
-    if (m !== 'in') {
-      const src = m === 'evin' ? p.ev : p.sizes;
-      for (const s in d) if (d[s] > (src[s] || 0)) { err = 'Za mało sztuk w rozmiarze ' + s + ' (' + (m === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[s] || 0) + ').'; return; }
+// jedna transakcja na wszystkie pozycje: albo zapisują się wszystkie, albo żadna
+async function applyBatch(m, items, note) {
+  let err = null, lostBy = {};
+  const res = await R.child('products').transaction(all => {
+    err = null; lostBy = {};
+    if (!all) return all;
+    all = JSON.parse(JSON.stringify(all));
+    for (const L of items) {
+      const p = all[L.id];
+      if (!p) { err = 'Model ' + L.name + ' został w międzyczasie usunięty.'; return; }
+      p.sizes = toObj(p.sizes); p.ev = toObj(p.ev);
+      if (m !== 'in') {
+        const src = m === 'evin' ? p.ev : p.sizes;
+        for (const k in L.d) if (L.d[k] > (src[k] || 0)) { err = L.name + ': za mało sztuk w rozmiarze ' + k + ' (' + (m === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[k] || 0) + ').'; return; }
+      }
+      for (const k in L.d) {
+        if (m === 'in') p.sizes[k] = (p.sizes[k] || 0) + L.d[k];
+        else if (m === 'out') p.sizes[k] -= L.d[k];
+        else if (m === 'evout') { p.sizes[k] -= L.d[k]; p.ev[k] = (p.ev[k] || 0) + L.d[k]; }
+        else { p.ev[k] -= L.d[k]; p.sizes[k] = (p.sizes[k] || 0) + L.d[k]; }
+      }
+      if (m === 'evin') { const lost = {}; for (const k in p.ev) if (p.ev[k] > 0) lost[k] = p.ev[k]; if (Object.keys(lost).length) lostBy[L.id] = lost; p.ev = {}; }
+      else for (const k in p.ev) if (p.ev[k] === 0) delete p.ev[k];
     }
-    for (const s in d) {
-      if (m === 'in') p.sizes[s] = (p.sizes[s] || 0) + d[s];
-      else if (m === 'out') p.sizes[s] -= d[s];
-      else if (m === 'evout') { p.sizes[s] -= d[s]; p.ev[s] = (p.ev[s] || 0) + d[s]; }
-      else { p.ev[s] -= d[s]; p.sizes[s] = (p.sizes[s] || 0) + d[s]; }
-    }
-    if (m === 'evin') { lost = {}; for (const s in p.ev) if (p.ev[s] > 0) lost[s] = p.ev[s]; p.ev = {}; }
-    else for (const s in p.ev) if (p.ev[s] === 0) delete p.ev[s];
-    return p;
+    return all;
   });
   if (!res.committed) { if (err) await say(err); return false; }
-  if (!res.snapshot.val()) { await say('Ten model został w międzyczasie usunięty.'); return false; }
-  const entry = { t: firebase.database.ServerValue.TIMESTAMP, name, sku, m, d };
+  if (!res.snapshot.val()) { await say('Nie udało się zapisać zmian. Spróbuj ponownie.'); return false; }
+  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d }; if (lostBy[L.id]) it.lost = lostBy[L.id]; return it; });
+  const entry = its.length === 1 ? { t: firebase.database.ServerValue.TIMESTAMP, name: its[0].name, sku: its[0].sku, m, d: its[0].d }
+    : { t: firebase.database.ServerValue.TIMESTAMP, name: plural(its.length), sku: '', m, items: its };
+  if (its.length === 1 && its[0].lost) entry.lost = its[0].lost;
   if (user) entry.by = user;
-  if (lost && Object.keys(lost).length) entry.lost = lost;
   if (note) entry.note = note;
   await R.child('log').push(entry);
   return true;
 }
 $('#opOk').onclick = async e => {
   e.preventDefault();
-  if (!cur || busy) return;
-  const d = {};
-  $('#opF').querySelectorAll('input').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n; });
-  if (!Object.keys(d).length) return say('Wpisz ilość przynajmniej w jednym rozmiarze.');
+  if (busy) return;
+  const L = collectCurrent();
+  if (L) { addLine(L); showPick(); }
+  if (!lines.length) return say('Wpisz ilość przynajmniej w jednym rozmiarze.');
   if (mode === 'evin') {
-    const rest = {};
-    for (const s in cur.ev || {}) { const r = cur.ev[s] - (d[s] || 0); if (r > 0) rest[s] = r; }
-    if (Object.keys(rest).length && !await ask('Nie wróciło: ' + Object.entries(rest).map(([s, n]) => s + ' × ' + n).join(', ') + '. Te sztuki zostaną usunięte z eventu i nie wrócą do stanu magazynu. Kontynuować?')) return;
+    const miss = [];
+    lines.forEach(l => {
+      const p = S.products.find(x => x.id === l.id); if (!p) return;
+      const r = Object.entries(p.ev || {}).map(([k, n]) => [k, n - (l.d[k] || 0)]).filter(x => x[1] > 0);
+      if (r.length) miss.push(l.name + ': ' + r.map(x => x[0] + ' × ' + x[1]).join(', '));
+    });
+    if (miss.length && !await ask('Nie wróciło: ' + miss.join('; ') + '. Te sztuki zostaną usunięte z eventu i nie wrócą do stanu magazynu. Kontynuować?')) return;
   }
   if (!online()) return;
-  busy = true; $('#opOk').disabled = true;
+  busy = true; $('#opOk').disabled = true; $('#opMore').disabled = true;
   let ok = false;
-  try { ok = await applyMove(cur.id, mode, d, $('#opNote').value.trim()); }
+  try { ok = await applyBatch(mode, lines, $('#opNote').value.trim()); }
   catch (x) { await say('Nie udało się zapisać w bazie.'); }
-  busy = false; $('#opOk').disabled = false;
+  busy = false; $('#opOk').disabled = false; $('#opMore').disabled = false;
   if (ok) $('#op').close();
 };
 
@@ -593,24 +661,95 @@ $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
 $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
 $('#logB').onclick = () => {
-  $('#logL').innerHTML = S.log.map(l => `<div class="lg">
-    <b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
-    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${[Object.entries(l.d).map(([s, n]) => esc(s) + ' × ' + n).join(', '), l.lost ? 'nie wróciło: ' + Object.entries(l.lost).map(([s, n]) => esc(s) + ' × ' + n).join(', ') : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('')}</small></div>`).join('')
-    || '<p class="mu">Brak zapisanych zmian.</p>';
+  $('#logL').innerHTML = S.log.map(l => {
+    const parts = [fmtD(l.d), l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
+    const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
+    return `<div class="lg"><b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
+    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
+  }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
   $('#log').showModal();
 };
-$('#ex').onclick = async () => {
-  if (!online()) return;
-  let log;
+const stamp = () => new Date().toISOString().slice(0, 10);
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function fullLog() {
+  if (!online()) return null;
   try {
     const v = (await R.child('log').once('value')).val() || {};
-    log = Object.keys(v).sort().reverse().map(k => v[k]);
-  } catch (x) { return say('Nie udało się pobrać całej historii z bazy. Spróbuj ponownie.'); }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify({ products: S.products, log })], { type: 'application/json' }));
-  a.download = 'magazyn-' + new Date().toISOString().slice(0, 10) + '.json';
-  a.click();
-};
+    return Object.keys(v).sort().reverse().map(k => v[k]);
+  } catch (x) { await say('Nie udało się pobrać całej historii z bazy. Spróbuj ponownie.'); return null; }
+}
+async function exportJson() {
+  const log = await fullLog(); if (!log) return;
+  saveBlob(new Blob([JSON.stringify({ products: S.products, log })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
+}
+// --- prosty zapis pliku .xlsx (bez zewnętrznych bibliotek)
+function crc32(buf) {
+  let crc = -1;
+  for (let i = 0; i < buf.length; i++) {
+    let c = (crc ^ buf[i]) & 255;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xEDB88320 : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ -1) >>> 0;
+}
+function zipFiles(files) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  const u16 = n => [n & 255, (n >> 8) & 255], u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
+  for (const f of files) {
+    const nm = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data), sz = data.length;
+    const lh = new Uint8Array([0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0)]);
+    parts.push(lh, nm, data);
+    cen.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nm);
+    off += lh.length + nm.length + sz;
+  }
+  const cl = cen.reduce((a, c) => a + c.length, 0);
+  const end = new Uint8Array([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(cl), ...u32(off), 0, 0]);
+  return new Blob([...parts, ...cen, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const xe = t => String(t).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function sheetXml(rows, widths) {
+  const col = i => String.fromCharCode(65 + i);
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'
+    + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>'
+    + rows.map((r, i) => '<row r="' + (i + 1) + '">' + r.map((v, j) => {
+      const ref = col(j) + (i + 1);
+      return typeof v === 'number' ? '<c r="' + ref + '"><v>' + v + '</v></c>'
+        : '<c r="' + ref + '" t="inlineStr"' + (i === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + xe(v) + '</t></is></c>';
+    }).join('') + '</row>').join('') + '</sheetData></worksheet>';
+}
+const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model' };
+const fmtP = d => Object.entries(d || {}).map(([k, n]) => k + ' × ' + n).join(', ');
+const pad2 = n => String(n).padStart(2, '0');
+const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
+async function exportXlsx() {
+  const raw = await fullLog(); if (!raw) return;
+  const stan = [['SKU', 'Nazwa', 'Rozmiar', 'W magazynie', 'Na evencie']];
+  S.products.forEach(p => chipKeys(p).forEach(k => stan.push([p.sku, p.name, k, p.sizes[k] || 0, (p.ev && p.ev[k]) || 0])));
+  const hist = [['Data', 'Osoba', 'Operacja', 'SKU', 'Nazwa', 'Rozmiary', 'Nie wróciło', 'Notatka']];
+  raw.map(cleanLogEntry).forEach(l => {
+    const base = [fmtT(l.t), cap(l.by), OPN[l.m] || l.m];
+    if (l.items && l.items.length) l.items.forEach(it => hist.push([...base, it.sku, it.name, fmtP(it.d), fmtP(it.lost), l.note]));
+    else hist.push([...base, l.sku, l.name, fmtP(l.d), fmtP(l.lost), l.note]);
+  });
+  const M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', RL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships', PR = 'http://schemas.openxmlformats.org/package/2006/relationships', H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const blob = zipFiles([
+    { name: '[Content_Types].xml', data: H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', data: H + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + RL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', data: H + '<workbook xmlns="' + M + '" xmlns:r="' + RL + '"><sheets><sheet name="Stan" sheetId="1" r:id="rId1"/><sheet name="Historia" sheetId="2" r:id="rId2"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: H + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + RL + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + RL + '/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="' + RL + '/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/styles.xml', data: H + '<styleSheet xmlns="' + M + '"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
+    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(stan, [16, 34, 14, 14, 14]) },
+    { name: 'xl/worksheets/sheet2.xml', data: sheetXml(hist, [17, 10, 24, 14, 30, 30, 24, 30]) }
+  ]);
+  saveBlob(blob, 'magazyn-' + stamp() + '.xlsx');
+}
+$('#ex').onclick = () => $('#exm').showModal();
+$('#exJson').onclick = async () => { $('#exm').close(); await exportJson(); };
+$('#exXls').onclick = async () => { $('#exm').close(); await exportXlsx(); };
 $('#im').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   let d = null;
