@@ -374,7 +374,6 @@ details[open]>summary .chev{transform:rotate(90deg)}
       <option value="custom">Własne rozmiary</option>
     </select></label>
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
-  <div class="f"><small>Miejsce w magazynie (strefy z mapy)</small><div class="zl" id="pzL"></div></div>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
     <button class="d" id="pdDel" value="x">Usuń model</button>
@@ -434,12 +433,13 @@ const ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '3XL', '4XL', '5
 const sizeRank = k => { const i = ORDER.indexOf(k); if (i >= 0) return i; const n = parseFloat(k); return isNaN(n) ? 1000 : 100 + n; };
 const bySize = (a, b) => sizeRank(a) - sizeRank(b) || a.localeCompare(b);
 const chipKeys = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
-function dlg(text, confirmMode) {
+function dlg(text, confirmMode, yes, no) {
   return new Promise(res => {
     const d = $('#msg');
     if (d.open) d.close();
     $('#msgT').textContent = text;
     $('#msgNo').hidden = !confirmMode;
+    $('#msgNo').textContent = no || 'Anuluj'; document.querySelector('#msg button.p').textContent = yes || 'OK';
     d.returnValue = '';
     d.onclose = () => res(d.returnValue === 'yes');
     d.showModal();
@@ -490,7 +490,7 @@ function fmtPal(z, s) {
 const palText = (p, z) => { const s = palSet(p, z); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (palety ' + fmtPal(z, s) + ')'; };
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
-    .map(([id, z]) => ({ id, name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 20), r: cells(MZ[z.id].r, z.h, 4, 10) }))
+    .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 20), r: cells(MZ[z.id].r, z.h, 4, 10) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones) }))
@@ -555,7 +555,7 @@ async function uploadAll(prods, logs, zones) {
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   const up = { products: pr, photos: ph, log: lg };
-  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 20), r: cells(z.r, fl(z.h, 4, MH), 4, 10) }]));
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 20), r: cells(z.r, fl(z.h, 4, MH), 4, 10) }]));
   await R.update(up);
 }
 async function maybeMigrate() {
@@ -827,7 +827,6 @@ function openPd(id) {
   $('#ps').value = ed ? ed.sku : '';
   $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : PRESETS.clothes;
   $('#pt').value = presetOf($('#pz').value);
-  $('#pzL').innerHTML = S.zones.length ? S.zones.map(z => `<label><input type="checkbox" value="${esc(z.id)}"${ed && ed.zones.includes(z.id) ? ' checked' : ''}>${esc(z.name)}</label>`).join('') : '<small class="mu">Brak stref. Narysuj mapę w zakładce „Gdzie ciuszek?”.</small>';
   $('#pf').value = '';
   $('#pdDel').style.display = ed ? '' : 'none';
   $('#pd').showModal();
@@ -864,8 +863,6 @@ $('#pdOk').onclick = async e => {
   const f = $('#pf').files[0];
   const photo = f ? await toData(f) : null;
   const id = ed ? ed.id : Date.now().toString(36);
-  const setZ = S.zones.length > 0, zo = {};
-  document.querySelectorAll('#pzL input:checked').forEach(i => { zo[i.value] = (ed && ed.zraw && ed.zraw[i.value]) || 1; });
   try {
     if (ed) {
       await R.child('products/' + id).transaction(p => {
@@ -873,17 +870,21 @@ $('#pdOk').onclick = async e => {
         const o = toObj(p.sizes), n = {};
         sizes.forEach(s => { n[s] = o[s] || 0; });
         p.name = name; p.sku = sku; p.sizes = n;
-        if (setZ) { if (Object.keys(zo).length) p.zones = zo; else delete p.zones; }
         return p;
       });
     } else {
       const n = {}; sizes.forEach(s => { n[s] = 0; });
-      await R.child('products/' + id).set(Object.keys(zo).length ? { id, name, sku, sizes: n, zones: zo } : { id, name, sku, sizes: n });
+      await R.child('products/' + id).set({ id, name, sku, sizes: n });
       await logEv('add', name, sku, 'rozmiary: ' + sizes.join(', '));
     }
     if (photo) await R.child('photos/' + id).set(photo);
   } catch (x) { return say('Nie udało się zapisać w bazie.'); }
+  const isNew = !ed;
   $('#pd').close();
+  if (isNew && S.zones.length && await dlg('Model „' + name + '” został dodany. Przypisać go teraz do palet na mapie?', true, 'Tak, przypisz', 'Nie teraz')) {
+    mapAssignNext = id; mapMode = 'view'; mapSel = null; mapPick = null;
+    if (location.hash === '#mapa/' + id) showView('map'); else location.hash = '#mapa/' + id;
+  }
 };
 $('#pdDel').onclick = async e => {
   e.preventDefault();
@@ -1147,9 +1148,10 @@ $('#rstOk').onclick = async e => {
 
 
 // --- mapa magazynu ("Gdzie ciuszek?")
-let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null;
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
-const zNames = p => p.zones.map(id => { const z = S.zones.find(x => x.id === id); return z ? z.name + palText(p, z) : null; }).filter(Boolean);
+const zn = z => z.name || 'Blok bez nazwy';
+const zNames = p => p.zones.map(id => { const z = S.zones.find(x => x.id === id); return z ? zn(z) + palText(p, z) : null; }).filter(Boolean);
 const mapZones = () => S.zones.map(z => mapDrag && mapDrag.id === z.id ? { ...z, ...mapDrag.z } : z);
 function setMapHash(h) { try { history.replaceState(null, '', location.pathname + location.search + h); } catch (e) {} }
 function renderMap() {
@@ -1157,7 +1159,8 @@ function renderMap() {
   const Z = mapZones(), ids = new Set(Z.map(z => z.id));
   if (mapPend && loaded) {
     const p = S.products.find(x => x.id === mapPend); mapPend = null;
-    if (p) { mapSel = p.id; $('#mapQ').value = p.name; }
+    if (p) { mapSel = p.id; $('#mapQ').value = p.name; if (mapAssignNext === p.id) mapMode = 'assign'; }
+    mapAssignNext = null;
   }
   const sel = mapSel ? S.products.find(p => p.id === mapSel) : null;
   if (!sel) mapSel = null;
@@ -1216,7 +1219,7 @@ function renderMap() {
   $('#mapZone').hidden = !pz;
   if (pz) {
     const inZ = S.products.filter(p => p.zones.includes(pz.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-    $('#mapZone').innerHTML = `<h3><span>${esc(pz.name)} <small class="mu">(${inZ.length})</small></span><button type="button" id="mapZoneX" aria-label="Zamknij">✕</button></h3>`
+    $('#mapZone').innerHTML = `<h3><span>${esc(zn(pz))} <small class="mu">(${inZ.length})</small></span><button type="button" id="mapZoneX" aria-label="Zamknij">✕</button></h3>`
       + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}${esc(palText(p, pz))}</small></button>`; }).join('')
         : '<p class="mu" style="margin:0;font-size:14px">W tej strefie nie ma przypisanych modeli.</p>');
   }
@@ -1250,7 +1253,7 @@ $('#mapDemo').onclick = async () => {
 $('#mapName').oninput = () => {
   const id = mapZ, v = $('#mapName').value.trim().slice(0, 40);
   clearTimeout(nameT);
-  if (!id || !v) return;
+  if (!id) return;
   nameT = setTimeout(() => { if (online()) R.child('map/zones/' + id + '/name').set(v).catch(() => say(MAPERR)); }, 450);
 };
 ['C', 'R'].forEach(k => { $('#map' + k).onchange = () => {
@@ -1260,7 +1263,7 @@ $('#mapName').oninput = () => {
 }; });
 $('#mapDel').onclick = async () => {
   const z = S.zones.find(x => x.id === mapZ);
-  if (!z || !await ask('Usunąć strefę „' + z.name + '”?')) return;
+  if (!z || !await ask('Usunąć strefę „' + zn(z) + '”?')) return;
   if (!online()) return;
   try { await R.child('map/zones/' + z.id).remove(); mapZ = null; } catch (x) { say(MAPERR); }
 };
