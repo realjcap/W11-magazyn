@@ -124,6 +124,13 @@ dialog[open]::backdrop{animation:fade .22s ease-out}
 .ln button{padding:2px 9px}
 .its{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--mu)}
 .its b{color:var(--tx)}
+#toasts{position:fixed;inset:auto 12px 12px auto;margin:0;padding:0;border:0;background:transparent;overflow:visible;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;width:auto;height:auto}
+#toasts:not(:popover-open){display:none}
+@supports not selector(:popover-open){#toasts:not(:popover-open){display:flex}}
+.toast{pointer-events:auto;cursor:pointer;max-width:min(290px,calc(100vw - 24px));padding:7px 10px;border-radius:8px;background:#0d0d0d;color:#fff;font-size:13px;line-height:1.35;border-left:3px solid var(--ev);box-shadow:0 4px 14px rgba(0,0,0,.28);animation:toastIn .25s cubic-bezier(.2,.8,.2,1) both}
+.toast.out{animation:toastOut .25s ease-in forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(6px)}}
 </style>
 </head>
 <body>
@@ -168,6 +175,8 @@ dialog[open]::backdrop{animation:fade .22s ease-out}
     <button id="opOk" hidden>Zapisz</button>
   </form>
 </dialog>
+
+<div id="toasts" popover="manual" aria-live="polite"></div>
 
 <dialog id="msg">
   <p id="msgT" style="margin:0 0 4px"></p>
@@ -298,6 +307,43 @@ function rebuild() {
   if (unlocked) rr();
 }
 function rr() { render(); maybeMigrate(); }
+// małe powiadomienia o zmianach zrobionych przez inne osoby
+let logSeen = null;
+function toast(text) {
+  const box = $('#toasts');
+  try { if (box.showPopover && !box.matches(':popover-open')) box.showPopover(); } catch (e) {}
+  while (box.children.length >= 3) box.firstChild.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = text;
+  const close = () => {
+    if (!t.parentNode) return;
+    t.classList.add('out');
+    setTimeout(() => { t.remove(); if (!box.children.length) { try { box.hidePopover && box.hidePopover(); } catch (e) {} } }, 250);
+  };
+  t.onclick = close; box.appendChild(t); setTimeout(close, 6000);
+}
+function toastText(l) {
+  const op = OPN[l.m] || l.m, who = cap(l.by);
+  let what;
+  if (l.items && l.items.length > 1) what = plural(l.items.length);
+  else if (l.items && l.items.length === 1) what = l.items[0].name + ' ' + fmtP(l.items[0].d);
+  else what = l.name + (Object.keys(l.d).length ? ' ' + fmtP(l.d) : '');
+  const t = who + ' · ' + op + ': ' + what;
+  return t.length > 110 ? t.slice(0, 107) + '…' : t;
+}
+function notifyNew() {
+  const keys = Object.keys(LG).sort();
+  if (logSeen === null) { logSeen = new Set(keys); return; }
+  const fresh = [];
+  keys.forEach(k => {
+    if (logSeen.has(k)) return;
+    logSeen.add(k);
+    const l = cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {});
+    if (l.by && l.by !== user && Date.now() - l.t < 10 * 60 * 1000) fresh.push(l);
+  });
+  if (fresh.length > 3) toast(fresh.length + ' nowych zmian od innych osób');
+  else fresh.forEach(l => toast(toastText(l)));
+}
 function online() {
   if (!R) { say('Nie udało się wczytać bazy (brak internetu?). Odśwież stronę.'); return false; }
   if (!connected) { say('Brak połączenia z bazą. Spróbuj ponownie, gdy będzie internet.'); return false; }
@@ -336,13 +382,13 @@ function startDb() {
   listening = true; logQ = R.child('log').limitToLast(100);
   R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
   R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
-  logQ.on('value', s => { LG = s.val() || {}; rebuild(); }, () => {});
+  logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); }, () => {});
 }
 function stopDb() {
   if (!R) return;
   listening = false;
   R.child('products').off(); R.child('photos').off(); if (logQ) logQ.off();
-  P = {}; PH = {}; LG = {}; loaded = false; migChecked = false; rebuild();
+  P = {}; PH = {}; LG = {}; loaded = false; migChecked = false; logSeen = null; $('#toasts').innerHTML = ''; rebuild();
 }
 if (R) {
   setConn('łączenie…');
