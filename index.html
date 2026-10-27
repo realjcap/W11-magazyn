@@ -208,7 +208,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .zone.pick:hover{stroke:var(--ac);stroke-width:.9}
 #mapSvg.ed .zone{stroke-dasharray:1.2 .8;cursor:move}
 #mapSvg.ed .zone.sel{stroke:var(--ac);stroke-width:.9;stroke-dasharray:none}
+.zone.pk{stroke:var(--ac);stroke-width:1}
 .hnd{fill:var(--ac);cursor:nwse-resize}
+#mapZone{margin-bottom:12px}
+#mapZone h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+#mapZone h3 button{padding:4px 10px;font-size:13px}
 .mres{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;margin-bottom:6px}
 .mres.on{border-color:var(--ac);box-shadow:0 0 0 2px rgba(15,95,215,.2)}
 .mres small{text-align:right}
@@ -279,6 +283,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div id="mapRes"></div>
   <div class="panel mapbox"><svg id="mapSvg" viewBox="0 0 100 64" role="img" aria-label="Mapa magazynu"></svg></div>
   <p id="mapInfo" class="mapinfo"></p>
+  <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
     <button id="mapAssign" hidden>Przypisz miejsce</button>
     <button id="mapEdit">Edytuj mapę</button>
@@ -1122,7 +1127,7 @@ $('#rstOk').onclick = async e => {
 
 
 // --- mapa magazynu ("Gdzie ciuszek?")
-let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null;
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
 const zNames = p => p.zones.map(id => (S.zones.find(z => z.id === id) || {}).name).filter(Boolean);
 const mapZones = () => S.zones.map(z => mapDrag && mapDrag.id === z.id ? { ...z, ...mapDrag.z } : z);
@@ -1138,6 +1143,7 @@ function renderMap() {
   if (!sel) mapSel = null;
   if (!sel && mapMode === 'assign') mapMode = 'view';
   if (mapZ && !ids.has(mapZ)) mapZ = null;
+  if (mapMode !== 'view' || (mapPick && !ids.has(mapPick))) mapPick = null;
   const q = $('#mapQ').value.trim().toLowerCase();
   const matches = q ? S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q)) : [];
   const act = sel ? [sel] : matches;
@@ -1147,7 +1153,7 @@ function renderMap() {
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
   let h = '<rect class="floor" x=".3" y=".3" width="99.4" height="63.4" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
-    const cls = 'zone' + (hot.has(z.id) ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode === 'assign' ? ' pick' : '');
+    const cls = 'zone' + (hot.has(z.id) ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
     const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
     return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/><text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
   }).join('') + (sz ? `<rect class="hnd" data-z="${esc(sz.id)}" x="${sz.x + sz.w - 5}" y="${sz.y + sz.h - 5}" width="5" height="5" rx="1"/>` : '');
@@ -1173,11 +1179,26 @@ function renderMap() {
   else if (act.length === 1) { const n = zNames(act[0]); info = n.length ? act[0].name + ': ' + n.join(', ') + '.' : act[0].name + ': brak przypisanego miejsca. Użyj „Przypisz miejsce” albo edytuj model.'; }
   else info = 'Pasuje ' + act.length + ' modeli. Zielone strefy to ich miejsca, wybierz model z listy.';
   $('#mapInfo').textContent = info;
+  const pz = mapPick ? Z.find(z => z.id === mapPick) : null;
+  $('#mapZone').hidden = !pz;
+  if (pz) {
+    const inZ = S.products.filter(p => p.zones.includes(pz.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+    $('#mapZone').innerHTML = `<h3><span>${esc(pz.name)} <small class="mu">(${inZ.length})</small></span><button type="button" id="mapZoneX" aria-label="Zamknij">✕</button></h3>`
+      + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}</small></button>`; }).join('')
+        : '<p class="mu" style="margin:0;font-size:14px">W tej strefie nie ma przypisanych modeli.</p>');
+  }
 }
 $('#mapQ').oninput = () => { mapSel = null; mapPend = null; setMapHash('#mapa'); renderMap(); };
 $('#mapRes').onclick = e => {
   const b = e.target.closest('.mres'); if (!b) return;
   mapSel = b.dataset.id; setMapHash('#mapa/' + mapSel); renderMap();
+};
+$('#mapZone').onclick = e => {
+  if (e.target.closest('#mapZoneX')) { mapPick = null; renderMap(); return; }
+  const b = e.target.closest('.mres'); if (!b) return;
+  mapSel = b.dataset.id; mapPend = null;
+  const p = S.products.find(x => x.id === mapSel); if (p) $('#mapQ').value = p.name;
+  setMapHash('#mapa/' + mapSel); renderMap();
 };
 $('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
 $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; renderMap(); };
@@ -1214,8 +1235,10 @@ async function toggleAssign(zid) {
   const pt = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * MW, y: (e.clientY - r.top) / r.height * MH }; };
   const snap = v => Math.round(v * 2) / 2;
   svg.addEventListener('click', e => {
-    if (mapMode !== 'assign') return;
-    const g = e.target.closest('[data-z]'); if (g) toggleAssign(g.dataset.z);
+    if (mapMode === 'edit') return;
+    const g = e.target.closest('[data-z]');
+    if (mapMode === 'assign') { if (g) toggleAssign(g.dataset.z); return; }
+    mapPick = g && g.dataset.z !== mapPick ? g.dataset.z : null; renderMap();
   });
   svg.addEventListener('pointerdown', e => {
     if (mapMode !== 'edit') return;
@@ -1273,7 +1296,7 @@ if (auth) {
       unlocked = true; showWho(); lockUI(false); startDb(); rr(); showView(viewFromHash());
     } else {
       user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true;
-      mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; $('#mapQ').value = ''; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
+      mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; mapPick = null; $('#mapQ').value = ''; $('#mapZone').innerHTML = ''; $('#mapZone').hidden = true; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
       $('#grid').innerHTML = ''; $('#tot').hidden = true; ['cM', 'cS', 'cE'].forEach(id => { $('#' + id).__v = undefined; }); lockUI(true);
     }
   });
