@@ -209,6 +209,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 #mapSvg.ed .zone{stroke-dasharray:1.2 .8;cursor:move}
 #mapSvg.ed .zone.sel{stroke:var(--ac);stroke-width:.9;stroke-dasharray:none}
 .zone.pk{stroke:var(--ac);stroke-width:1}
+.zd{stroke:var(--mu);stroke-width:.2;opacity:.7;pointer-events:none;transition:stroke .2s}
+.zone.hot~.zd{stroke:#fff;opacity:.9}
+.cr{display:flex;align-items:center;gap:6px}
+.cr input{width:70px}
 .hnd{fill:var(--ac);cursor:nwse-resize}
 #mapZone{margin-bottom:12px}
 #mapZone h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -289,8 +293,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <button id="mapEdit">Edytuj mapę</button>
   </div>
   <div class="panel" id="mapEditBar" hidden>
+    <label class="f"><small>Nowy blok: palet w poziomie × w pionie</small><span class="cr"><input type="number" id="nC" min="1" max="20" value="1" inputmode="numeric"> × <input type="number" id="nR" min="1" max="10" value="1" inputmode="numeric"></span></label>
     <div class="bar" style="margin:0 0 8px"><button id="mapAdd">＋ Strefa</button><button id="mapDemo" hidden>Wstaw przykładowy układ</button></div>
     <label class="f" id="mapNameW" hidden><small>Nazwa strefy</small><input id="mapName" maxlength="40"></label>
+    <label class="f" id="mapCRW" hidden><small>Palety w wybranym bloku: w poziomie × w pionie</small><span class="cr"><input type="number" id="mapC" min="1" max="20" inputmode="numeric"> × <input type="number" id="mapR" min="1" max="10" inputmode="numeric"></span></label>
     <button class="d" id="mapDel" hidden>Usuń strefę</button>
     <p class="mu" style="margin:8px 0 0;font-size:13px">Przeciągnij strefę, aby ją przesunąć. Niebieski uchwyt w rogu zmienia rozmiar.</p>
   </div>
@@ -456,6 +462,7 @@ const setConn = t => { const c = $('#conn'); c.textContent = t; c.className = /^
 const num = v => Math.max(0, Math.floor(Number(v)) || 0);
 const MW = 100, MH = 64;
 const fl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
+const cells = (v, size, unit, max) => { const n = Math.round(Number(v)); return n >= 1 ? Math.min(max, n) : Math.min(max, Math.max(1, Math.round(size / unit))); };
 const txt = (v, n) => String(v == null ? '' : v).slice(0, n);
 const okId = id => /^[A-Za-z0-9_-]{1,40}$/.test(id);
 const safePhoto = u => (typeof u === 'string' && u.length < 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(u)) ? u : null;
@@ -470,7 +477,7 @@ function cleanLogEntry(l) {
 }
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
-    .map(([id, z]) => ({ id, name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) }))
+    .map(([id, z]) => ({ id, name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 20), r: cells(MZ[z.id].r, z.h, 4, 10) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), zones: Object.keys(toObj(p.zones)).filter(okId) }))
@@ -535,7 +542,7 @@ async function uploadAll(prods, logs, zones) {
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   const up = { products: pr, photos: ph, log: lg };
-  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) }]));
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 20), r: cells(z.r, fl(z.h, 4, MH), 4, 10) }]));
   await R.update(up);
 }
 async function maybeMigrate() {
@@ -1155,7 +1162,8 @@ function renderMap() {
   let h = '<rect class="floor" x=".3" y=".3" width="99.4" height="63.4" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
     const cls = 'zone' + (hot.has(z.id) ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
     const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
-    return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/><text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
+    let gr = ''; for (let i = 1; i < z.c; i++) { const gx = +(z.x + z.w * i / z.c).toFixed(2); gr += `M${gx} ${z.y}V${z.y + z.h}`; } for (let i = 1; i < z.r; i++) { const gy = +(z.y + z.h * i / z.r).toFixed(2); gr += `M${z.x} ${gy}H${z.x + z.w}`; }
+    return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>${gr ? `<path class="zd" d="${gr}"/>` : ''}<text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
   }).join('') + (sz ? `<rect class="hnd" data-z="${esc(sz.id)}" x="${sz.x + sz.w - 5}" y="${sz.y + sz.h - 5}" width="5" height="5" rx="1"/>` : '');
   const svg = $('#mapSvg');
   if (svg.__h !== h) { svg.innerHTML = h; svg.__h = h; }
@@ -1168,7 +1176,8 @@ function renderMap() {
   $('#mapEdit').classList.toggle('p', mapMode === 'edit');
   $('#mapEditBar').hidden = mapMode !== 'edit';
   $('#mapDemo').hidden = Z.length > 0;
-  $('#mapNameW').hidden = $('#mapDel').hidden = !sz;
+  $('#mapNameW').hidden = $('#mapCRW').hidden = $('#mapDel').hidden = !sz;
+  if (sz) { if (document.activeElement !== $('#mapC')) $('#mapC').value = sz.c; if (document.activeElement !== $('#mapR')) $('#mapR').value = sz.r; }
   if (sz && document.activeElement !== $('#mapName')) $('#mapName').value = sz.name;
   let info;
   if (mapMode === 'edit') info = 'Tryb edycji mapy. Dotknij strefy, aby ją zaznaczyć.';
@@ -1205,11 +1214,12 @@ $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'ass
 $('#mapAdd').onclick = async () => {
   if (!online()) return;
   const id = R.child('map/zones').push().key; mapZ = id;
-  try { await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: 40, y: 19, w: 20, h: 6 }); } catch (x) { mapZ = null; say(MAPERR); }
+  try { const c = Math.round(fl($('#nC').value, 1, 20)) || 1, r = Math.round(fl($('#nR').value, 1, 10)) || 1, w = fl(c * 5, 8, 96), h = fl(r * 4, 6, 60);
+    await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: +((MW - w) / 2).toFixed(1), y: Math.min(19, MH - h), w, h, c, r }); } catch (x) { mapZ = null; say(MAPERR); }
 };
 $('#mapDemo').onclick = async () => {
   if (!online()) return;
-  const mk = (n, x, y, w, h) => { const id = R.child('map/zones').push().key; return [id, { id, name: n, x, y, w, h }]; };
+  const mk = (n, x, y, w, h) => { const id = R.child('map/zones').push().key; return [id, { id, name: n, x, y, w, h, c: Math.round(w / 5), r: Math.round(h / 4) }]; };
   const z = Object.fromEntries([mk('Regał A', 4, 4, 28, 14), mk('Regał B', 36, 4, 28, 14), mk('Regał C', 68, 4, 28, 14), mk('Regał D', 4, 26, 28, 14), mk('Regał E', 36, 26, 28, 14), mk('Regał F', 68, 26, 28, 14), mk('Strefa paczek', 4, 48, 44, 12), mk('Czapki i dodatki', 52, 48, 44, 12)]);
   try { await R.child('map/zones').set(z); } catch (x) { say(MAPERR); }
 };
@@ -1219,6 +1229,11 @@ $('#mapName').oninput = () => {
   if (!id || !v) return;
   nameT = setTimeout(() => { if (online()) R.child('map/zones/' + id + '/name').set(v).catch(() => say(MAPERR)); }, 450);
 };
+['C', 'R'].forEach(k => { $('#map' + k).onchange = () => {
+  const z = S.zones.find(x => x.id === mapZ); if (!z || !online()) return;
+  const v = Math.round(fl($('#map' + k).value, 1, k === 'C' ? 20 : 10)) || 1;
+  R.child('map/zones/' + z.id + '/' + k.toLowerCase()).set(v).catch(() => say(MAPERR));
+}; });
 $('#mapDel').onclick = async () => {
   const z = S.zones.find(x => x.id === mapZ);
   if (!z || !await ask('Usunąć strefę „' + z.name + '”?')) return;
