@@ -196,6 +196,29 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .chk input{width:auto}
 .danger{border-color:var(--rd)}
 .danger p{margin:4px 0 10px;font-size:13px;color:var(--mu)}
+#mapSvg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
+#mapSvg.ed{touch-action:none}
+.mapbox{padding:8px}
+.floor{fill:var(--bg);stroke:var(--bd);stroke-width:.4}
+.zone{fill:var(--card);stroke:var(--mu);stroke-width:.35;transition:fill .2s,stroke .2s}
+.zt{font-size:2.8px;fill:var(--tx);text-anchor:middle;dominant-baseline:central;pointer-events:none;font-family:inherit}
+.zone.hot{fill:#2ea05a;stroke:#2ea05a;stroke-width:.8;fill-opacity:.6;animation:zpulse 1.3s ease-in-out infinite}
+@keyframes zpulse{0%,100%{fill-opacity:.2;stroke-width:.4}50%{fill-opacity:.85;stroke-width:1.2}}
+.zone.pick{cursor:pointer}
+.zone.pick:hover{stroke:var(--ac);stroke-width:.9}
+#mapSvg.ed .zone{stroke-dasharray:1.2 .8;cursor:move}
+#mapSvg.ed .zone.sel{stroke:var(--ac);stroke-width:.9;stroke-dasharray:none}
+.hnd{fill:var(--ac);cursor:nwse-resize}
+.mres{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;margin-bottom:6px}
+.mres.on{border-color:var(--ac);box-shadow:0 0 0 2px rgba(15,95,215,.2)}
+.mres small{text-align:right}
+.mapinfo{margin:0 0 12px;font-size:14px;min-height:1.4em}
+.maptools{margin-bottom:12px}
+.zl{display:flex;flex-wrap:wrap;gap:6px}
+.zl label{display:flex;gap:6px;align-items:center;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:14px}
+.zl input{width:auto}
+.mapic{display:block}
+.tabs button{padding:10px 4px;font-size:14px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -207,6 +230,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <nav class="tabs">
   <button class="on" data-v="wh">Magazyn</button>
   <button data-v="st">Statystyki</button>
+  <button data-v="map">Gdzie ciuszek?</button>
 </nav>
 
 <section id="vWh">
@@ -247,6 +271,23 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <b>Strefa ryzyka</b>
     <p>Usuwa całą historię operacji, a razem z nią statystyki (są z niej liczone). Produkty i stany magazynowe zostają bez zmian. Dostępne tylko dla konta delma.</p>
     <button class="r" id="rstOpen">Wyzeruj statystyki i historię…</button>
+  </div>
+</section>
+
+<section id="vMap" hidden>
+  <div class="bar"><input type="search" id="mapQ" placeholder="Nazwa lub SKU, np. Bluza albo B1" autocomplete="off"></div>
+  <div id="mapRes"></div>
+  <div class="panel mapbox"><svg id="mapSvg" viewBox="0 0 100 64" role="img" aria-label="Mapa magazynu"></svg></div>
+  <p id="mapInfo" class="mapinfo"></p>
+  <div class="bar maptools">
+    <button id="mapAssign" hidden>Przypisz miejsce</button>
+    <button id="mapEdit">Edytuj mapę</button>
+  </div>
+  <div class="panel" id="mapEditBar" hidden>
+    <div class="bar" style="margin:0 0 8px"><button id="mapAdd">＋ Strefa</button><button id="mapDemo" hidden>Wstaw przykładowy układ</button></div>
+    <label class="f" id="mapNameW" hidden><small>Nazwa strefy</small><input id="mapName" maxlength="40"></label>
+    <button class="d" id="mapDel" hidden>Usuń strefę</button>
+    <p class="mu" style="margin:8px 0 0;font-size:13px">Przeciągnij strefę, aby ją przesunąć. Niebieski uchwyt w rogu zmienia rozmiar.</p>
   </div>
 </section>
 
@@ -318,6 +359,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
       <option value="custom">Własne rozmiary</option>
     </select></label>
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
+  <div class="f"><small>Miejsce w magazynie (strefy z mapy)</small><div class="zl" id="pzL"></div></div>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
     <button class="d" id="pdDel" value="x">Usuń model</button>
@@ -347,7 +389,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 const K = 'magazyn-ubran-v1';
-const S = { products: [], log: [] };
+const S = { products: [], log: [], zones: [] };
 let unlocked = false, user = null;
 const cap = t => t ? t[0].toUpperCase() + t.slice(1) : '';
 
@@ -401,12 +443,14 @@ const FB = {
 };
 const ROOT = 'w11-7hq4mz9c2xk8';
 let R = null, db = null, connected = false, loaded = false, migChecked = false, busy = false;
-let P = {}, PH = {}, LG = {};
+let P = {}, PH = {}, LG = {}, MZ = {};
 const toObj = o => Array.isArray(o) ? Object.fromEntries(o.map((v, i) => [String(i), v]).filter(x => x[1] != null)) : (o || {});
 const cleanKey = k => String(k).replace(/[.$#\[\]\/]/g, '');
 const setConn = t => { const c = $('#conn'); c.textContent = t; c.className = /^online/.test(t) ? 'on' : /brak|błąd/.test(t) ? 'off' : ''; };
 // dane z bazy traktujemy jak niezaufane: wszystko jest oczyszczane, zanim trafi do widoku
 const num = v => Math.max(0, Math.floor(Number(v)) || 0);
+const MW = 100, MH = 64;
+const fl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
 const txt = (v, n) => String(v == null ? '' : v).slice(0, n);
 const okId = id => /^[A-Za-z0-9_-]{1,40}$/.test(id);
 const safePhoto = u => (typeof u === 'string' && u.length < 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(u)) ? u : null;
@@ -420,13 +464,16 @@ function cleanLogEntry(l) {
   return o;
 }
 function rebuild() {
+  S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
+    .map(([id, z]) => ({ id, name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
-    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]) }))
+    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), zones: Object.keys(toObj(p.zones)).filter(okId) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.log = Object.keys(LG).sort().reverse().map(k => cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}));
   if (unlocked) rr();
 }
-function rr() { render(); maybeMigrate(); }
+function rr() { render(); maybeMigrate(); if (view === 'map') renderMap(); }
 // małe powiadomienia o zmianach zrobionych przez inne osoby
 let logSeen = null;
 function toast(text) {
@@ -469,7 +516,7 @@ function online() {
   if (!connected) { say('Brak połączenia z bazą. Spróbuj ponownie, gdy będzie internet.'); return false; }
   return true;
 }
-async function uploadAll(prods, logs) {
+async function uploadAll(prods, logs, zones) {
   const pr = {}, ph = {}, lg = {};
   prods.forEach(p => {
     let id = String(p.id || ''); if (!okId(id)) id = R.push().key;
@@ -477,10 +524,14 @@ async function uploadAll(prods, logs) {
     pr[id] = { id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: sz(p.sizes) };
     const ev = sz(p.ev); Object.keys(ev).forEach(k => { if (!ev[k]) delete ev[k]; });
     if (Object.keys(ev).length) pr[id].ev = ev;
+    const zl = (Array.isArray(p.zones) ? p.zones : Object.keys(toObj(p.zones))).map(String).filter(okId);
+    if (zl.length) pr[id].zones = Object.fromEntries(zl.map(k => [k, 1]));
     const ph1 = safePhoto(p.photo); if (ph1) ph[id] = ph1;
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
-  await R.update({ products: pr, photos: ph, log: lg });
+  const up = { products: pr, photos: ph, log: lg };
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) }]));
+  await R.update(up);
 }
 async function maybeMigrate() {
   if (migChecked || !loaded || !unlocked) return;
@@ -502,19 +553,21 @@ function startDb() {
   listening = true; logQ = R.child('log').limitToLast(100);
   R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
   R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
+  R.child('map/zones').on('value', s => { MZ = s.val() || {}; rebuild(); }, () => {});
   logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); statsRefresh(); }, () => {});
 }
 function stopDb() {
   if (!R) return;
   listening = false;
-  R.child('products').off(); R.child('photos').off(); if (logQ) logQ.off();
-  P = {}; PH = {}; LG = {}; loaded = false; migChecked = false; logSeen = null; $('#toasts').innerHTML = ''; rebuild();
+  R.child('products').off(); R.child('photos').off(); R.child('map/zones').off(); if (logQ) logQ.off();
+  P = {}; PH = {}; LG = {}; MZ = {}; loaded = false; migChecked = false; logSeen = null; $('#toasts').innerHTML = ''; rebuild();
 }
 if (R) {
   setConn('łączenie…');
   db.ref('.info/connected').on('value', s => { connected = !!s.val(); setConn(connected ? 'online, zmiany na żywo' : 'brak połączenia'); });
 }
 
+const MAPICON = '<svg class="mapic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
 function cardInner(p) {
   return `${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
       <div class="cb">
@@ -529,6 +582,7 @@ function cardInner(p) {
         <div class="act">
           <button class="g" data-a="in">Dostawa</button>
           <button class="r" data-a="out">Wysyłka</button>
+          <button class="e" data-a="map" aria-label="Pokaż na mapie" title="Gdzie ciuszek?">${MAPICON}</button>
           <button class="e" data-a="edit" aria-label="Edytuj">Edytuj</button>
         </div>
       </div>`;
@@ -748,6 +802,7 @@ function openPd(id) {
   $('#ps').value = ed ? ed.sku : '';
   $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : PRESETS.clothes;
   $('#pt').value = presetOf($('#pz').value);
+  $('#pzL').innerHTML = S.zones.length ? S.zones.map(z => `<label><input type="checkbox" value="${esc(z.id)}"${ed && ed.zones.includes(z.id) ? ' checked' : ''}>${esc(z.name)}</label>`).join('') : '<small class="mu">Brak stref. Narysuj mapę w zakładce „Gdzie ciuszek?”.</small>';
   $('#pf').value = '';
   $('#pdDel').style.display = ed ? '' : 'none';
   $('#pd').showModal();
@@ -784,6 +839,8 @@ $('#pdOk').onclick = async e => {
   const f = $('#pf').files[0];
   const photo = f ? await toData(f) : null;
   const id = ed ? ed.id : Date.now().toString(36);
+  const setZ = S.zones.length > 0, zo = {};
+  document.querySelectorAll('#pzL input:checked').forEach(i => { zo[i.value] = 1; });
   try {
     if (ed) {
       await R.child('products/' + id).transaction(p => {
@@ -791,11 +848,12 @@ $('#pdOk').onclick = async e => {
         const o = toObj(p.sizes), n = {};
         sizes.forEach(s => { n[s] = o[s] || 0; });
         p.name = name; p.sku = sku; p.sizes = n;
+        if (setZ) { if (Object.keys(zo).length) p.zones = zo; else delete p.zones; }
         return p;
       });
     } else {
       const n = {}; sizes.forEach(s => { n[s] = 0; });
-      await R.child('products/' + id).set({ id, name, sku, sizes: n });
+      await R.child('products/' + id).set(Object.keys(zo).length ? { id, name, sku, sizes: n, zones: zo } : { id, name, sku, sizes: n });
       await logEv('add', name, sku, 'rozmiary: ' + sizes.join(', '));
     }
     if (photo) await R.child('photos/' + id).set(photo);
@@ -820,7 +878,8 @@ $('#pdDel').onclick = async e => {
 $('#grid').onclick = e => {
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const id = b.closest('.card').dataset.id, a = b.dataset.a;
-  if (a === 'edit') openPd(id); else openOp(a, id);
+  if (a === 'map') location.hash = '#mapa/' + id;
+  else if (a === 'edit') openPd(id); else openOp(a, id);
 };
 $('#add').onclick = () => openPd(null);
 $('#bIn').onclick = () => openOp('in');
@@ -853,7 +912,7 @@ async function fullLog() {
 }
 async function exportJson() {
   const log = await fullLog(); if (!log) return false;
-  saveBlob(new Blob([JSON.stringify({ products: S.products, log })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
+  saveBlob(new Blob([JSON.stringify({ products: S.products, log, zones: S.zones })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
   return true;
 }
 // --- prosty zapis pliku .xlsx (bez zewnętrznych bibliotek)
@@ -897,8 +956,8 @@ const pad2 = n => String(n).padStart(2, '0');
 const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
 async function exportXlsx() {
   const raw = await fullLog(); if (!raw) return;
-  const stan = [['SKU', 'Nazwa', 'Rozmiar', 'W magazynie', 'Na evencie']];
-  S.products.forEach(p => chipKeys(p).forEach(k => stan.push([p.sku, p.name, k, p.sizes[k] || 0, (p.ev && p.ev[k]) || 0])));
+  const stan = [['SKU', 'Nazwa', 'Rozmiar', 'W magazynie', 'Na evencie', 'Miejsce']];
+  S.products.forEach(p => chipKeys(p).forEach(k => stan.push([p.sku, p.name, k, p.sizes[k] || 0, (p.ev && p.ev[k]) || 0, zNames(p).join(', ')])));
   const hist = [['Data', 'Osoba', 'Operacja', 'SKU', 'Nazwa', 'Rozmiary', 'Nie wróciło', 'Notatka']];
   raw.map(cleanLogEntry).forEach(l => {
     const base = [fmtT(l.t), cap(l.by), OPN[l.m] || l.m];
@@ -912,7 +971,7 @@ async function exportXlsx() {
     { name: 'xl/workbook.xml', data: H + '<workbook xmlns="' + M + '" xmlns:r="' + RL + '"><sheets><sheet name="Stan" sheetId="1" r:id="rId1"/><sheet name="Historia" sheetId="2" r:id="rId2"/></sheets></workbook>' },
     { name: 'xl/_rels/workbook.xml.rels', data: H + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + RL + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + RL + '/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="' + RL + '/styles" Target="styles.xml"/></Relationships>' },
     { name: 'xl/styles.xml', data: H + '<styleSheet xmlns="' + M + '"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(stan, [16, 34, 14, 14, 14]) },
+    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(stan, [16, 34, 14, 14, 14, 24]) },
     { name: 'xl/worksheets/sheet2.xml', data: sheetXml(hist, [17, 10, 24, 14, 30, 30, 24, 30]) }
   ]);
   saveBlob(blob, 'magazyn-' + stamp() + '.xlsx');
@@ -928,7 +987,7 @@ $('#im').onchange = async e => {
   if (!d) return say('To nie jest poprawny plik kopii.');
   if (!online()) return;
   if (!await ask('Zastąpić dane w bazie danymi z pliku? Zmiana będzie widoczna na wszystkich urządzeniach.')) return;
-  try { await uploadAll(d.products, d.log || []); } catch (x) { say('Nie udało się wgrać danych do bazy.'); }
+  try { await uploadAll(d.products, d.log || [], d.zones); } catch (x) { say('Nie udało się wgrać danych do bazy.'); }
 };
 
 
@@ -1018,15 +1077,21 @@ async function loadStats() {
 }
 function statsRefresh() { if (view === 'st' && unlocked) { clearTimeout(stTimer); stTimer = setTimeout(loadStats, 600); } }
 function resetStats() { stRecs = null; ['#stSum', '#stChart', '#stPer', '#stProd'].forEach(q => { $(q).innerHTML = ''; }); }
-const viewFromHash = () => location.hash === '#statystyki' ? 'st' : 'wh';
+const viewFromHash = () => location.hash === '#statystyki' ? 'st' : /^#mapa(\/|$)/.test(location.hash) ? 'map' : 'wh';
 function showView(v) {
   if (!unlocked) return;
-  view = v; $('#vWh').hidden = v !== 'wh'; $('#vSt').hidden = v !== 'st';
+  view = v; $('#vWh').hidden = v !== 'wh'; $('#vSt').hidden = v !== 'st'; $('#vMap').hidden = v !== 'map';
+  if (v !== 'map') { mapMode = 'view'; mapDrag = null; mapZ = null; }
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  if (v === 'map') {
+    const m = location.hash.match(/^#mapa\/([A-Za-z0-9_-]{1,40})$/);
+    if (m) { mapPend = m[1]; mapSel = null; $('#mapQ').value = ''; }
+    renderMap();
+  }
   if (v === 'st') { stAnim = true; if (stRecs) renderStats(); else $('#stPer').innerHTML = '<p class="mu" style="padding:12px;margin:0">Ładowanie…</p>'; loadStats(); }
 }
 window.addEventListener('hashchange', () => showView(viewFromHash()));
-document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) location.hash = b.dataset.v === 'st' ? '#statystyki' : '#magazyn'; };
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) location.hash = { st: '#statystyki', map: '#mapa', wh: '#magazyn' }[b.dataset.v]; };
 $('#stSeg').onclick = e => {
   const b = e.target.closest('button[data-p]'); if (!b) return;
   per = b.dataset.p; stAnim = true;
@@ -1055,6 +1120,135 @@ $('#rstOk').onclick = async e => {
   busy = false; $('#rstOk').disabled = $('#rstIn').value.trim() !== 'RESET';
 };
 
+
+// --- mapa magazynu ("Gdzie ciuszek?")
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null;
+const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
+const zNames = p => p.zones.map(id => (S.zones.find(z => z.id === id) || {}).name).filter(Boolean);
+const mapZones = () => S.zones.map(z => mapDrag && mapDrag.id === z.id ? { ...z, ...mapDrag.z } : z);
+function setMapHash(h) { try { history.replaceState(null, '', location.pathname + location.search + h); } catch (e) {} }
+function renderMap() {
+  if (view !== 'map') return;
+  const Z = mapZones(), ids = new Set(Z.map(z => z.id));
+  if (mapPend && loaded) {
+    const p = S.products.find(x => x.id === mapPend); mapPend = null;
+    if (p) { mapSel = p.id; $('#mapQ').value = p.name; }
+  }
+  const sel = mapSel ? S.products.find(p => p.id === mapSel) : null;
+  if (!sel) mapSel = null;
+  if (!sel && mapMode === 'assign') mapMode = 'view';
+  if (mapZ && !ids.has(mapZ)) mapZ = null;
+  const q = $('#mapQ').value.trim().toLowerCase();
+  const matches = q ? S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q)) : [];
+  const act = sel ? [sel] : matches;
+  const hot = new Set();
+  act.forEach(p => p.zones.forEach(z => { if (ids.has(z)) hot.add(z); }));
+  $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zNames(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n.length ? '' : 'mu'}">${n.length ? esc(n.join(', ')) : 'brak miejsca'}</small></button>`; }).join('')
+    + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
+  const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
+  let h = '<rect class="floor" x=".3" y=".3" width="99.4" height="63.4" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
+    const cls = 'zone' + (hot.has(z.id) ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode === 'assign' ? ' pick' : '');
+    const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
+    return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/><text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
+  }).join('') + (sz ? `<rect class="hnd" data-z="${esc(sz.id)}" x="${sz.x + sz.w - 5}" y="${sz.y + sz.h - 5}" width="5" height="5" rx="1"/>` : '');
+  const svg = $('#mapSvg');
+  if (svg.__h !== h) { svg.innerHTML = h; svg.__h = h; }
+  svg.classList.toggle('ed', mapMode === 'edit');
+  $('#mapAssign').hidden = !(sel && Z.length && mapMode !== 'edit');
+  $('#mapAssign').textContent = mapMode === 'assign' ? 'Gotowe' : 'Przypisz miejsce';
+  $('#mapAssign').classList.toggle('p', mapMode === 'assign');
+  $('#mapEdit').hidden = mapMode === 'assign';
+  $('#mapEdit').textContent = mapMode === 'edit' ? 'Gotowe' : 'Edytuj mapę';
+  $('#mapEdit').classList.toggle('p', mapMode === 'edit');
+  $('#mapEditBar').hidden = mapMode !== 'edit';
+  $('#mapDemo').hidden = Z.length > 0;
+  $('#mapNameW').hidden = $('#mapDel').hidden = !sz;
+  if (sz && document.activeElement !== $('#mapName')) $('#mapName').value = sz.name;
+  let info;
+  if (mapMode === 'edit') info = 'Tryb edycji mapy. Dotknij strefy, aby ją zaznaczyć.';
+  else if (mapMode === 'assign') info = 'Dotknij strefy, aby dodać lub usunąć miejsce dla: ' + sel.name + '.';
+  else if (!Z.length) info = 'Mapa jest pusta. Kliknij „Edytuj mapę”, aby narysować strefy lub wstawić przykładowy układ.';
+  else if (!q && !sel) info = 'Wpisz nazwę lub SKU, aby zobaczyć, gdzie leży ciuszek.';
+  else if (!act.length) info = 'Nic nie pasuje do wyszukiwania.';
+  else if (act.length === 1) { const n = zNames(act[0]); info = n.length ? act[0].name + ': ' + n.join(', ') + '.' : act[0].name + ': brak przypisanego miejsca. Użyj „Przypisz miejsce” albo edytuj model.'; }
+  else info = 'Pasuje ' + act.length + ' modeli. Zielone strefy to ich miejsca, wybierz model z listy.';
+  $('#mapInfo').textContent = info;
+}
+$('#mapQ').oninput = () => { mapSel = null; mapPend = null; setMapHash('#mapa'); renderMap(); };
+$('#mapRes').onclick = e => {
+  const b = e.target.closest('.mres'); if (!b) return;
+  mapSel = b.dataset.id; setMapHash('#mapa/' + mapSel); renderMap();
+};
+$('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
+$('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; renderMap(); };
+$('#mapAdd').onclick = async () => {
+  if (!online()) return;
+  const id = R.child('map/zones').push().key; mapZ = id;
+  try { await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: 40, y: 19, w: 20, h: 6 }); } catch (x) { mapZ = null; say(MAPERR); }
+};
+$('#mapDemo').onclick = async () => {
+  if (!online()) return;
+  const mk = (n, x, y, w, h) => { const id = R.child('map/zones').push().key; return [id, { id, name: n, x, y, w, h }]; };
+  const z = Object.fromEntries([mk('Regał A', 4, 4, 28, 14), mk('Regał B', 36, 4, 28, 14), mk('Regał C', 68, 4, 28, 14), mk('Regał D', 4, 26, 28, 14), mk('Regał E', 36, 26, 28, 14), mk('Regał F', 68, 26, 28, 14), mk('Strefa paczek', 4, 48, 44, 12), mk('Czapki i dodatki', 52, 48, 44, 12)]);
+  try { await R.child('map/zones').set(z); } catch (x) { say(MAPERR); }
+};
+$('#mapName').oninput = () => {
+  const id = mapZ, v = $('#mapName').value.trim().slice(0, 40);
+  clearTimeout(nameT);
+  if (!id || !v) return;
+  nameT = setTimeout(() => { if (online()) R.child('map/zones/' + id + '/name').set(v).catch(() => say(MAPERR)); }, 450);
+};
+$('#mapDel').onclick = async () => {
+  const z = S.zones.find(x => x.id === mapZ);
+  if (!z || !await ask('Usunąć strefę „' + z.name + '”?')) return;
+  if (!online()) return;
+  try { await R.child('map/zones/' + z.id).remove(); mapZ = null; } catch (x) { say(MAPERR); }
+};
+async function toggleAssign(zid) {
+  const p = S.products.find(x => x.id === mapSel);
+  if (!p || !online()) return;
+  try { await R.child('products/' + p.id + '/zones/' + zid).set(p.zones.includes(zid) ? null : 1); } catch (x) { say('Nie udało się zapisać miejsca.'); }
+}
+{
+  const svg = $('#mapSvg');
+  const pt = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * MW, y: (e.clientY - r.top) / r.height * MH }; };
+  const snap = v => Math.round(v * 2) / 2;
+  svg.addEventListener('click', e => {
+    if (mapMode !== 'assign') return;
+    const g = e.target.closest('[data-z]'); if (g) toggleAssign(g.dataset.z);
+  });
+  svg.addEventListener('pointerdown', e => {
+    if (mapMode !== 'edit') return;
+    const h = e.target.closest('.hnd'), g = e.target.closest('[data-z]');
+    if (!g) { mapZ = null; renderMap(); return; }
+    const id = g.dataset.z, z = S.zones.find(x => x.id === id); if (!z) return;
+    e.preventDefault();
+    mapZ = id;
+    const p = pt(e);
+    mapDrag = { id, resize: !!h, ox: p.x - (h ? z.x + z.w : z.x), oy: p.y - (h ? z.y + z.h : z.y), z: { x: z.x, y: z.y, w: z.w, h: z.h }, o: { x: z.x, y: z.y, w: z.w, h: z.h }, moved: false };
+    try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+    renderMap();
+  });
+  svg.addEventListener('pointermove', e => {
+    const d = mapDrag; if (!d) return;
+    const p = pt(e), z = d.z;
+    if (d.resize) { z.w = fl(snap(p.x - d.ox - z.x), 4, MW - z.x); z.h = fl(snap(p.y - d.oy - z.y), 4, MH - z.y); }
+    else { z.x = fl(snap(p.x - d.ox), 0, MW - z.w); z.y = fl(snap(p.y - d.oy), 0, MH - z.h); }
+    d.moved = ['x', 'y', 'w', 'h'].some(k => z[k] !== d.o[k]);
+    renderMap();
+  });
+  const end = async e => {
+    const d = mapDrag; if (!d) return;
+    mapDrag = null;
+    let pr = null;
+    if (e.type === 'pointerup' && d.moved && online()) pr = R.child('map/zones/' + d.id).update(d.z);
+    renderMap();
+    if (pr) { try { await pr; } catch (x) { say(MAPERR); } }
+  };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+}
+
 // --- logowanie przez Firebase Authentication
 const DOMAIN = '@dzik-w11.app';
 function lockUI(on) {
@@ -1078,7 +1272,8 @@ if (auth) {
       user = (u.email || '').split('@')[0];
       unlocked = true; showWho(); lockUI(false); startDb(); rr(); showView(viewFromHash());
     } else {
-      user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true;
+      user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true;
+      mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; $('#mapQ').value = ''; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
       $('#grid').innerHTML = ''; $('#tot').hidden = true; ['cM', 'cS', 'cE'].forEach(id => { $('#' + id).__v = undefined; }); lockUI(true);
     }
   });
