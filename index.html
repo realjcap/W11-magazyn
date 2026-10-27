@@ -213,6 +213,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .zone.hot~.zd{stroke:#fff;opacity:.9}
 .cr{display:flex;align-items:center;gap:6px}
 .cr input{width:70px}
+.pc{fill:#2ea05a;stroke:#2ea05a;stroke-width:.4;pointer-events:none;animation:zpulse 1.3s ease-in-out infinite}
+.pv{fill:var(--ac);fill-opacity:.4;stroke:var(--ac);stroke-width:.5;pointer-events:none}
+.pn{font-size:1.5px;fill:var(--mu);pointer-events:none;font-family:inherit}
+#mapSvg.as{touch-action:none;cursor:pointer}
 .hnd{fill:var(--ac);cursor:nwse-resize}
 #mapZone{margin-bottom:12px}
 #mapZone h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -475,12 +479,21 @@ function cleanLogEntry(l) {
   if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; return x; });
   return o;
 }
+const zval = v => { if (v === 1 || v === true) return 1; if (typeof v !== 'string') return null; const t = [...new Set(v.split(',').filter(x => /^\d{1,2}:\d{1,2}$/.test(x)))]; return t.length ? t.sort().join(',') : null; };
+function zsan(raw) { const zr = {}; Object.entries(toObj(raw)).forEach(([k, v]) => { const w = zval(v); if (okId(k) && w !== null) zr[k] = w; }); return { zones: Object.keys(zr), zraw: zr }; }
+function palSet(p, z) { const v = p.zraw[z.id]; if (v === 1) return null; const s = new Set(); String(v || '').split(',').forEach(t => { const [r, c] = t.split(':').map(Number); if (r < z.r && c < z.c) s.add(r + ':' + c); }); return s; }
+function fmtPal(z, s) {
+  const n = [...s].map(t => { const [r, c] = t.split(':').map(Number); return r * z.c + c + 1; }).sort((a, b) => a - b), o = [];
+  for (let i = 0; i < n.length;) { let j = i; while (j + 1 < n.length && n[j + 1] === n[j] + 1) j++; o.push(j > i ? n[i] + '–' + n[j] : '' + n[i]); i = j + 1; }
+  return o.join(', ');
+}
+const palText = (p, z) => { const s = palSet(p, z); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (palety ' + fmtPal(z, s) + ')'; };
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
     .map(([id, z]) => ({ id, name: txt(z.name, 40) || 'Strefa', x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 20), r: cells(MZ[z.id].r, z.h, 4, 10) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
-    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), zones: Object.keys(toObj(p.zones)).filter(okId) }))
+    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.log = Object.keys(LG).sort().reverse().map(k => cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}));
   if (unlocked) rr();
@@ -537,7 +550,7 @@ async function uploadAll(prods, logs, zones) {
     const ev = sz(p.ev); Object.keys(ev).forEach(k => { if (!ev[k]) delete ev[k]; });
     if (Object.keys(ev).length) pr[id].ev = ev;
     const zl = (Array.isArray(p.zones) ? p.zones : Object.keys(toObj(p.zones))).map(String).filter(okId);
-    if (zl.length) pr[id].zones = Object.fromEntries(zl.map(k => [k, 1]));
+    if (zl.length) pr[id].zones = Object.fromEntries(zl.map(k => [k, (p.zraw && zval(p.zraw[k])) || 1]));
     const ph1 = safePhoto(p.photo); if (ph1) ph[id] = ph1;
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
@@ -852,7 +865,7 @@ $('#pdOk').onclick = async e => {
   const photo = f ? await toData(f) : null;
   const id = ed ? ed.id : Date.now().toString(36);
   const setZ = S.zones.length > 0, zo = {};
-  document.querySelectorAll('#pzL input:checked').forEach(i => { zo[i.value] = 1; });
+  document.querySelectorAll('#pzL input:checked').forEach(i => { zo[i.value] = (ed && ed.zraw && ed.zraw[i.value]) || 1; });
   try {
     if (ed) {
       await R.child('products/' + id).transaction(p => {
@@ -1134,9 +1147,9 @@ $('#rstOk').onclick = async e => {
 
 
 // --- mapa magazynu ("Gdzie ciuszek?")
-let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null;
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
-const zNames = p => p.zones.map(id => (S.zones.find(z => z.id === id) || {}).name).filter(Boolean);
+const zNames = p => p.zones.map(id => { const z = S.zones.find(x => x.id === id); return z ? z.name + palText(p, z) : null; }).filter(Boolean);
 const mapZones = () => S.zones.map(z => mapDrag && mapDrag.id === z.id ? { ...z, ...mapDrag.z } : z);
 function setMapHash(h) { try { history.replaceState(null, '', location.pathname + location.search + h); } catch (e) {} }
 function renderMap() {
@@ -1154,20 +1167,31 @@ function renderMap() {
   const q = $('#mapQ').value.trim().toLowerCase();
   const matches = q ? S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q)) : [];
   const act = sel ? [sel] : matches;
-  const hot = new Set();
-  act.forEach(p => p.zones.forEach(z => { if (ids.has(z)) hot.add(z); }));
+  const hot = new Map(), zmap = new Map(Z.map(z => [z.id, z]));
+  act.forEach(p => p.zones.forEach(zid => {
+    const z = zmap.get(zid); if (!z) return;
+    const s = palSet(p, z), cur = hot.get(zid);
+    if (cur === 'all' || s === null) hot.set(zid, 'all'); else { const u = cur || new Set(); s.forEach(t => u.add(t)); hot.set(zid, u); }
+  }));
+  if (mapMode !== 'assign') mapRng = null;
   $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zNames(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n.length ? '' : 'mu'}">${n.length ? esc(n.join(', ')) : 'brak miejsca'}</small></button>`; }).join('')
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
   let h = '<rect class="floor" x=".3" y=".3" width="99.4" height="63.4" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
-    const cls = 'zone' + (hot.has(z.id) ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
+    const hz = hot.get(z.id), cls = 'zone' + (hz === 'all' ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
     const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
     let gr = ''; for (let i = 1; i < z.c; i++) { const gx = +(z.x + z.w * i / z.c).toFixed(2); gr += `M${gx} ${z.y}V${z.y + z.h}`; } for (let i = 1; i < z.r; i++) { const gy = +(z.y + z.h * i / z.r).toFixed(2); gr += `M${z.x} ${gy}H${z.x + z.w}`; }
-    return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>${gr ? `<path class="zd" d="${gr}"/>` : ''}<text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
+    const cw = z.w / z.c, ch = z.h / z.r, cx = (r, c) => `x="${+(z.x + c * cw).toFixed(2)}" y="${+(z.y + r * ch).toFixed(2)}" width="${+cw.toFixed(2)}" height="${+ch.toFixed(2)}"`;
+    let pc = '', pn = '', pv = '';
+    if (hz && hz !== 'all') hz.forEach(t => { const [r, c] = t.split(':').map(Number); pc += `<rect class="pc" ${cx(r, c)}/>`; });
+    if ((mapMode === 'assign' || z.id === mapPick) && z.c * z.r > 1) for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) pn += `<text class="pn" x="${+(z.x + c * cw + .5).toFixed(2)}" y="${+(z.y + r * ch + 1.4).toFixed(2)}">${r * z.c + c + 1}</text>`;
+    if (mapRng && mapRng.zid === z.id) { const r1 = Math.min(mapRng.a.r, mapRng.b.r), r2 = Math.max(mapRng.a.r, mapRng.b.r), c1 = Math.min(mapRng.a.c, mapRng.b.c), c2 = Math.max(mapRng.a.c, mapRng.b.c); pv = `<rect class="pv" x="${+(z.x + c1 * cw).toFixed(2)}" y="${+(z.y + r1 * ch).toFixed(2)}" width="${+((c2 - c1 + 1) * cw).toFixed(2)}" height="${+((r2 - r1 + 1) * ch).toFixed(2)}"/>`; }
+    return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>${pc}${gr ? `<path class="zd" d="${gr}"/>` : ''}${pn}${pv}<text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
   }).join('') + (sz ? `<rect class="hnd" data-z="${esc(sz.id)}" x="${sz.x + sz.w - 5}" y="${sz.y + sz.h - 5}" width="5" height="5" rx="1"/>` : '');
   const svg = $('#mapSvg');
   if (svg.__h !== h) { svg.innerHTML = h; svg.__h = h; }
   svg.classList.toggle('ed', mapMode === 'edit');
+  svg.classList.toggle('as', mapMode === 'assign');
   $('#mapAssign').hidden = !(sel && Z.length && mapMode !== 'edit');
   $('#mapAssign').textContent = mapMode === 'assign' ? 'Gotowe' : 'Przypisz miejsce';
   $('#mapAssign').classList.toggle('p', mapMode === 'assign');
@@ -1181,7 +1205,7 @@ function renderMap() {
   if (sz && document.activeElement !== $('#mapName')) $('#mapName').value = sz.name;
   let info;
   if (mapMode === 'edit') info = 'Tryb edycji mapy. Dotknij strefy, aby ją zaznaczyć.';
-  else if (mapMode === 'assign') info = 'Dotknij strefy, aby dodać lub usunąć miejsce dla: ' + sel.name + '.';
+  else if (mapMode === 'assign') info = 'Dotknij palety albo przeciągnij po kilku, aby dodać lub usunąć miejsce dla: ' + sel.name + '. Ponowne zaznaczenie zakresu, który już jest przypisany, usuwa go.';
   else if (!Z.length) info = 'Mapa jest pusta. Kliknij „Edytuj mapę”, aby narysować strefy lub wstawić przykładowy układ.';
   else if (!q && !sel) info = 'Wpisz nazwę lub SKU, aby zobaczyć, gdzie leży ciuszek.';
   else if (!act.length) info = 'Nic nie pasuje do wyszukiwania.';
@@ -1193,7 +1217,7 @@ function renderMap() {
   if (pz) {
     const inZ = S.products.filter(p => p.zones.includes(pz.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
     $('#mapZone').innerHTML = `<h3><span>${esc(pz.name)} <small class="mu">(${inZ.length})</small></span><button type="button" id="mapZoneX" aria-label="Zamknij">✕</button></h3>`
-      + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}</small></button>`; }).join('')
+      + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}${esc(palText(p, pz))}</small></button>`; }).join('')
         : '<p class="mu" style="margin:0;font-size:14px">W tej strefie nie ma przypisanych modeli.</p>');
   }
 }
@@ -1240,22 +1264,35 @@ $('#mapDel').onclick = async () => {
   if (!online()) return;
   try { await R.child('map/zones/' + z.id).remove(); mapZ = null; } catch (x) { say(MAPERR); }
 };
-async function toggleAssign(zid) {
-  const p = S.products.find(x => x.id === mapSel);
-  if (!p || !online()) return;
-  try { await R.child('products/' + p.id + '/zones/' + zid).set(p.zones.includes(zid) ? null : 1); } catch (x) { say('Nie udało się zapisać miejsca.'); }
+async function applyRange(zid, a, b) {
+  const p = S.products.find(x => x.id === mapSel), z = S.zones.find(x => x.id === zid);
+  if (!p || !z || !online()) return;
+  const tk = [];
+  for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c++) tk.push(r + ':' + c);
+  const all = []; for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) all.push(r + ':' + c);
+  const cs = p.zones.includes(zid) ? palSet(p, z) : new Set(), cur = new Set(cs === null ? all : cs);
+  if (tk.every(t => cur.has(t))) tk.forEach(t => cur.delete(t)); else tk.forEach(t => cur.add(t));
+  const v = cur.size === 0 ? null : cur.size >= all.length ? 1 : [...cur].sort().join(',');
+  try { await R.child('products/' + p.id + '/zones/' + zid).set(v); } catch (x) { say('Nie udało się zapisać miejsca.'); }
 }
 {
   const svg = $('#mapSvg');
   const pt = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * MW, y: (e.clientY - r.top) / r.height * MH }; };
+  const cellAt = (z, p) => ({ c: Math.floor(fl((p.x - z.x) / (z.w / z.c), 0, z.c - .001)), r: Math.floor(fl((p.y - z.y) / (z.h / z.r), 0, z.r - .001)) });
   const snap = v => Math.round(v * 2) / 2;
   svg.addEventListener('click', e => {
     if (mapMode === 'edit') return;
     const g = e.target.closest('[data-z]');
-    if (mapMode === 'assign') { if (g) toggleAssign(g.dataset.z); return; }
+    if (mapMode === 'assign') return;
     mapPick = g && g.dataset.z !== mapPick ? g.dataset.z : null; renderMap();
   });
   svg.addEventListener('pointerdown', e => {
+    if (mapMode === 'assign') {
+      const g = e.target.closest('[data-z]'), z = g && S.zones.find(x => x.id === g.dataset.z); if (!z) return;
+      e.preventDefault(); const c = cellAt(z, pt(e));
+      mapRng = { zid: z.id, a: c, b: c }; try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+      renderMap(); return;
+    }
     if (mapMode !== 'edit') return;
     const h = e.target.closest('.hnd'), g = e.target.closest('[data-z]');
     if (!g) { mapZ = null; renderMap(); return; }
@@ -1268,6 +1305,7 @@ async function toggleAssign(zid) {
     renderMap();
   });
   svg.addEventListener('pointermove', e => {
+    if (mapRng) { const z = S.zones.find(x => x.id === mapRng.zid); if (z) { mapRng.b = cellAt(z, pt(e)); renderMap(); } return; }
     const d = mapDrag; if (!d) return;
     const p = pt(e), z = d.z;
     if (d.resize) { z.w = fl(snap(p.x - d.ox - z.x), 4, MW - z.x); z.h = fl(snap(p.y - d.oy - z.y), 4, MH - z.y); }
@@ -1276,6 +1314,7 @@ async function toggleAssign(zid) {
     renderMap();
   });
   const end = async e => {
+    if (mapRng) { const g = mapRng; mapRng = null; renderMap(); if (e.type === 'pointerup') await applyRange(g.zid, g.a, g.b); return; }
     const d = mapDrag; if (!d) return;
     mapDrag = null;
     let pr = null;
