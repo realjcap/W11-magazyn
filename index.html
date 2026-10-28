@@ -262,6 +262,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <input type="search" id="q" placeholder="Szukaj po nazwie lub SKU">
   <button class="p" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
+  <button id="bSet" hidden title="Tylko konto delma. Nie zapisuje się w historii ani statystykach.">Stan początkowy</button>
   <button id="ex">Eksportuj</button>
   <label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
@@ -317,6 +318,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 
 <dialog id="op">
   <h2 id="opT"></h2>
+  <p id="opHint" class="mu" style="margin:0 0 10px;font-size:13px" hidden>Wpisz prawdziwy stan każdego rozmiaru. Wpisana liczba zastępuje obecny stan. Puste pole zostawia stan bez zmian. Ta operacja nie zapisuje się w historii ani w statystykach.</p>
   <div class="lines" id="opLines" hidden></div>
   <div id="opPick">
     <input type="search" id="opQ" placeholder="Zacznij wpisywać nazwę lub SKU" autocomplete="off">
@@ -667,29 +669,32 @@ const MODES = {
   in: { t: 'Dostawa', c: 'g', ok: 'Dodaj do stanu' },
   out: { t: 'Wysyłka na Mszczonowską', c: 'r', ok: 'Odejmij ze stanu' },
   evout: { t: 'Wyjazd na event', c: 'b', ok: 'Wyślij na event' },
-  evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' }
+  evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' },
+  set: { t: 'Stan początkowy (bez historii)', c: 'p', ok: 'Ustaw stany' }
 };
 const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki' };
 const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out' };
 let cur = null, mode = 'in', lines = [];
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 const plural = n => n + (n === 1 ? ' model' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' modele' : ' modeli');
-const fmtD = d => Object.entries(d || {}).map(([k, n]) => esc(k) + ' × ' + n).join(', ');
+const fmtD = (d, sep = ' × ') => Object.entries(d || {}).map(([k, n]) => esc(k) + sep + n).join(', ');
 function renderLines() {
   const box = $('#opLines');
   box.hidden = !lines.length;
   box.innerHTML = lines.length ? '<div class="lh">Na liście: ' + plural(lines.length) + '</div>' + lines.map((l, i) =>
-    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d)}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
+    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d, mode === 'set' ? ' = ' : ' × ')}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
 }
 function setStep(step) {
   $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
   $('#opMore').hidden = step !== 'sizes';
   const can = step === 'sizes' || lines.length > 0;
-  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can;
+  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can || mode === 'set';
   renderLines();
 }
 function openOp(m, id) {
+  if (m === 'set' && user !== 'delma') return say('Tylko konto delma może ustawiać stan początkowy.');
   mode = m; lines = [];
+  $('#opHint').hidden = m !== 'set';
   $('#opT').textContent = MODES[m].t;
   $('#opOk').className = MODES[m].c;
   $('#opOk').textContent = MODES[m].ok;
@@ -715,20 +720,23 @@ function pickItem(p) {
   $('#opN').textContent = p.name; $('#opS').textContent = 'SKU ' + p.sku;
   $('#opF').innerHTML = sizesOf(p).map(s => {
     const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0, av = mode === 'evin' ? e : n;
-    const lim = mode === 'in' ? '' : ' max="' + av + '"';
-    return `<label class="row"><span>${esc(s)} <small class="mu">${mode === 'evin' ? 'na evencie' : 'stan'} ${av}</small></span>
-      <input type="number" inputmode="numeric" min="0"${lim} placeholder="0" data-s="${esc(s)}"></label>`;
+    const lim = mode === 'in' || mode === 'set' ? '' : ' max="' + av + '"';
+    return `<label class="row"><span>${esc(s)} <small class="mu">${mode === 'evin' ? 'na evencie' : mode === 'set' ? 'teraz' : 'stan'} ${av}</small></span>
+      <input type="number" inputmode="numeric" min="0"${lim} placeholder="${mode === 'set' ? av : 0}" data-s="${esc(s)}"></label>`;
   }).join('');
 }
 function collectCurrent() {
   if (!cur || $('#opSel').hidden) return null;
   const d = {};
-  $('#opF').querySelectorAll('input').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n; });
+  $('#opF').querySelectorAll('input').forEach(i => {
+    if (mode === 'set') { if (i.value.trim() === '') return; const n = Math.max(0, parseInt(i.value) || 0); if (n !== (cur.sizes[i.dataset.s] || 0)) d[i.dataset.s] = n; return; }
+    const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n;
+  });
   return Object.keys(d).length ? { id: cur.id, name: cur.name, sku: cur.sku, d } : null;
 }
 function addLine(L) {
   const x = lines.find(l => l.id === L.id);
-  if (x) { for (const k in L.d) x.d[k] = (x.d[k] || 0) + L.d[k]; } else lines.push(L);
+  if (x) { for (const k in L.d) x.d[k] = mode === 'set' ? L.d[k] : (x.d[k] || 0) + L.d[k]; } else lines.push(L);
 }
 $('#opQ').oninput = fillList;
 $('#opQ').onkeydown = e => {
@@ -770,6 +778,7 @@ async function applyBatch(m, items, note) {
       const p = all[L.id];
       if (!p) { err = 'Model ' + L.name + ' został w międzyczasie usunięty.'; return; }
       p.sizes = toObj(p.sizes); p.ev = toObj(p.ev);
+      if (m === 'set') { for (const k in L.d) p.sizes[k] = Math.max(0, Math.floor(L.d[k]) || 0); continue; }
       if (m !== 'in') {
         const src = m === 'evin' ? p.ev : p.sizes;
         for (const k in L.d) if (L.d[k] > (src[k] || 0)) { err = L.name + ': za mało sztuk w rozmiarze ' + k + ' (' + (m === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[k] || 0) + ').'; return; }
@@ -787,6 +796,7 @@ async function applyBatch(m, items, note) {
   });
   if (!res.committed) { if (err) await say(err); return false; }
   if (!res.snapshot.val()) { await say('Nie udało się zapisać zmian. Spróbuj ponownie.'); return false; }
+  if (m === 'set') return true; // stan początkowy: celowo bez wpisu w historii
   const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d }; if (lostBy[L.id]) it.lost = lostBy[L.id]; return it; });
   const entry = its.length === 1 ? { t: firebase.database.ServerValue.TIMESTAMP, name: its[0].name, sku: its[0].sku, m, d: its[0].d }
     : { t: firebase.database.ServerValue.TIMESTAMP, name: plural(its.length), sku: '', m, items: its };
@@ -801,7 +811,8 @@ $('#opOk').onclick = async e => {
   if (busy) return;
   const L = collectCurrent();
   if (L) { addLine(L); showPick(); }
-  if (!lines.length) return say('Wpisz ilość przynajmniej w jednym rozmiarze.');
+  if (!lines.length) return say(mode === 'set' ? 'Nie zmieniono żadnego stanu.' : 'Wpisz ilość przynajmniej w jednym rozmiarze.');
+  if (mode === 'set' && user !== 'delma') return say('Tylko konto delma może ustawiać stan początkowy.');
   if (mode === 'evin') {
     const miss = [];
     lines.forEach(l => {
@@ -916,6 +927,7 @@ $('#grid').onclick = e => {
 };
 $('#add').onclick = () => openPd(null);
 $('#bIn').onclick = () => openOp('in');
+$('#bSet').onclick = () => openOp('set');
 $('#bOut').onclick = () => openOp('out');
 $('#bEv').onclick = () => $('#evm').showModal();
 $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
@@ -1411,7 +1423,7 @@ function lockUI(on) {
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
   if (on) $('#llg').focus();
 }
-function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
+function showWho() { $('#rstBox').hidden = $('#bSet').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
 lockUI(true);
