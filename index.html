@@ -158,6 +158,12 @@ dialog[open]{opacity:1;transform:none}
 .seg button{flex:1;border:0;border-radius:0;background:transparent;box-shadow:none}
 .seg button.on{background:var(--ac);color:var(--acx);font-weight:600}
 .st-ctl select{flex:1 1 100%;min-width:0}
+.szc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.szc button{padding:6px 12px;min-width:44px}
+.szc button.on{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:600}
+#stProd .trow[data-k]{cursor:pointer}
+#stProd .trow[data-k]:hover{background:rgba(15,95,215,.06)}
+#stProd .trow.on{box-shadow:inset 3px 0 0 var(--ac)}
 .sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .tile{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--mu);border-radius:8px;padding:10px 12px;animation:rise .4s cubic-bezier(.2,.8,.2,1) both}
 .tile b{font-size:22px;display:block;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -268,6 +274,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <div class="seg" id="stSeg"><button data-p="day" class="on">Dzień</button><button data-p="week">Tydzień</button><button data-p="month">Miesiąc</button></div>
     <select id="stP" aria-label="Produkt"><option value="">Wszystkie produkty</option></select>
   </div>
+  <div class="szc" id="stSz" hidden></div>
   <div class="sumrow" id="stSum"></div>
   <div class="panel">
     <div class="chart" id="stChart"></div>
@@ -276,8 +283,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <h3 class="sh">Według okresu <small class="mu">(sztuki, w nawiasie liczba operacji; kliknij okres, by zobaczyć produkty)</small></h3>
   <div class="trow thead"><span>Okres</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
   <div class="tbl" id="stPer"></div>
-  <h3 class="sh">Według produktu <small class="mu" id="stRange"></small></h3>
-  <div class="trow thead"><span>Produkt</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
+  <h3 class="sh"><span id="stPT">Według produktu</span> <small class="mu" id="stRange"></small></h3>
+  <div class="trow thead"><span id="stPC">Produkt</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
   <div class="tbl" id="stProd"></div>
   <div class="panel danger" id="rstBox" hidden style="margin-top:18px">
     <b>Strefa ryzyka</b>
@@ -966,15 +973,41 @@ function zipFiles(files) {
   return new Blob([...parts, ...cen, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 const xe = t => String(t).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-function sheetXml(rows, widths) {
+// style komórek (numery = kolejność <xf> w XS_XFS)
+const XS = { head: 1, txt: 2, num: 3, zero: 4, low: 5, ev: 6, ev0: 7, txtB: 8, numB: 9, totL: 10, totN: 11, date: 12, opIn: 13, opOut: 14, opEv: 15, wrap: 16, ev0B: 17 };
+const XS_XFS = [
+  [0, 0, 0, 0, ''], [0, 1, 2, 1, 'center" wrapText="1'], [0, 0, 0, 1, 'left'], [0, 0, 0, 1, 'center'], [0, 2, 3, 1, 'center'], [0, 3, 4, 1, 'center'],
+  [0, 4, 5, 1, 'center'], [0, 5, 0, 1, 'center'], [0, 0, 6, 1, 'left'], [0, 0, 6, 1, 'center'], [0, 6, 7, 2, 'left'], [0, 6, 7, 2, 'center'],
+  [164, 0, 0, 1, 'left'], [0, 7, 8, 1, 'left'], [0, 2, 3, 1, 'left'], [0, 4, 5, 1, 'left'], [0, 0, 0, 1, 'left" wrapText="1'], [0, 5, 6, 1, 'center']
+];
+function stylesXml() {
+  const font = (c, b) => '<font>' + (b ? '<b/>' : '') + '<sz val="11"/><color rgb="FF' + c + '"/><name val="Calibri"/></font>';
+  const fill = c => '<fill><patternFill patternType="solid"><fgColor rgb="FF' + c + '"/><bgColor indexed="64"/></patternFill></fill>';
+  const side = (n, st, c) => '<' + n + ' style="' + st + '"><color rgb="FF' + c + '"/></' + n + '>';
+  const fonts = [font('222222'), font('FFFFFF', 1), font('C62828', 1), font('B26A00', 1), font('0F5FD7', 1), font('AAAAAA'), font('222222', 1), font('2E7D32', 1)];
+  const fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>', fill('1F1F1F'), fill('FDE2E1'), fill('FFF0D9'), fill('E1EDFD'), fill('F6F6F6'), fill('EDEDED'), fill('E3F4E8')];
+  const borders = ['<border><left/><right/><top/><bottom/><diagonal/></border>',
+    '<border>' + side('left', 'thin', 'D9D9D9') + side('right', 'thin', 'D9D9D9') + side('top', 'thin', 'D9D9D9') + side('bottom', 'thin', 'D9D9D9') + '<diagonal/></border>',
+    '<border>' + side('left', 'thin', 'D9D9D9') + side('right', 'thin', 'D9D9D9') + side('top', 'medium', '222222') + side('bottom', 'thin', 'D9D9D9') + '<diagonal/></border>'];
+  const xfs = XS_XFS.map(([nf, fo, fi, bo, al]) => '<xf numFmtId="' + nf + '" fontId="' + fo + '" fillId="' + fi + '" borderId="' + bo + '" xfId="0"' + (nf ? ' applyNumberFormat="1"' : '') + ' applyFont="1" applyFill="1" applyBorder="1"' + (al ? ' applyAlignment="1"><alignment horizontal="' + al + '" vertical="center"/></xf>' : '/>'));
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy-mm-dd hh:mm"/></numFmts>'
+    + '<fonts count="' + fonts.length + '">' + fonts.join('') + '</fonts><fills count="' + fills.length + '">' + fills.join('') + '</fills><borders count="' + borders.length + '">' + borders.join('') + '</borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+}
+// komórka: liczba, tekst albo { v, s, f } (s = styl z XS, f = formuła); filterRows = ile wierszy obejmuje autofiltr
+function sheetXml(rows, widths, filterRows) {
   const col = i => String.fromCharCode(65 + i);
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>'
     + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>'
-    + rows.map((r, i) => '<row r="' + (i + 1) + '">' + r.map((v, j) => {
-      const ref = col(j) + (i + 1);
-      return typeof v === 'number' ? '<c r="' + ref + '"><v>' + v + '</v></c>'
-        : '<c r="' + ref + '" t="inlineStr"' + (i === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + xe(v) + '</t></is></c>';
-    }).join('') + '</row>').join('') + '</sheetData></worksheet>';
+    + rows.map((r, i) => '<row r="' + (i + 1) + '"' + (i === 0 ? ' ht="30" customHeight="1"' : '') + '>' + r.map((c, j) => {
+      const o = c !== null && typeof c === 'object' ? c : { v: c }, ref = col(j) + (i + 1);
+      const s = ' s="' + (o.s !== undefined ? o.s : i === 0 ? XS.head : typeof o.v === 'number' ? XS.num : XS.txt) + '"';
+      if (o.f) return '<c r="' + ref + '"' + s + '><f>' + xe(o.f) + '</f>' + (typeof o.v === 'number' ? '<v>' + o.v + '</v>' : '') + '</c>';
+      if (typeof o.v === 'number') return '<c r="' + ref + '"' + s + '><v>' + o.v + '</v></c>';
+      return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xe(o.v == null ? '' : o.v) + '</t></is></c>';
+    }).join('') + '</row>').join('') + '</sheetData>'
+    + (filterRows > 1 ? '<autoFilter ref="A1:' + col(widths.length - 1) + filterRows + '"/>' : '')
+    + '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
 }
 const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki' };
 const fmtP = d => Object.entries(d || {}).map(([k, n]) => k + ' × ' + n).join(', ');
@@ -982,13 +1015,29 @@ const pad2 = n => String(n).padStart(2, '0');
 const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
 async function exportXlsx() {
   const raw = await fullLog(); if (!raw) return;
+  // arkusz "Stan": modele na przemian w szarym pasie, kolory stanów jak na stronie
   const stan = [['SKU', 'Nazwa', 'Rozmiar', 'W magazynie', 'Na evencie', 'Miejsce']];
-  S.products.forEach(p => chipKeys(p).forEach(k => stan.push([p.sku, p.name, k, p.sizes[k] || 0, (p.ev && p.ev[k]) || 0, zNames(p).join(', ')])));
+  let totW = 0, totE = 0;
+  S.products.slice().sort((a, b) => a.name.localeCompare(b.name, 'pl')).forEach((p, pi) => {
+    const band = pi % 2 === 1, t = band ? XS.txtB : XS.txt;
+    chipKeys(p).forEach(k => {
+      const w = p.sizes[k] || 0, e = (p.ev && p.ev[k]) || 0; totW += w; totE += e;
+      stan.push([{ v: p.sku, s: t }, { v: p.name, s: t }, { v: k, s: band ? XS.numB : XS.num },
+        { v: w, s: w === 0 ? XS.zero : w <= 2 ? XS.low : band ? XS.numB : XS.num },
+        { v: e, s: e > 0 ? XS.ev : band ? XS.ev0B : XS.ev0 }, { v: zNames(p).join(', '), s: t }]);
+    });
+  });
+  const nS = stan.length;
+  stan.push([{ v: 'Razem', s: XS.totL }, { v: '', s: XS.totL }, { v: '', s: XS.totL }, { v: totW, f: 'SUM(D2:D' + nS + ')', s: XS.totN }, { v: totE, f: 'SUM(E2:E' + nS + ')', s: XS.totN }, { v: '', s: XS.totL }]);
+  // arkusz "Historia": prawdziwa data (da się sortować), operacja w kolorze przycisku
+  const OPS = { in: XS.opIn, out: XS.opOut, evout: XS.opEv, evin: XS.opEv };
+  const xDate = t => (t - new Date(t).getTimezoneOffset() * 60000) / 86400000 + 25569;
   const hist = [['Data', 'Osoba', 'Operacja', 'SKU', 'Nazwa', 'Rozmiary', 'Nie wróciło', 'Notatka']];
   raw.map(cleanLogEntry).forEach(l => {
-    const base = [fmtT(l.t), cap(l.by), OPN[l.m] || l.m];
-    if (l.items && l.items.length) l.items.forEach(it => hist.push([...base, it.sku, it.name, fmtP(it.d), fmtP(it.lost), l.note]));
-    else hist.push([...base, l.sku, l.name, fmtP(l.d), fmtP(l.lost), l.note]);
+    const base = [{ v: xDate(l.t), s: XS.date }, cap(l.by), { v: OPN[l.m] || l.m, s: OPS[l.m] || XS.txt }];
+    const row = (sku, name, d, lost) => hist.push([...base, sku, name, { v: fmtP(d), s: XS.wrap }, { v: fmtP(lost), s: lost ? XS.opOut : XS.wrap }, { v: l.note, s: XS.wrap }]);
+    if (l.items && l.items.length) l.items.forEach(it => row(it.sku, it.name, it.d, it.lost));
+    else row(l.sku, l.name, l.d, l.lost);
   });
   const M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', RL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships', PR = 'http://schemas.openxmlformats.org/package/2006/relationships', H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const blob = zipFiles([
@@ -996,9 +1045,9 @@ async function exportXlsx() {
     { name: '_rels/.rels', data: H + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + RL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
     { name: 'xl/workbook.xml', data: H + '<workbook xmlns="' + M + '" xmlns:r="' + RL + '"><sheets><sheet name="Stan" sheetId="1" r:id="rId1"/><sheet name="Historia" sheetId="2" r:id="rId2"/></sheets></workbook>' },
     { name: 'xl/_rels/workbook.xml.rels', data: H + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + RL + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + RL + '/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="' + RL + '/styles" Target="styles.xml"/></Relationships>' },
-    { name: 'xl/styles.xml', data: H + '<styleSheet xmlns="' + M + '"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
-    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(stan, [16, 34, 14, 14, 14, 24]) },
-    { name: 'xl/worksheets/sheet2.xml', data: sheetXml(hist, [17, 10, 24, 14, 30, 30, 24, 30]) }
+    { name: 'xl/styles.xml', data: stylesXml() },
+    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(stan, [14, 34, 11, 14, 14, 28], nS) },
+    { name: 'xl/worksheets/sheet2.xml', data: sheetXml(hist, [17, 10, 26, 14, 30, 28, 22, 36], hist.length) }
   ]);
   saveBlob(blob, 'magazyn-' + stamp() + '.xlsx');
 }
@@ -1018,7 +1067,7 @@ $('#im').onchange = async e => {
 
 
 // --- statystyki (podstrona #statystyki)
-let view = 'wh', per = 'day', stFilter = '', stRecs = null, stTimer = null, stAnim = true;
+let view = 'wh', per = 'day', stFilter = '', stSize = '', stRecs = null, stTimer = null, stAnim = true;
 const STM = ['in', 'out', 'evout', 'evin'];
 const DAYN = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'], MONN = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 const mk = () => ({ in: { q: 0, o: new Set() }, out: { q: 0, o: new Set() }, evout: { q: 0, o: new Set() }, evin: { q: 0, o: new Set() } });
@@ -1051,7 +1100,7 @@ function toRecs(log) {
     const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
     its.forEach(it => {
       const q = Object.values(it.d || {}).reduce((a, b) => a + b, 0);
-      if (q > 0) out.push({ id: i, t: l.t, m: l.m, sku: it.sku || it.name, name: it.name, q });
+      if (q > 0) out.push({ id: i, t: l.t, m: l.m, sku: it.sku || it.name, name: it.name, q, d: it.d || {} });
     });
   });
   return out;
@@ -1080,7 +1129,21 @@ function renderStats() {
   if (stFilter && !names.has(stFilter)) stFilter = '';
   $('#stP').innerHTML = '<option value="">Wszystkie produkty</option>' + [...names].sort((a, b) => a[1].localeCompare(b[1], 'pl'))
     .map(([k, n]) => `<option value="${esc(k)}"${k === stFilter ? ' selected' : ''}>${esc(n)} (${esc(k)})</option>`).join('');
-  const A = aggregate(stFilter ? stRecs.filter(r => r.sku === stFilter) : stRecs, per);
+  // wybrany model: rekordy rozbite na rozmiary (sku = rozmiar), opcjonalnie tylko jeden rozmiar
+  let recs = stRecs, allSz = null;
+  if (stFilter) {
+    recs = [];
+    stRecs.forEach(r => { if (r.sku === stFilter) Object.entries(r.d).forEach(([s, q]) => { if (q > 0) recs.push({ ...r, sku: s, name: 'Rozmiar ' + s, q }); }); });
+    const sizes = [...new Set(recs.map(r => r.sku))].sort(bySize);
+    if (stSize && !sizes.includes(stSize)) stSize = '';
+    $('#stSz').innerHTML = `<button type="button" data-s=""${stSize ? '' : ' class="on"'}>Wszystkie rozmiary</button>` + sizes.map(s => `<button type="button" data-s="${esc(s)}"${s === stSize ? ' class="on"' : ''}>${esc(s)}</button>`).join('');
+    if (stSize) { allSz = recs; recs = recs.filter(r => r.sku === stSize); }
+  } else stSize = '';
+  $('#stSz').hidden = !stFilter;
+  $('#stPT').textContent = stFilter ? 'Według rozmiaru: ' + names.get(stFilter) : 'Według produktu';
+  $('#stPC').textContent = stFilter ? 'Rozmiar' : 'Produkt';
+  const lbl = (k, o) => esc(o.name) + (stFilter ? '' : `<small class="sk">${esc(k)}</small>`);
+  const A = aggregate(recs, per);
   const tiles = [['cin', 'Dostawy', 'in'], ['cout', 'Wysyłki na Mszczonowską', 'out'], ['cev', 'Wyjazdy na event', 'evout'], ['cevi', 'Przyjazdy z eventu', 'evin']];
   $('#stSum').innerHTML = tiles.map(([c, l, m], i) => `<div class="tile ${c}" style="animation-delay:${i * 50}ms"><small>${l}</small><b>${A.T[m].q} szt.</b><small>${A.T[m].o.size} ${A.T[m].o.size === 1 ? 'operacja' : 'operacji'}</small></div>`).join('');
   const mx = Math.max(1, ...A.B.flatMap(b => STM.map(m => b.tot[m].q)));
@@ -1090,10 +1153,11 @@ function renderStats() {
   stAnim = false;
   $('#stChart').scrollLeft = $('#stChart').scrollWidth;
   const act = A.B.filter(b => rowSum(b.tot) > 0).reverse();
-  $('#stPer').innerHTML = act.map(b => `<details><summary class="trow"><span><span class="chev">▸</span>${esc(bLabel(b.t, per))}</span>${rowCells(b.tot)}</summary><div class="sub">${[...b.prod].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${esc(o.name)}<small class="sk">${esc(k)}</small></span>${rowCells(o)}</div>`).join('')}</div></details>`).join('')
+  $('#stPer').innerHTML = act.map(b => `<details><summary class="trow"><span><span class="chev">▸</span>${esc(bLabel(b.t, per))}</span>${rowCells(b.tot)}</summary><div class="sub">${[...b.prod].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${lbl(k, o)}</span>${rowCells(o)}</div>`).join('')}</div></details>`).join('')
     || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
   $('#stRange').textContent = '(' + (per === 'day' ? 'ostatnie 30 dni' : per === 'week' ? 'ostatnie 12 tygodni' : 'ostatnie 12 miesięcy') + ')';
-  $('#stProd').innerHTML = [...A.P].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${esc(o.name)}<small class="sk">${esc(k)}</small></span>${rowCells(o)}</div>`).join('')
+  const pr = [...(allSz ? aggregate(allSz, per).P : A.P)].sort(stFilter ? (x, y) => bySize(x[0], y[0]) : (x, y) => rowSum(y[1]) - rowSum(x[1]));
+  $('#stProd').innerHTML = pr.map(([k, o]) => `<div class="trow${stFilter && k === stSize ? ' on' : ''}" data-k="${esc(k)}" title="${stFilter ? 'Pokaż tylko ten rozmiar' : 'Pokaż statystyki modelu i rozmiarów'}"><span>${lbl(k, o)}</span>${rowCells(o)}</div>`).join('')
     || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
 }
 async function loadStats() {
@@ -1124,7 +1188,18 @@ $('#stSeg').onclick = e => {
   $('#stSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   renderStats();
 };
-$('#stP').onchange = () => { stFilter = $('#stP').value; stAnim = true; renderStats(); };
+$('#stP').onchange = () => { stFilter = $('#stP').value; stSize = ''; stAnim = true; renderStats(); };
+$('#stSz').onclick = e => {
+  const b = e.target.closest('button[data-s]'); if (!b) return;
+  stSize = b.dataset.s; stAnim = true; renderStats();
+};
+$('#stProd').onclick = e => {
+  const r = e.target.closest('.trow[data-k]'); if (!r) return;
+  if (stFilter) stSize = r.dataset.k === stSize ? '' : r.dataset.k;
+  else { stFilter = r.dataset.k; stSize = ''; }
+  stAnim = true; renderStats();
+  $('#vSt').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+};
 // --- zerowanie historii i statystyk (tylko konto delma; w bazie pilnują tego reguły)
 $('#rstOpen').onclick = () => {
   if (user !== 'delma') return say('Tylko konto delma może wyzerować historię.');
