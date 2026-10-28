@@ -305,10 +305,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <button id="mapEdit">Edytuj mapę</button>
   </div>
   <div class="panel" id="mapEditBar" hidden>
-    <label class="f"><small>Nowy blok: palet w poziomie × w pionie</small><span class="cr"><input type="number" id="nC" min="1" max="20" value="1" inputmode="numeric"> × <input type="number" id="nR" min="1" max="10" value="1" inputmode="numeric"></span></label>
+    <label class="f"><small>Nowy blok: palet w poziomie × w pionie</small><span class="cr"><input type="number" id="nC" min="1" max="40" value="1" inputmode="numeric"> × <input type="number" id="nR" min="1" max="40" value="1" inputmode="numeric"></span></label>
     <div class="bar" style="margin:0 0 8px"><button id="mapAdd">＋ Strefa</button><button id="mapDemo" hidden>Wstaw przykładowy układ</button></div>
     <label class="f" id="mapNameW" hidden><small>Nazwa strefy</small><input id="mapName" maxlength="40"></label>
-    <label class="f" id="mapCRW" hidden><small>Palety w wybranym bloku: w poziomie × w pionie</small><span class="cr"><input type="number" id="mapC" min="1" max="20" inputmode="numeric"> × <input type="number" id="mapR" min="1" max="10" inputmode="numeric"></span></label>
+    <label class="f" id="mapCRW" hidden><small>Palety w wybranym bloku: w poziomie × w pionie</small><span class="cr"><input type="number" id="mapC" min="1" max="40" inputmode="numeric"> × <input type="number" id="mapR" min="1" max="40" inputmode="numeric"></span></label>
     <button class="d" id="mapDel" hidden>Usuń strefę</button>
     <p class="mu" style="margin:8px 0 0;font-size:13px">Przeciągnij strefę, aby ją przesunąć. Niebieski uchwyt w rogu zmienia rozmiar.</p>
   </div>
@@ -499,7 +499,7 @@ function fmtPal(z, s) {
 const palText = (p, z) => { const s = palSet(p, z); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (palety ' + fmtPal(z, s) + ')'; };
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
-    .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 20), r: cells(MZ[z.id].r, z.h, 4, 10) }))
+    .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 40), r: cells(MZ[z.id].r, z.h, 4, 40) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones) }))
@@ -564,7 +564,7 @@ async function uploadAll(prods, logs, zones) {
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   const up = { products: pr, photos: ph, log: lg };
-  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 20), r: cells(z.r, fl(z.h, 4, MH), 4, 10) }]));
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 40), r: cells(z.r, fl(z.h, 4, MH), 4, 40) }]));
   await R.update(up);
 }
 async function maybeMigrate() {
@@ -1328,7 +1328,7 @@ $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'ass
 $('#mapAdd').onclick = async () => {
   if (!online()) return;
   const id = R.child('map/zones').push().key; mapZ = id;
-  try { const c = Math.round(fl($('#nC').value, 1, 20)) || 1, r = Math.round(fl($('#nR').value, 1, 10)) || 1, w = fl(c * 5, 8, 96), h = fl(r * 4, 6, 60);
+  try { const c = Math.round(fl($('#nC').value, 1, 40)) || 1, r = Math.round(fl($('#nR').value, 1, 40)) || 1, w = fl(c * 5, 8, 96), h = fl(r * 4, 6, 60);
     await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: +((MW - w) / 2).toFixed(1), y: Math.min(19, MH - h), w, h, c, r }); } catch (x) { mapZ = null; say(MAPERR); }
 };
 $('#mapDemo').onclick = async () => {
@@ -1345,7 +1345,7 @@ $('#mapName').oninput = () => {
 };
 ['C', 'R'].forEach(k => { $('#map' + k).onchange = () => {
   const z = S.zones.find(x => x.id === mapZ); if (!z || !online()) return;
-  const v = Math.round(fl($('#map' + k).value, 1, k === 'C' ? 20 : 10)) || 1;
+  const v = Math.round(fl($('#map' + k).value, 1, 40)) || 1;
   R.child('map/zones/' + z.id + '/' + k.toLowerCase()).set(v).catch(() => say(MAPERR));
 }; });
 $('#mapDel').onclick = async () => {
