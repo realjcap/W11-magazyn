@@ -133,6 +133,12 @@ dialog[open]{opacity:1;transform:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.45}}
 .card.leaving{animation:leave .22s ease-in forwards;pointer-events:none}
 #lf.shake{animation:shake .38s ease}
+/* animacja dzika po zalogowaniu */
+#lock.ram{overflow:hidden}
+.boar img{position:absolute;display:block;max-width:none}
+.boar{position:absolute;left:0;top:0;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45));transform-origin:70% 90%;will-change:transform}
+.dust{position:absolute;left:0;top:0;border-radius:50%;pointer-events:none;background:radial-gradient(circle at 40% 40%,rgba(236,226,206,.95),rgba(190,176,150,.55) 55%,rgba(170,155,130,0) 72%);will-change:transform,opacity}
+.spark{position:absolute;left:0;top:0;width:22px;height:3px;border-radius:2px;background:#fff;pointer-events:none;transform-origin:0 50%}
 .big button{animation:rise .45s cubic-bezier(.2,.8,.2,1) both}
 .big button:nth-child(2){animation-delay:.06s}
 .big button:nth-child(3){animation-delay:.12s}
@@ -311,7 +317,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="bar"><input type="search" id="mapQ" placeholder="Nazwa lub SKU, np. Bluza albo B1" autocomplete="off"></div>
   <div id="mapRes"></div>
   <div class="panel mapbox"><svg id="mapSvg" viewBox="0 0 100 64" role="img" aria-label="Mapa magazynu"></svg>
-    <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż całą mapę">⤢</button><small id="mzL">100%</small></div></div>
+    <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż wszystkie bloki">⤢</button><small id="mzL">100%</small></div></div>
   <p id="mapInfo" class="mapinfo"></p>
   <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
@@ -491,7 +497,8 @@ const cleanKey = k => String(k).replace(/[.$#\[\]\/]/g, '');
 const setConn = t => { const c = $('#conn'); c.textContent = t; c.className = /^online/.test(t) ? 'on' : /brak|błąd/.test(t) ? 'off' : ''; };
 // dane z bazy traktujemy jak niezaufane: wszystko jest oczyszczane, zanim trafi do widoku
 const num = v => Math.max(0, Math.floor(Number(v)) || 0);
-const MW = 100, MH = 64;
+const MW = 100, MH = 64; // podstawowy widok mapy (100%)
+const WW = 400, WH = 256; // cały obszar, na którym można stawiać bloki (oddalenie do 25%)
 const fl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
 const cells = (v, size, unit, max) => { const n = Math.round(Number(v)); return n >= 1 ? Math.min(max, n) : Math.min(max, Math.max(1, Math.round(size / unit))); };
 const txt = (v, n) => String(v == null ? '' : v).slice(0, n);
@@ -527,7 +534,7 @@ const oldSum = p => Object.values(p.old || {}).reduce((a, b) => a + b, 0);
 const hay = p => (p.name + ' ' + p.sku + ' ' + (p.oldSku || '')).toLowerCase();
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
-    .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 40), r: cells(MZ[z.id].r, z.h, 4, 40) }))
+    .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, WW), y: fl(z.y, 0, WH), w: fl(z.w, 4, WW), h: fl(z.h, 4, WH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 40), r: cells(MZ[z.id].r, z.h, 4, 40) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...oldSan(p) }))
@@ -594,7 +601,7 @@ async function uploadAll(prods, logs, zones) {
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   const up = { products: pr, photos: ph, log: lg };
-  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH), c: cells(z.c, fl(z.w, 4, MW), 5, 40), r: cells(z.r, fl(z.h, 4, MH), 4, 40) }]));
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => [String(z.id), { id: String(z.id), name: txt(z.name, 40), x: fl(z.x, 0, WW), y: fl(z.y, 0, WH), w: fl(z.w, 4, WW), h: fl(z.h, 4, WH), c: cells(z.c, fl(z.w, 4, WW), 5, 40), r: cells(z.r, fl(z.h, 4, WH), 4, 40) }]));
   await R.update(up);
 }
 async function maybeMigrate() {
@@ -1416,7 +1423,7 @@ function renderMap() {
   $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zNames(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n.length ? '' : 'mu'}">${n.length ? esc(n.join(', ')) : 'brak miejsca'}</small></button>`; }).join('')
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
-  let h = '<rect class="floor" x=".3" y=".3" width="99.4" height="63.4" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
+  let h = '<rect class="floor" x=".3" y=".3" width="' + (WW - .6) + '" height="' + (WH - .6) + '" rx="1.5"/>' + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
     const hz = hot.get(z.id), cls = 'zone' + (hz === 'all' ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
     const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
     let gr = ''; for (let i = 1; i < z.c; i++) { const gx = +(z.x + z.w * i / z.c).toFixed(2); gr += `M${gx} ${z.y}V${z.y + z.h}`; } for (let i = 1; i < z.r; i++) { const gy = +(z.y + z.h * i / z.r).toFixed(2); gr += `M${z.x} ${gy}H${z.x + z.w}`; }
@@ -1477,8 +1484,8 @@ $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'ass
 $('#mapAdd').onclick = async () => {
   if (!online()) return;
   const id = R.child('map/zones').push().key; mapZ = id;
-  try { const c = Math.round(fl($('#nC').value, 1, 40)) || 1, r = Math.round(fl($('#nR').value, 1, 40)) || 1, w = fl(c * 5, 8, 96), h = fl(r * 4, 6, 60);
-    await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: +((MW - w) / 2).toFixed(1), y: Math.min(19, MH - h), w, h, c, r }); } catch (x) { mapZ = null; say(MAPERR); }
+  try { const c = Math.round(fl($('#nC').value, 1, 40)) || 1, r = Math.round(fl($('#nR').value, 1, 40)) || 1, w = fl(c * 5, 8, WW - 4), h = fl(r * 4, 6, WH - 4);
+    await R.child('map/zones/' + id).set({ id, name: 'Nowa strefa', x: +fl(mapVb.x + (mapVb.w - w) / 2, 0, WW - w).toFixed(1), y: +fl(mapVb.y + Math.min(mapVb.h * .3, (mapVb.h - h) / 2), 0, WH - h).toFixed(1), w, h, c, r }); } catch (x) { mapZ = null; say(MAPERR); }
 };
 $('#mapDemo').onclick = async () => {
   if (!online()) return;
@@ -1520,17 +1527,17 @@ async function applyRange(zid, a, b) {
   const ZMAX = 8, ptrs = new Map();
   let pan = null, pinch = null, panMoved = false, downT = null;
   const pt = e => { const r = svg.getBoundingClientRect(); return { x: mapVb.x + (e.clientX - r.left) / r.width * mapVb.w, y: mapVb.y + (e.clientY - r.top) / r.height * mapVb.h }; };
-  const clampVb = () => { mapVb.x = fl(mapVb.x, 0, MW - mapVb.w); mapVb.y = fl(mapVb.y, 0, MH - mapVb.h); };
+  const clampVb = () => { mapVb.x = fl(mapVb.x, 0, WW - mapVb.w); mapVb.y = fl(mapVb.y, 0, WH - mapVb.h); };
   function applyVb() {
     svg.setAttribute('viewBox', [mapVb.x, mapVb.y, mapVb.w, mapVb.h].map(v => +v.toFixed(3)).join(' '));
     const z = MW / mapVb.w;
-    svg.classList.toggle('zm', z > 1.001);
+    svg.classList.toggle('zm', mapVb.w < WW - .001);
     $('#mzL').textContent = Math.round(z * 100) + '%';
-    $('#mzIn').disabled = z >= ZMAX - .001; $('#mzOut').disabled = $('#mzR').disabled = z <= 1.001;
+    $('#mzIn').disabled = z >= ZMAX - .001; $('#mzOut').disabled = mapVb.w >= WW - .001;
   }
   // nowa szerokość widoku; punkt (cx, cy) mapy zostaje w miejscu ekranu opisanym ułamkami (fx, fy)
   function zoomTo(nw, cx, cy, fx, fy) {
-    nw = fl(nw, MW / ZMAX, MW);
+    nw = fl(nw, MW / ZMAX, WW);
     if (fx === undefined) { fx = (cx - mapVb.x) / mapVb.w; fy = (cy - mapVb.y) / mapVb.h; }
     mapVb.w = nw; mapVb.h = nw * MH / MW; mapVb.x = cx - fx * mapVb.w; mapVb.y = cy - fy * mapVb.h;
     clampVb(); applyVb();
@@ -1538,7 +1545,15 @@ async function applyRange(zid, a, b) {
   mapVbReset = () => { mapVb = { x: 0, y: 0, w: MW, h: MH }; ptrs.clear(); pan = pinch = null; applyVb(); };
   $('#mzIn').onclick = () => zoomTo(mapVb.w / 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
   $('#mzOut').onclick = () => zoomTo(mapVb.w * 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
-  $('#mzR').onclick = () => mapVbReset();
+  // ⤢ = pokaż wszystkie bloki (albo podstawowy widok, gdy mapa jest pusta)
+  $('#mzR').onclick = () => {
+    if (!S.zones.length) return mapVbReset();
+    const x0 = Math.min(...S.zones.map(z => z.x)) - 3, y0 = Math.min(...S.zones.map(z => z.y)) - 3;
+    const x1 = Math.max(...S.zones.map(z => z.x + z.w)) + 3, y1 = Math.max(...S.zones.map(z => z.y + z.h)) + 3;
+    const nw = fl(Math.max(x1 - x0, (y1 - y0) * MW / MH), MW / ZMAX, WW);
+    mapVb.w = nw; mapVb.h = nw * MH / MW; mapVb.x = (x0 + x1) / 2 - nw / 2; mapVb.y = (y0 + y1) / 2 - mapVb.h / 2;
+    clampVb(); applyVb();
+  };
   svg.addEventListener('wheel', e => { e.preventDefault(); const p = pt(e); zoomTo(mapVb.w * (e.deltaY > 0 ? 1.2 : 1 / 1.2), p.x, p.y); }, { passive: false });
   const frac = (cx, cy) => { const r = svg.getBoundingClientRect(); return { fx: (cx - r.left) / r.width, fy: (cy - r.top) / r.height }; };
   const mid = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
@@ -1559,7 +1574,7 @@ async function applyRange(zid, a, b) {
     const onZone = e.target.closest('[data-z]') || e.target.closest('.hnd');
     if ((mapMode === 'edit' || mapMode === 'assign') && onZone) return; // obsłuży to edycja / przypisywanie niżej
     if (mapMode === 'edit' && !onZone) { mapZ = null; renderMap(); }
-    if (MW / mapVb.w <= 1.001 && e.pointerType === 'touch') { e.stopImmediatePropagation(); return; } // bez przybliżenia palec przewija stronę
+    if (mapVb.w >= WW - .001 && e.pointerType === 'touch') { e.stopImmediatePropagation(); return; } // gdy widać całą mapę, palec przewija stronę
     pan = { sx: e.clientX, sy: e.clientY, vx: mapVb.x, vy: mapVb.y };
     try { svg.setPointerCapture(e.pointerId); } catch (x) {}
     e.stopImmediatePropagation();
@@ -1617,8 +1632,8 @@ async function applyRange(zid, a, b) {
     if (mapRng) { const z = S.zones.find(x => x.id === mapRng.zid); if (z) { mapRng.b = cellAt(z, pt(e)); renderMap(); } return; }
     const d = mapDrag; if (!d) return;
     const p = pt(e), z = d.z;
-    if (d.resize) { z.w = fl(snap(p.x - d.ox - z.x), 4, MW - z.x); z.h = fl(snap(p.y - d.oy - z.y), 4, MH - z.y); }
-    else { z.x = fl(snap(p.x - d.ox), 0, MW - z.w); z.y = fl(snap(p.y - d.oy), 0, MH - z.h); }
+    if (d.resize) { z.w = fl(snap(p.x - d.ox - z.x), 4, WW - z.x); z.h = fl(snap(p.y - d.oy - z.y), 4, WH - z.y); }
+    else { z.x = fl(snap(p.x - d.ox), 0, WW - z.w); z.y = fl(snap(p.y - d.oy), 0, WH - z.h); }
     d.moved = ['x', 'y', 'w', 'h'].some(k => z[k] !== d.o[k]);
     renderMap();
   });
@@ -1634,6 +1649,97 @@ async function applyRange(zid, a, b) {
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
 }
+
+// --- dzik przepychający okno logowania (tylko po wpisaniu hasła, nie przy odświeżeniu strony)
+// sylwetka z logo pocięta na tułów i 4 nogi (pozycje w pikselach obrazka 538 × 297; ox/oy = punkt obrotu nogi w %)
+const BOAR = {"W":538,"H":297,"body":"data:image/png;base64,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","legs":[{"n":"bl","x":1,"y":226,"w":61,"h":71,"ox":58.2,"oy":0,"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAD0AAABHCAYAAAC0209OAAACgklEQVR42uXbzUtUURjH8e9MUZK9uRValJZZavSitRrTJiln0xDhLuj/aNvf0K6FtS4qeyEkSJRIk8iajDatWkQLMQpEtGlzbKYWkzPzG7i/OQ8MzBwuw3zm3HPveZ5zbqpYLCKOSeAcyYvUnzcNQC8Du5OMTou/uD2h4L9CjT6MQajRB2NE748R3RUbuh3oiQ2dBTpjQu8B8piECp0DLsWGvoxRKKahHcB7oCXpVmVPDxqA5af3ScxCge51QyvG9LJDZqUc0wdMwNLTuxvDqBd9JEZ0dD3d6ni7qhedAfpiQ49iGrWiTwEjsaEvAIdiQ+eNjGvADWBgo2FrjRewE0boa8Cdenv6tBF48l9wreguI/Rd1Zh2uYB9AW6q0D0m6HvKq3ebAXgJeKZCXzTp5RfAQxX6uAn6uXJyMmgA/gZMqdBnymc1CY634SVBDwN7DdCvlHPvrMl4XkBUAs4D48BOjEq99fZ01gT8SZlautyf36jQ5zHZQAN8UKGdKp7vVGiXBON7pSSjWrTLquQUwhqZS08/VaEHGrDBrhEx/78koxq0ywLdBLCoQveaFAwmENa9HSqfL4HXKnQG6G+GrKoa9AiwzQC9iGijTTdw22Q2llL1dMYEvIJwAc9lGfajEj1kgi6o0FfwKOhvOqvaDNoplZxRoY+ZgOeAaRX6qAn6AcLtF/sMwJ+psEBXLTpn0suPgFkVutME/Rjh7qJ+kyv2EyU614xZVSX0dTwW6ApKtMsGmltKdIEmvjdXyqevAmPAWWBHaPsFfAVWQ9suSs9hrQA/gR/hcwuwndJi31o4Jg2sh+8C2FL2p6cp7VxcDcesh/a2skL+/fD7EvG0jl38BnLdbBvQahPpAAAAAElFTkSuQmCC"},{"n":"br","x":62,"y":226,"w":57,"h":71,"ox":58.8,"oy":0,"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADkAAABHCAYAAAC9MO80AAACBklEQVR42u3bvUubURTH8W+sdihFcBM6WbRofekLaOsiDkG7Ogj+Nf4fgqO4Fm0hIA4hUQT7om19oSJKwUF3oRo1cfAZUkVrzhH0l5wLmZIn5JOTe+495z5JlUolKhwVX3CPIwVQRw2MQAYykIEMZCADGchABjKQgQxkIAMZyEDWJnK3FpATwKmA7cAbyYIAcs2D7AKeCCD3PMgRkam4b0UOJ5FUGH+syDdCSXXdilSJ4k8gZ0V2iiBnPOtkjwBwA5j1IBW2gZ+Br9YPPSYALABZT2QUMusWkPEgewWQm5451ge8FomkGfkOaBJAbnuQKjsdM7JbCLlgRfaLzMcDz+I+LBLFHx5kWgS5akWOAo3VHskOEWABmLYiX4oglzxVhUr9mPUg20WWjgUr8hVQL4DMAfNWpErSmfNU+i8EgDvApAfZLYD8hrNn81YA+d2DHAOeCyB/e5BDIknnoxU5IIIs4uijpoFnaDSRzcgP6lXH/5Dv0Wg9AqxYkSrAIpC3ItvRKa2WrchWEeQijlOqNpEuwIoH2SKA/FVJZr2MHBT5qea55mDnNsh0tdSPNyGHRKqOjAfZjHjD6jbILw8ceAhMWS5MXfrj9iRXu+ZHyQPgDHh0wxf2ONmNnAInSbr/mzzfwMU9eXVl71GfvLYIHJfdmPiUf89DV4Fx4NNdIClrYm1SJeMcBVBcWFXta9YAAAAASUVORK5CYII="},{"n":"fl","x":267,"y":226,"w":53,"h":71,"ox":51.9,"oy":0,"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADUAAABHCAYAAACnDA+6AAAB20lEQVR42u3bTUrDQBQH8H+iVkRbEcWioqfwCN7AK3gZwSN4B1tcqKBSBV2I9QupFdxIEVwIgt+mMXGRCYTaiZms8n/MrELLFH7NzOTNexMnDEP0tD8fEDUHAFwIbBZlURZlURYlGtWRiHqUiHqTiHqXiPIlogYlokr2OUWCGrXDjwQ1YOcUCepbIupDIupHImpIImqC1OLpUEsAqqSoIx1qFsAMKepEh1ognkotHWqOGNXWoaaJUdrhN08Kek5b0idJUWdpqClSVFOHWgRQIUXt61CsoAsAOzoU6+ZwS9om8QHAdhqqS4hqADhMQ32RokTlKO4BrP+H6rKGRWkon/mBK2X4tSWi6llQI0SgF2RMvDDVpc6zospEqNusqDEi1FVWFFO+71ga6sBkTrGgNmGQdmZYKK51QawONU4SlTeloXZhWPUoEwy9ujTUJXLUpyoSUcPMUUSyOYnXIp5Q3LSzD4OyrUtS621B4OGQG4moO4koo+GXXCheC7qn8kxXZoZNYgMCT5HVTDsU/Tm1h+jASu47VSsYqANgNU/HZFpsBdEJsuU+dyxQE9ZT127iDwlUv/j7+HdLiAp58bWrIgMPwCeiQ/2BCqSrPQvDBoA1AKd5UE6ft0fp2y8s5F5yzEH+pAAAAABJRU5ErkJggg=="},{"n":"fr","x":323,"y":226,"w":57,"h":71,"ox":60.5,"oy":0,"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADkAAABHCAYAAAC9MO80AAACCUlEQVR42u3aT0tUYRTH8e+MBaZF7cVFmxitICpxukmoGGq2cBNIi+il+ALatQpaByLiwlYqIbjoD5QMDjYLEVyIDC7caEmN3hbdxUUQvc+Bgd/cc1ZzL3MvfDjPPTzPeZ5CHMcERvCDTYwCQJEchCMd6UhHOtKRjnSkIx3pSEc60pGOdKQj843cywNyKw/IyyrIgqG5fCzwTZuay68EgNvW4fpaYJR+syCngCEB5A8L8pFIvdmyIEsiyJ+hyEGgRwS5HoqMgG4BYM0yGXguksXvocgnQkVnNRQZiQAPgHehyHsiyEXLBP22CPKTBdkrAKwCX0KRkUgX4fPpypoF2SsyVJcsi+a7AsANYLbVkV8xtD/KQJ8AsmJBDgNXWx05IlJ0VkKRL0W6ADUMLclnIlmsWpCDagvkrMgXQJcIci0U+VAEuAMshCIfqC6tsiDviCCXMeyFxCJZHA3N5FORLH7EsHV3SwBYB95akCXlVcdFkX1qvdWsyHGgX30CcB5yUqToLIQiI5HKuovhYMQYcFMAuWlBTogM1XoosgzcR2wXOSuyH52ohCIHRID7wIdQ5GMR5AyGY2fX0OjlvLcgVwQq6nSW6dxZ68k5/nfo2pPrX8CfM2ZGReBS8vsw+e/v5N4VoBPoSD17AjSS9x0DR8n139Q724DrwI3UvQYwD7whdcqqWQcIZeIf9MNaxMysdoMAAAAASUVORK5CYII="}]};
+function ramLogin() {
+  return new Promise(done => {
+    const lock = $('#lock'), f = $('#lf');
+    if (!lock || lock.hidden || !f.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return done();
+    lock.classList.add('ram');
+    const W = innerWidth, r0 = f.getBoundingClientRect();
+    // na wąskim ekranie okno najpierw się zmniejsza i odsuwa, żeby dzik miał skąd się rozpędzić
+    const narrow = W < 600, sc = narrow ? .76 : 1;
+    const bh = narrow ? 58 : Math.max(70, Math.min(130, r0.height * .42)), bw = bh * BOAR.W / BOAR.H;
+    const l0 = r0.left + r0.width * (1 - sc) / 2, sx = Math.max(0, bw * .93 + 14 - l0);
+    const pr = { left: l0 + sx, top: r0.top + r0.height * (1 - sc) / 2, height: r0.height * sc, bottom: r0.bottom - r0.height * (1 - sc) / 2 };
+    const base = `translateX(${sx}px) scale(${sc})`, PRE = narrow || sx > 0 ? 300 : 0;
+    if (PRE) f.animate([{ transform: 'none' }, { transform: base }], { duration: PRE, easing: 'cubic-bezier(.3,1.4,.5,1)', fill: 'forwards' });
+    const by = pr.bottom - bh + 4, hitX = pr.left - bw * .93; // pysk dotyka lewej krawędzi okna
+    const boar = document.createElement('div'); boar.className = 'boar'; boar.style.width = bw + 'px'; boar.style.height = bh + 'px';
+    const pc = (v, t) => (v / t * 100) + '%';
+    const part = (src, x, y, w, h) => { const im = new Image(); im.src = src; im.alt = ''; Object.assign(im.style, { left: pc(x, BOAR.W), top: pc(y, BOAR.H), width: pc(w, BOAR.W), height: pc(h, BOAR.H) }); return im; };
+    const legs = BOAR.legs.map(l => { const im = part(l.src, l.x, l.y, l.w, l.h); im.style.transformOrigin = l.ox + '% ' + l.oy + '%'; return im; });
+    legs.forEach(im => boar.appendChild(im));
+    boar.appendChild(part(BOAR.body, 0, 0, BOAR.W, BOAR.H));
+    lock.appendChild(boar);
+    const tmp = [boar];
+    const puff = (x, y, size, dx, dy, dur, delay = 0) => {
+      const d = document.createElement('i'); d.className = 'dust'; d.style.width = d.style.height = size + 'px';
+      lock.appendChild(d); tmp.push(d);
+      d.animate([
+        { transform: `translate(${x - size / 2}px,${y - size / 2}px) scale(.3)`, opacity: 0 },
+        { transform: `translate(${x - size / 2 + dx * .35}px,${y - size / 2 + dy * .35}px) scale(1)`, opacity: .95, offset: .25 },
+        { transform: `translate(${x - size / 2 + dx}px,${y - size / 2 + dy}px) scale(1.9)`, opacity: 0 }
+      ], { duration: dur, delay, easing: 'cubic-bezier(.15,.7,.3,1)', fill: 'both' });
+    };
+    const RUN = 520, PUSH = 650, T0 = PRE;
+    const x0 = -bw - 30, x1 = hitX, x2 = hitX + Math.min(160, W * .3);
+    // bieg: przyspiesza, lekko podskakuje
+    const run = [];
+    for (let i = 0; i <= 8; i++) { const t = i / 8; run.push({ transform: `translate(${x0 + (x1 - x0) * t * t}px,${by - (i % 2 ? 7 : 0)}px) rotate(${i % 2 ? -4 : 2}deg)`, offset: t }); }
+    boar.animate(run, { duration: RUN, delay: T0, easing: 'linear', fill: 'both' });
+    // nogi: przekątne pary (tylna lewa + przednia prawa, tylna prawa + przednia lewa) machają na zmianę
+    const swing = legs.map((im, i) => im.animate([{ transform: 'rotate(20deg)' }, { transform: 'rotate(-20deg)' }, { transform: 'rotate(20deg)' }],
+      { duration: 230, iterations: Infinity, iterationStart: i === 0 || i === 3 ? 0 : .5, easing: 'ease-in-out', delay: T0 }));
+    // po uderzeniu krótsze, mocniejsze kroki (pchanie), a gdy dzik staje, nogi wracają do pozycji z logo
+    setTimeout(() => swing.forEach(a => { a.playbackRate = .7; }), T0 + RUN);
+    setTimeout(() => swing.forEach(a => a.cancel()), T0 + RUN + PUSH * .75);
+    // kurz spod kopyt w trakcie biegu
+    for (let i = 1; i < 6; i++) { const t = i / 6, x = x0 + (x1 - x0) * t * t + bw * .15; puff(x, by + bh - 4, 14 + Math.random() * 12, -30 - Math.random() * 40, -10 - Math.random() * 14, 650, T0 + RUN * t); }
+    setTimeout(() => {
+      // uderzenie: okno logowania leci w bok, ekran drży, wybucha kurz
+      const ix = pr.left, iy = pr.top + pr.height * .7;
+      f.animate([
+        { transform: base + ' rotate(0)' },
+        { transform: `translateX(${sx + 14}px) scale(${sc * .97},${sc * 1.02}) rotate(1deg)`, offset: .08 },
+        { transform: `translateX(${W - l0 + 80}px) scale(${sc}) rotate(16deg)` }
+      ], { duration: PUSH, easing: 'cubic-bezier(.3,.05,.4,1)', fill: 'forwards' });
+      boar.animate([
+        { transform: `translate(${x1}px,${by}px) rotate(2deg)` },
+        { transform: `translate(${x1 - 10}px,${by + 2}px) rotate(-3deg) scale(1.04,.95)`, offset: .12 },
+        { transform: `translate(${x2}px,${by}px) rotate(0)`, offset: .7 },
+        { transform: `translate(${x2 - 6}px,${by}px) rotate(0)` }
+      ], { duration: PUSH + 150, easing: 'ease-out', fill: 'forwards' });
+      lock.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'translate(-3px,2px)' }, { transform: 'translate(0,0)' }], { duration: 260, easing: 'ease-out' });
+      for (let i = 0; i < 18; i++) {
+        const a = (-110 + Math.random() * 220) * Math.PI / 180, r = 50 + Math.random() * 90;
+        puff(ix + (Math.random() - .5) * 20, iy + (Math.random() - .5) * pr.height * .5, 22 + Math.random() * 30, Math.cos(a) * r * -1, Math.sin(a) * r - 20, 700 + Math.random() * 500, Math.random() * 90);
+      }
+      for (let i = 0; i < 10; i++) puff(ix - bw * .2 + Math.random() * bw * .6, pr.bottom - 2, 18 + Math.random() * 24, (Math.random() - .3) * 120, -15 - Math.random() * 25, 900 + Math.random() * 400, 60 + Math.random() * 160);
+      for (let i = 0; i < 7; i++) {
+        const sp = document.createElement('i'); sp.className = 'spark'; lock.appendChild(sp); tmp.push(sp);
+        const a = 150 + i * 10 + Math.random() * 8 + (i > 3 ? 40 : -40);
+        sp.animate([
+          { transform: `translate(${ix}px,${iy}px) rotate(${a}deg) translateX(6px) scaleX(.2)`, opacity: 1 },
+          { transform: `translate(${ix}px,${iy}px) rotate(${a}deg) translateX(34px) scaleX(1)`, opacity: 0 }
+        ], { duration: 340, easing: 'ease-out', fill: 'both' });
+      }
+    }, T0 + RUN);
+    // na koniec przyciemnienie znika i strona się odblokowuje
+    setTimeout(() => {
+      const fade = lock.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 380, easing: 'ease-in', fill: 'forwards' });
+      fade.onfinish = () => {
+        done();
+        tmp.forEach(x => x.remove());
+        f.getAnimations().forEach(a => a.cancel()); lock.getAnimations().forEach(a => a.cancel());
+        lock.classList.remove('ram');
+      };
+    }, T0 + RUN + PUSH + 120);
+  });
+}
+let ramNext = false;
 
 // --- logowanie przez Firebase Authentication
 const DOMAIN = '@dzik-w11.app';
@@ -1656,7 +1762,8 @@ if (auth) {
   auth.onAuthStateChanged(u => {
     if (u) {
       user = (u.email || '').split('@')[0];
-      unlocked = true; showWho(); lockUI(false); startDb(); rr(); showView(viewFromHash());
+      unlocked = true; showWho(); startDb(); rr(); showView(viewFromHash());
+      if (ramNext) { ramNext = false; ramLogin().then(() => { if (user) lockUI(false); }); } else lockUI(false);
     } else {
       user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true;
       mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; mapPick = null; mapVbReset(); $('#mapQ').value = ''; $('#mapZone').innerHTML = ''; $('#mapZone').hidden = true; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
@@ -1674,9 +1781,11 @@ $('#lf').onsubmit = async e => {
   if (!l.includes('@')) l += DOMAIN;
   $('#lerr').textContent = '';
   try {
+    ramNext = true;
     await auth.signInWithEmailAndPassword(l, $('#lpw').value);
     $('#llg').value = ''; $('#lpw').value = '';
   } catch (x) {
+    ramNext = false;
     $('#lerr').textContent = x.code === 'auth/too-many-requests' ? 'Zbyt wiele prób. Spróbuj za chwilę.'
       : x.code === 'auth/network-request-failed' ? 'Brak połączenia z internetem.' : 'Nieprawidłowy login lub hasło.';
     $('#lpw').select();
