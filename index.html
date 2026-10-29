@@ -211,8 +211,14 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .danger{border-color:var(--rd)}
 .danger p{margin:4px 0 10px;font-size:13px;color:var(--mu)}
 #mapSvg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
-#mapSvg.ed{touch-action:none}
-.mapbox{padding:8px}
+#mapSvg{touch-action:pan-y}
+#mapSvg.ed,#mapSvg.zm{touch-action:none}
+#mapSvg.zm{cursor:grab}
+.mapbox{padding:8px;position:relative;overflow:hidden}
+.mapz{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px;z-index:1}
+.mapz button{width:38px;height:38px;padding:0;font-size:20px;line-height:1;border-radius:8px;background:var(--card);box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.mapz button:disabled{opacity:.4}
+.mapz small{font-size:11px;text-align:center;color:var(--mu);background:var(--card);border-radius:6px;padding:2px 0}
 .floor{fill:var(--bg);stroke:var(--bd);stroke-width:.4}
 .zone{fill:var(--card);stroke:var(--mu);stroke-width:.35;transition:fill .2s,stroke .2s}
 .zt{font-size:2.8px;fill:var(--tx);text-anchor:middle;dominant-baseline:central;pointer-events:none;font-family:inherit}
@@ -270,7 +276,6 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <input type="search" id="q" placeholder="Szukaj po nazwie lub SKU">
   <button class="p" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
-  <button id="bSet" hidden title="Konta delma i rudy. Nie zapisuje się w historii ani statystykach.">Stan początkowy</button>
   <button id="ex">Eksportuj</button>
   <label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
@@ -305,7 +310,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <section id="vMap" hidden>
   <div class="bar"><input type="search" id="mapQ" placeholder="Nazwa lub SKU, np. Bluza albo B1" autocomplete="off"></div>
   <div id="mapRes"></div>
-  <div class="panel mapbox"><svg id="mapSvg" viewBox="0 0 100 64" role="img" aria-label="Mapa magazynu"></svg></div>
+  <div class="panel mapbox"><svg id="mapSvg" viewBox="0 0 100 64" role="img" aria-label="Mapa magazynu"></svg>
+    <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż całą mapę">⤢</button><small id="mzL">100%</small></div></div>
   <p id="mapInfo" class="mapinfo"></p>
   <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
@@ -394,6 +400,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
       <option value="custom">Własne rozmiary</option>
     </select></label>
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
+  <div class="f" id="pstW" hidden><small>Stan magazynu. Zmiana tutaj nie zapisuje się w historii ani w statystykach.</small><div id="pst"></div></div>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
     <button class="d" id="pdDel" value="x">Usuń model</button>
@@ -913,6 +920,14 @@ function openPd(id) {
   $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : PRESETS.clothes;
   $('#pt').value = presetOf($('#pz').value);
   $('#pf').value = '';
+  // stany do ręcznej korekty (bez historii); pamiętamy, co było pokazane, żeby nie nadpisać cudzych zmian
+  const canSt = !!ed && SET_USERS.includes(user);
+  $('#pstW').hidden = !canSt;
+  $('#pst').innerHTML = !canSt ? '' : (ed.oldSku ? '<div class="rh"><span>' + esc(ed.sku) + '</span><span>stare ' + esc(ed.oldSku) + '</span></div>' : '') + Object.keys(ed.sizes).sort(bySize).map(s => {
+    const o = ed.oldSku ? (ed.old[s] || 0) : 0, n = (ed.sizes[s] || 0) - o, e = (ed.ev && ed.ev[s]) || 0;
+    const inp = (v, t, l) => `<input type="number" inputmode="numeric" min="0" value="${v}" data-v="${v}" data-s="${esc(s)}" data-t="${t}" aria-label="${esc(s)} ${l}">`;
+    return `<div class="row row2"><span>${esc(s)}${e ? ` <small class="mu">${e} na evencie</small>` : ''}</span><span class="ins">${inp(n, 'n', 'stan')}${ed.oldSku ? inp(o, 'o', 'stare SKU') : ''}</span></div>`;
+  }).join('');
   $('#pdDel').style.display = ed ? '' : 'none';
   $('#pd').showModal();
 }
@@ -949,6 +964,12 @@ $('#pdOk').onclick = async e => {
   const old = ed ? ed.sizes : {};
   const lost = Object.keys(old).filter(s => !sizes.includes(s) && old[s] > 0);
   if (lost.length && !await ask('Rozmiary ' + lost.join(', ') + ' mają stan większy niż 0 i zostaną usunięte razem ze stanem. Kontynuować?')) return;
+  // zmienione stany z formularza: { rozmiar: { n?, o? } } (tylko pola różne od pokazanych przy otwarciu)
+  const stk = {};
+  if (ed && SET_USERS.includes(user)) $('#pst').querySelectorAll('input').forEach(i => {
+    const v = i.value.trim() === '' ? +i.dataset.v : Math.max(0, parseInt(i.value) || 0);
+    if (v !== +i.dataset.v) (stk[i.dataset.s] = stk[i.dataset.s] || {})[i.dataset.t] = v;
+  });
   if (!online()) return;
   const f = $('#pf').files[0];
   const photo = f ? await toData(f) : null;
@@ -960,7 +981,14 @@ $('#pdOk').onclick = async e => {
         const o = toObj(p.sizes), n = {};
         sizes.forEach(s => { n[s] = o[s] || 0; });
         p.name = name; p.sku = sku; p.sizes = n;
-        if (oldSku) { p.oldSku = oldSku; p.old = capMap(numMap(p.old), n); if (!Object.keys(p.old).length) delete p.old; } else { delete p.oldSku; delete p.old; delete p.evOld; }
+        const po = numMap(p.old), hadOld = !!p.oldSku;
+        for (const k in stk) {
+          if (!(k in n)) continue;
+          const co = hadOld ? Math.min(po[k] || 0, n[k]) : 0, cn = n[k] - co;
+          const nv = stk[k].n !== undefined ? stk[k].n : cn, ov = stk[k].o !== undefined ? stk[k].o : co;
+          n[k] = nv + ov; if (hadOld) po[k] = ov;
+        }
+        if (oldSku) { p.oldSku = oldSku; p.old = capMap(po, n); if (!Object.keys(p.old).length) delete p.old; } else { delete p.oldSku; delete p.old; delete p.evOld; }
         return p;
       });
     } else {
@@ -1033,8 +1061,7 @@ $('#grid').onclick = e => {
 };
 $('#add').onclick = () => openPd(null);
 $('#bIn').onclick = () => openOp('in');
-const SET_USERS = ['delma', 'rudy']; // konta z dostępem do „Stan początkowy”
-$('#bSet').onclick = () => openOp('set');
+const SET_USERS = ['delma', 'rudy']; // konta, które mogą zmieniać stany w „Edytuj” bez zapisu w historii
 $('#bOut').onclick = () => openOp('out');
 $('#bEv').onclick = () => $('#evm').showModal();
 $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
@@ -1356,6 +1383,7 @@ $('#rstOk').onclick = async e => {
 
 
 // --- mapa magazynu ("Gdzie ciuszek?")
+let mapVb = { x: 0, y: 0, w: 100, h: 64 }, mapVbReset = () => {};
 let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
 const zn = z => z.name || 'Blok bez nazwy';
@@ -1488,12 +1516,82 @@ async function applyRange(zid, a, b) {
 }
 {
   const svg = $('#mapSvg');
-  const pt = e => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * MW, y: (e.clientY - r.top) / r.height * MH }; };
+  // widok mapy (przybliżenie i przesunięcie) jako viewBox; współrzędne stref zawsze w skali 100 × 64
+  const ZMAX = 8, ptrs = new Map();
+  let pan = null, pinch = null, panMoved = false, downT = null;
+  const pt = e => { const r = svg.getBoundingClientRect(); return { x: mapVb.x + (e.clientX - r.left) / r.width * mapVb.w, y: mapVb.y + (e.clientY - r.top) / r.height * mapVb.h }; };
+  const clampVb = () => { mapVb.x = fl(mapVb.x, 0, MW - mapVb.w); mapVb.y = fl(mapVb.y, 0, MH - mapVb.h); };
+  function applyVb() {
+    svg.setAttribute('viewBox', [mapVb.x, mapVb.y, mapVb.w, mapVb.h].map(v => +v.toFixed(3)).join(' '));
+    const z = MW / mapVb.w;
+    svg.classList.toggle('zm', z > 1.001);
+    $('#mzL').textContent = Math.round(z * 100) + '%';
+    $('#mzIn').disabled = z >= ZMAX - .001; $('#mzOut').disabled = $('#mzR').disabled = z <= 1.001;
+  }
+  // nowa szerokość widoku; punkt (cx, cy) mapy zostaje w miejscu ekranu opisanym ułamkami (fx, fy)
+  function zoomTo(nw, cx, cy, fx, fy) {
+    nw = fl(nw, MW / ZMAX, MW);
+    if (fx === undefined) { fx = (cx - mapVb.x) / mapVb.w; fy = (cy - mapVb.y) / mapVb.h; }
+    mapVb.w = nw; mapVb.h = nw * MH / MW; mapVb.x = cx - fx * mapVb.w; mapVb.y = cy - fy * mapVb.h;
+    clampVb(); applyVb();
+  }
+  mapVbReset = () => { mapVb = { x: 0, y: 0, w: MW, h: MH }; ptrs.clear(); pan = pinch = null; applyVb(); };
+  $('#mzIn').onclick = () => zoomTo(mapVb.w / 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
+  $('#mzOut').onclick = () => zoomTo(mapVb.w * 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
+  $('#mzR').onclick = () => mapVbReset();
+  svg.addEventListener('wheel', e => { e.preventDefault(); const p = pt(e); zoomTo(mapVb.w * (e.deltaY > 0 ? 1.2 : 1 / 1.2), p.x, p.y); }, { passive: false });
+  const frac = (cx, cy) => { const r = svg.getBoundingClientRect(); return { fx: (cx - r.left) / r.width, fy: (cy - r.top) / r.height }; };
+  const mid = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
+  // gesty: dwa palce = przybliżanie, jeden palec na pustym miejscu (albo poza edycją) = przesuwanie
+  svg.addEventListener('pointerdown', e => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) downT = e.target;
+    if (ptrs.size === 2) {
+      mapDrag = null; mapRng = null; pan = null;
+      const m = mid(), f = frac(m.x, m.y);
+      pinch = { d0: m.d, w0: mapVb.w, cx: mapVb.x + f.fx * mapVb.w, cy: mapVb.y + f.fy * mapVb.h };
+      panMoved = true;
+      [...ptrs.keys()].forEach(id => { try { svg.setPointerCapture(id); } catch (x) {} });
+      renderMap(); e.stopImmediatePropagation(); return;
+    }
+    if (ptrs.size > 2) { e.stopImmediatePropagation(); return; }
+    panMoved = false;
+    const onZone = e.target.closest('[data-z]') || e.target.closest('.hnd');
+    if ((mapMode === 'edit' || mapMode === 'assign') && onZone) return; // obsłuży to edycja / przypisywanie niżej
+    if (mapMode === 'edit' && !onZone) { mapZ = null; renderMap(); }
+    if (MW / mapVb.w <= 1.001 && e.pointerType === 'touch') { e.stopImmediatePropagation(); return; } // bez przybliżenia palec przewija stronę
+    pan = { sx: e.clientX, sy: e.clientY, vx: mapVb.x, vy: mapVb.y };
+    try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+    e.stopImmediatePropagation();
+  });
+  svg.addEventListener('pointermove', e => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && ptrs.size === 2) {
+      const m = mid(), f = frac(m.x, m.y);
+      zoomTo(pinch.w0 * pinch.d0 / m.d, pinch.cx, pinch.cy, f.fx, f.fy);
+      e.stopImmediatePropagation(); return;
+    }
+    if (pan) {
+      const r = svg.getBoundingClientRect(), dx = e.clientX - pan.sx, dy = e.clientY - pan.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 5) panMoved = true;
+      if (panMoved) { mapVb.x = pan.vx - dx / r.width * mapVb.w; mapVb.y = pan.vy - dy / r.height * mapVb.h; clampVb(); applyVb(); }
+      e.stopImmediatePropagation();
+    }
+  });
+  const ptrEnd = e => {
+    ptrs.delete(e.pointerId);
+    if (pinch) { if (ptrs.size < 2) pinch = null; e.stopImmediatePropagation(); return; }
+    if (pan) { pan = null; e.stopImmediatePropagation(); }
+  };
+  svg.addEventListener('pointerup', ptrEnd);
+  svg.addEventListener('pointercancel', ptrEnd);
+  applyVb();
   const cellAt = (z, p) => ({ c: Math.floor(fl((p.x - z.x) / (z.w / z.c), 0, z.c - .001)), r: Math.floor(fl((p.y - z.y) / (z.h / z.r), 0, z.r - .001)) });
   const snap = v => Math.round(v * 2) / 2;
   svg.addEventListener('click', e => {
+    if (panMoved) { panMoved = false; return; }
     if (mapMode === 'edit') return;
-    const g = e.target.closest('[data-z]');
+    const g = (downT && svg.contains(downT) ? downT : e.target).closest('[data-z]'); downT = null;
     if (mapMode === 'assign') return;
     mapPick = g && g.dataset.z !== mapPick ? g.dataset.z : null; renderMap();
   });
@@ -1544,7 +1642,7 @@ function lockUI(on) {
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
   if (on) $('#llg').focus();
 }
-function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#bSet').hidden = !SET_USERS.includes(user); $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
+function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
 lockUI(true);
@@ -1561,7 +1659,7 @@ if (auth) {
       unlocked = true; showWho(); lockUI(false); startDb(); rr(); showView(viewFromHash());
     } else {
       user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true;
-      mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; mapPick = null; $('#mapQ').value = ''; $('#mapZone').innerHTML = ''; $('#mapZone').hidden = true; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
+      mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; mapPick = null; mapVbReset(); $('#mapQ').value = ''; $('#mapZone').innerHTML = ''; $('#mapZone').hidden = true; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
       $('#grid').innerHTML = ''; $('#tot').hidden = true; ['cM', 'cS', 'cE'].forEach(id => { $('#' + id).__v = undefined; }); lockUI(true);
     }
   });
