@@ -80,6 +80,7 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .f small{display:block;margin-bottom:3px;color:var(--mu)}
 .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .lg{padding:8px 0;border-bottom:1px solid var(--bd)}
+.lgx{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;color:var(--r,#c62828);background:none}
 .in{color:var(--in)}.out{color:var(--rd)}.ev{color:var(--ev)}
 #logL{max-height:60vh;overflow:auto}
 footer{margin-top:20px;font-size:13px}
@@ -262,7 +263,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <input type="search" id="q" placeholder="Szukaj po nazwie lub SKU">
   <button class="p" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
-  <button id="bSet" hidden title="Tylko konto delma. Nie zapisuje się w historii ani statystykach.">Stan początkowy</button>
+  <button id="bSet" hidden title="Konta delma i rudy. Nie zapisuje się w historii ani statystykach.">Stan początkowy</button>
   <button id="ex">Eksportuj</button>
   <label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
@@ -504,7 +505,7 @@ function rebuild() {
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-  S.log = Object.keys(LG).sort().reverse().map(k => cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}));
+  S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null }));
   if (unlocked) rr();
 }
 function rr() { render(); maybeMigrate(); if (view === 'map') renderMap(); }
@@ -588,7 +589,7 @@ function startDb() {
   R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
   R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
   R.child('map/zones').on('value', s => { MZ = s.val() || {}; rebuild(); }, () => {});
-  logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); statsRefresh(); }, () => {});
+  logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); statsRefresh(); if ($('#log').open) renderLog(); }, () => {});
 }
 function stopDb() {
   if (!R) return;
@@ -692,7 +693,7 @@ function setStep(step) {
   renderLines();
 }
 function openOp(m, id) {
-  if (m === 'set' && user !== 'delma') return say('Tylko konto delma może ustawiać stan początkowy.');
+  if (m === 'set' && !SET_USERS.includes(user)) return say('Brak uprawnień do ustawiania stanu początkowego.');
   mode = m; lines = [];
   $('#opHint').hidden = m !== 'set';
   $('#opT').textContent = MODES[m].t;
@@ -812,7 +813,7 @@ $('#opOk').onclick = async e => {
   const L = collectCurrent();
   if (L) { addLine(L); showPick(); }
   if (!lines.length) return say(mode === 'set' ? 'Nie zmieniono żadnego stanu.' : 'Wpisz ilość przynajmniej w jednym rozmiarze.');
-  if (mode === 'set' && user !== 'delma') return say('Tylko konto delma może ustawiać stan początkowy.');
+  if (mode === 'set' && !SET_USERS.includes(user)) return say('Brak uprawnień do ustawiania stanu początkowego.');
   if (mode === 'evin') {
     const miss = [];
     lines.forEach(l => {
@@ -927,20 +928,31 @@ $('#grid').onclick = e => {
 };
 $('#add').onclick = () => openPd(null);
 $('#bIn').onclick = () => openOp('in');
+const SET_USERS = ['delma', 'rudy']; // konta z dostępem do „Stan początkowy”
 $('#bSet').onclick = () => openOp('set');
 $('#bOut').onclick = () => openOp('out');
 $('#bEv').onclick = () => $('#evm').showModal();
 $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
 $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
-$('#logB').onclick = () => {
+function renderLog() {
+  const canDel = user === 'delma';
   $('#logL').innerHTML = S.log.map((l, i) => {
     const parts = [fmtD(l.d), l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg" style="--i:${Math.min(i, 12)}"><b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
+    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
   }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
-  $('#log').showModal();
+}
+$('#logB').onclick = () => { renderLog(); $('#log').showModal(); };
+// usuwanie pojedynczego wpisu historii (tylko delma; stany magazynu zostają bez zmian)
+$('#logL').onclick = async e => {
+  const b = e.target.closest('.lgx'); if (!b || user !== 'delma') return;
+  const l = S.log.find(x => x.k === b.dataset.k); if (!l) return;
+  if (!await ask('Usunąć z historii wpis „' + (LOGT[l.m] || l.m) + (l.name ? ' · ' + l.name : '') + '” z ' + new Date(l.t).toLocaleString('pl-PL') + '? Stany magazynu się nie zmienią, zmienią się tylko historia i statystyki.')) return;
+  if (!online()) return;
+  try { await R.child('log/' + l.k).remove(); }
+  catch (x) { say('Nie udało się usunąć wpisu. Sprawdź reguły bazy (usuwanie wpisów w „log” dla konta delma).'); }
 };
 const stamp = () => new Date().toISOString().slice(0, 10);
 function saveBlob(blob, name) {
@@ -1423,7 +1435,7 @@ function lockUI(on) {
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
   if (on) $('#llg').focus();
 }
-function showWho() { $('#rstBox').hidden = $('#bSet').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
+function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#bSet').hidden = !SET_USERS.includes(user); $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
 lockUI(true);
