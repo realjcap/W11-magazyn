@@ -66,6 +66,13 @@ button:hover,.btn:hover{border-color:var(--ac)}
 .sz .e{border-color:var(--ev);color:var(--ev);background:rgba(21,101,216,.1)}
 .sz .e b{color:var(--ev)}
 .sz em{font-style:normal;font-size:11px}
+.sz em.o{color:#b26a00}
+.osku{font-size:12px;color:#b26a00}
+.row2 input{width:72px}
+.row2 .ins{display:flex;gap:6px;align-items:center}
+.row2 .ins small{font-size:10px;color:var(--mu);text-align:center}
+.rh{display:flex;justify-content:flex-end;gap:6px;font-size:11px;color:var(--mu);margin:-4px 0 4px}
+.rh span{width:72px;text-align:center}
 .act{display:flex;gap:6px;margin-top:auto}
 .act button{flex:1;padding:8px 6px;font-size:14px}
 .act .e{flex:0 0 auto}
@@ -376,6 +383,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <h2 id="pdT"></h2>
   <label class="f"><small>Nazwa</small><input id="pn" maxlength="80"></label>
   <label class="f"><small>SKU</small><input id="ps" maxlength="40"></label>
+  <label class="f"><small>Stare SKU (opcjonalnie). Ten sam produkt pod starym SKU: liczony razem z nowym, wydawany w pierwszej kolejności.</small><input id="pos" maxlength="40" placeholder="np. B1-OLD"></label>
+  <div class="f" id="pmgW" hidden><small>Albo dołącz istniejący model jako stare SKU (jego stan przejdzie do tego modelu, a on sam zniknie z listy)</small>
+    <div class="cr"><select id="pmg"></select><button type="button" id="pmgB">Dołącz</button></div></div>
   <label class="f"><small>Rodzaj</small>
     <select id="pt">
       <option value="clothes">Ubranie (XS–XXL)</option>
@@ -485,8 +495,9 @@ function cleanLogEntry(l) {
   const o = { t: Number(l.t) || 0, name: txt(l.name, 120), sku: txt(l.sku, 60), m: LOGT[l.m] ? l.m : 'in', d: numMap(l.d), by: txt(l.by, 40), note: txt(l.note, 200) };
   const lost = numMap(l.lost);
   if (Object.keys(lost).length) o.lost = lost;
+  const ol = numMap(l.o); if (Object.keys(ol).length) { o.o = ol; o.osku = txt(l.osku, 60); }
   const its = Object.values(toObj(l.items)).slice(0, 60).filter(it => it && typeof it === 'object');
-  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; return x; });
+  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; const io = numMap(it.o); if (Object.keys(io).length) { x.o = io; x.osku = txt(it.osku, 60); } return x; });
   return o;
 }
 const zval = v => { if (v === 1 || v === true) return 1; if (typeof v !== 'string') return null; const t = [...new Set(v.split(',').filter(x => /^\d{1,2}:\d{1,2}$/.test(x)))]; return t.length ? t.sort().join(',') : null; };
@@ -498,12 +509,21 @@ function fmtPal(z, s) {
   return o.join(', ');
 }
 const palText = (p, z) => { const s = palSet(p, z); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (palety ' + fmtPal(z, s) + ')'; };
+// stare SKU: old = ile sztuk z sizes ma stare SKU, evOld = ile z ev ma stare SKU (old ≤ sizes, evOld ≤ ev)
+const capMap = (m, lim) => { const o = {}; for (const k in m) { const v = Math.min(m[k], lim[k] || 0); if (v > 0) o[k] = v; } return o; };
+function oldSan(p) {
+  const oldSku = txt(p.oldSku, 60);
+  if (!oldSku) return { oldSku: '', old: {}, evOld: {} };
+  return { oldSku, old: capMap(numMap(p.old), numMap(p.sizes)), evOld: capMap(numMap(p.evOld), numMap(p.ev)) };
+}
+const oldSum = p => Object.values(p.old || {}).reduce((a, b) => a + b, 0);
+const hay = p => (p.name + ' ' + p.sku + ' ' + (p.oldSku || '')).toLowerCase();
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
     .map(([id, z]) => ({ id, name: txt(z.name, 40), x: fl(z.x, 0, MW), y: fl(z.y, 0, MH), w: fl(z.w, 4, MW), h: fl(z.h, 4, MH) })).map(z => ({ ...z, c: cells(MZ[z.id].c, z.w, 5, 40), r: cells(MZ[z.id].r, z.h, 4, 40) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
-    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones) }))
+    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...oldSan(p) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null }));
   if (unlocked) rr();
@@ -561,6 +581,8 @@ async function uploadAll(prods, logs, zones) {
     if (Object.keys(ev).length) pr[id].ev = ev;
     const zl = (Array.isArray(p.zones) ? p.zones : Object.keys(toObj(p.zones))).map(String).filter(okId);
     if (zl.length) pr[id].zones = Object.fromEntries(zl.map(k => [k, (p.zraw && zval(p.zraw[k])) || 1]));
+    const os = oldSan({ oldSku: p.oldSku, old: p.old, evOld: p.evOld, sizes: pr[id].sizes, ev: pr[id].ev || {} });
+    if (os.oldSku) { pr[id].oldSku = os.oldSku; if (Object.keys(os.old).length) pr[id].old = os.old; if (Object.keys(os.evOld).length) pr[id].evOld = os.evOld; }
     const ph1 = safePhoto(p.photo); if (ph1) ph[id] = ph1;
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
@@ -607,12 +629,12 @@ function cardInner(p) {
   return `${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
       <div class="cb">
         <div class="top">
-          <div><div class="nm">${esc(p.name)}</div><div class="sku">SKU ${esc(p.sku)}</div></div>
+          <div><div class="nm">${esc(p.name)}</div><div class="sku">SKU ${esc(p.sku)}</div>${p.oldSku ? `<div class="osku">stare SKU ${esc(p.oldSku)}: ${oldSum(p)} szt.</div>` : ''}</div>
           <div class="tot">${sum(p)}</div>
         </div>
         <div class="sz">${chipKeys(p).map(s => {
           const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0;
-          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}</span>`;
+          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}</span>`;
         }).join('')}</div>
         <div class="act">
           <button class="g" data-a="in">Dostawa</button>
@@ -624,7 +646,7 @@ function cardInner(p) {
 }
 function render() {
   const q = $('#q').value.trim().toLowerCase();
-  const list = S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q));
+  const list = S.products.filter(p => hay(p).includes(q));
   const evT = S.products.reduce((a, p) => a + evSum(p), 0);
   $('#tot').hidden = false;
   countTo($('#cM'), S.products.length); countTo($('#cS'), S.products.reduce((a, p) => a + sum(p), 0));
@@ -673,8 +695,8 @@ const MODES = {
   evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' },
   set: { t: 'Stan początkowy (bez historii)', c: 'p', ok: 'Ustaw stany' }
 };
-const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki' };
-const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out' };
+const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki', merge: '⇄ Połączono SKU' };
+const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out', merge: 'ev' };
 let cur = null, mode = 'in', lines = [];
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 const plural = n => n + (n === 1 ? ' model' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' modele' : ' modeli');
@@ -683,7 +705,7 @@ function renderLines() {
   const box = $('#opLines');
   box.hidden = !lines.length;
   box.innerHTML = lines.length ? '<div class="lh">Na liście: ' + plural(lines.length) + '</div>' + lines.map((l, i) =>
-    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d, mode === 'set' ? ' = ' : ' × ')}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
+    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d, mode === 'set' ? ' = ' : ' × ')}${l.o ? ' (w tym stare: ' + fmtD(l.o, mode === 'set' ? ' = ' : ' × ') + ')' : ''}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
 }
 function setStep(step) {
   $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
@@ -709,16 +731,26 @@ function openOp(m, id) {
 function showPick() { cur = null; setStep('pick'); fillList(); }
 function fillList() {
   const q = $('#opQ').value.trim().toLowerCase();
-  const l = S.products.filter(p => (mode !== 'evin' || evSum(p) > 0) && (p.name + ' ' + p.sku).toLowerCase().includes(q));
+  const l = S.products.filter(p => (mode !== 'evin' || evSum(p) > 0) && hay(p).includes(q));
   $('#opList').innerHTML = l.map(p => `<button type="button" class="pi" data-id="${esc(p.id)}">
     ${p.photo ? `<img src="${esc(p.photo)}" alt="">` : '<i></i>'}
-    <span>${esc(p.name)}<small>SKU ${esc(p.sku)}</small></span><b>${mode === 'evin' ? evSum(p) : sum(p)}</b></button>`).join('')
+    <span>${esc(p.name)}<small>SKU ${esc(p.sku)}${p.oldSku ? ' · stare ' + esc(p.oldSku) : ''}</small></span><b>${mode === 'evin' ? evSum(p) : sum(p)}</b></button>`).join('')
     || '<p class="mu" style="padding:10px;margin:0">' + (mode === 'evin' && !S.products.some(p => evSum(p) > 0) ? 'Nic nie jest teraz na evencie.' : S.products.length ? 'Nic nie pasuje do wpisanego tekstu.' : 'Najpierw dodaj model ubrania.') + '</p>';
 }
 function pickItem(p) {
   cur = p;
   setStep('sizes');
-  $('#opN').textContent = p.name; $('#opS').textContent = 'SKU ' + p.sku;
+  $('#opN').textContent = p.name; $('#opS').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare SKU ' + p.oldSku + ' (wydawane najpierw)' : '');
+  if ((mode === 'set' || mode === 'in') && p.oldSku) {
+    const st = mode === 'set';
+    $('#opF').innerHTML = '<div class="rh"><span>' + esc(p.sku) + '</span><span>stare ' + esc(p.oldSku) + '</span></div>' + sizesOf(p).map(s => {
+      const o = (p.old && p.old[s]) || 0, n = (p.sizes[s] || 0) - o;
+      return `<div class="row row2"><span>${esc(s)} <small class="mu">${st ? 'teraz' : 'stan'} ${n} + ${o}</small></span><span class="ins">
+        <input type="number" inputmode="numeric" min="0" placeholder="${st ? n : 0}" data-s="${esc(s)}" data-t="n" aria-label="${esc(s)} nowe SKU">
+        <input type="number" inputmode="numeric" min="0" placeholder="${st ? o : 0}" data-s="${esc(s)}" data-t="o" aria-label="${esc(s)} stare SKU"></span></div>`;
+    }).join('');
+    return;
+  }
   $('#opF').innerHTML = sizesOf(p).map(s => {
     const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0, av = mode === 'evin' ? e : n;
     const lim = mode === 'in' || mode === 'set' ? '' : ' max="' + av + '"';
@@ -729,6 +761,27 @@ function pickItem(p) {
 function collectCurrent() {
   if (!cur || $('#opSel').hidden) return null;
   const d = {};
+  if (mode === 'in' && cur.oldSku) {
+    const o = {};
+    sizesOf(cur).forEach(s => {
+      const v = t => Math.max(0, parseInt($('#opF').querySelector('input[data-t="' + t + '"][data-s="' + CSS.escape(s) + '"]').value) || 0);
+      const nv = v('n'), ov = v('o');
+      if (nv + ov > 0) d[s] = nv + ov;
+      if (ov > 0) o[s] = ov;
+    });
+    return Object.keys(d).length ? { id: cur.id, name: cur.name, sku: cur.sku, d, ...(Object.keys(o).length ? { o } : {}) } : null;
+  }
+  if (mode === 'set' && cur.oldSku) {
+    const o = {};
+    sizesOf(cur).forEach(s => {
+      const ni = $('#opF').querySelector('input[data-t="n"][data-s="' + CSS.escape(s) + '"]'), oi = $('#opF').querySelector('input[data-t="o"][data-s="' + CSS.escape(s) + '"]');
+      if (ni.value.trim() === '' && oi.value.trim() === '') return;
+      const co = (cur.old && cur.old[s]) || 0, cn = (cur.sizes[s] || 0) - co;
+      const nv = ni.value.trim() === '' ? cn : Math.max(0, parseInt(ni.value) || 0), ov = oi.value.trim() === '' ? co : Math.max(0, parseInt(oi.value) || 0);
+      if (nv !== cn || ov !== co) { d[s] = nv + ov; o[s] = ov; }
+    });
+    return Object.keys(d).length ? { id: cur.id, name: cur.name, sku: cur.sku, d, o } : null;
+  }
   $('#opF').querySelectorAll('input').forEach(i => {
     if (mode === 'set') { if (i.value.trim() === '') return; const n = Math.max(0, parseInt(i.value) || 0); if (n !== (cur.sizes[i.dataset.s] || 0)) d[i.dataset.s] = n; return; }
     const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n;
@@ -737,7 +790,7 @@ function collectCurrent() {
 }
 function addLine(L) {
   const x = lines.find(l => l.id === L.id);
-  if (x) { for (const k in L.d) x.d[k] = mode === 'set' ? L.d[k] : (x.d[k] || 0) + L.d[k]; } else lines.push(L);
+  if (x) { for (const k in L.d) x.d[k] = mode === 'set' ? L.d[k] : (x.d[k] || 0) + L.d[k]; if (L.o) { x.o = x.o || {}; for (const k in L.o) x.o[k] = mode === 'set' ? L.o[k] : (x.o[k] || 0) + L.o[k]; } } else lines.push(L);
 }
 $('#opQ').oninput = fillList;
 $('#opQ').onkeydown = e => {
@@ -770,38 +823,47 @@ function logEv(m, name, sku, note) {
 }
 // jedna transakcja na wszystkie pozycje: albo zapisują się wszystkie, albo żadna
 async function applyBatch(m, items, note) {
-  let err = null, lostBy = {};
+  let err = null, lostBy = {}, oldBy = {}, oskuBy = {};
   const res = await R.child('products').transaction(all => {
-    err = null; lostBy = {};
+    err = null; lostBy = {}; oldBy = {}; oskuBy = {};
     if (!all) return all;
     all = JSON.parse(JSON.stringify(all));
     for (const L of items) {
       const p = all[L.id];
       if (!p) { err = 'Model ' + L.name + ' został w międzyczasie usunięty.'; return; }
       p.sizes = toObj(p.sizes); p.ev = toObj(p.ev);
-      if (m === 'set') { for (const k in L.d) p.sizes[k] = Math.max(0, Math.floor(L.d[k]) || 0); continue; }
+      const hasOld = !!p.oldSku; p.old = toObj(p.old); p.evOld = toObj(p.evOld);
+      const tidy = () => { for (const o of [p.old, p.evOld]) for (const k in o) if (!(o[k] > 0)) delete o[k]; if (!hasOld || !Object.keys(p.old).length) delete p.old; if (!hasOld || !Object.keys(p.evOld).length) delete p.evOld; };
+      if (m === 'set') {
+        for (const k in L.d) { p.sizes[k] = Math.max(0, Math.floor(L.d[k]) || 0); if (hasOld) p.old[k] = Math.min(p.sizes[k], L.o && L.o[k] !== undefined ? Math.max(0, Math.floor(L.o[k]) || 0) : (p.old[k] || 0)); }
+        tidy(); continue;
+      }
       if (m !== 'in') {
         const src = m === 'evin' ? p.ev : p.sizes;
         for (const k in L.d) if (L.d[k] > (src[k] || 0)) { err = L.name + ': za mało sztuk w rozmiarze ' + k + ' (' + (m === 'evin' ? 'na evencie' : 'stan') + ': ' + (src[k] || 0) + ').'; return; }
       }
       for (const k in L.d) {
-        if (m === 'in') p.sizes[k] = (p.sizes[k] || 0) + L.d[k];
-        else if (m === 'out') p.sizes[k] -= L.d[k];
-        else if (m === 'evout') { p.sizes[k] -= L.d[k]; p.ev[k] = (p.ev[k] || 0) + L.d[k]; }
-        else { p.ev[k] -= L.d[k]; p.sizes[k] = (p.sizes[k] || 0) + L.d[k]; }
+        let o = 0; // ile z tej ilości to stare SKU (stare schodzi pierwsze)
+        if (m === 'in') { o = hasOld && L.o ? Math.min(L.d[k], Math.max(0, Math.floor(L.o[k]) || 0)) : 0; p.old[k] = (p.old[k] || 0) + o; p.sizes[k] = (p.sizes[k] || 0) + L.d[k]; }
+        else if (m === 'out') { o = Math.min(p.old[k] || 0, L.d[k]); p.old[k] = (p.old[k] || 0) - o; p.sizes[k] -= L.d[k]; }
+        else if (m === 'evout') { o = Math.min(p.old[k] || 0, L.d[k]); p.old[k] = (p.old[k] || 0) - o; p.evOld[k] = (p.evOld[k] || 0) + o; p.sizes[k] -= L.d[k]; p.ev[k] = (p.ev[k] || 0) + L.d[k]; }
+        else { o = Math.min(p.evOld[k] || 0, L.d[k]); p.evOld[k] = (p.evOld[k] || 0) - o; p.old[k] = (p.old[k] || 0) + o; p.ev[k] -= L.d[k]; p.sizes[k] = (p.sizes[k] || 0) + L.d[k]; }
+        if (hasOld && o > 0) { (oldBy[L.id] = oldBy[L.id] || {})[k] = o; oskuBy[L.id] = String(p.oldSku); }
       }
-      if (m === 'evin') { const lost = {}; for (const k in p.ev) if (p.ev[k] > 0) lost[k] = p.ev[k]; if (Object.keys(lost).length) lostBy[L.id] = lost; p.ev = {}; }
+      if (m === 'evin') { const lost = {}; for (const k in p.ev) if (p.ev[k] > 0) lost[k] = p.ev[k]; if (Object.keys(lost).length) lostBy[L.id] = lost; p.ev = {}; p.evOld = {}; }
       else for (const k in p.ev) if (p.ev[k] === 0) delete p.ev[k];
+      tidy();
     }
     return all;
   });
   if (!res.committed) { if (err) await say(err); return false; }
   if (!res.snapshot.val()) { await say('Nie udało się zapisać zmian. Spróbuj ponownie.'); return false; }
   if (m === 'set') return true; // stan początkowy: celowo bez wpisu w historii
-  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d }; if (lostBy[L.id]) it.lost = lostBy[L.id]; return it; });
+  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d }; if (lostBy[L.id]) it.lost = lostBy[L.id]; if (oldBy[L.id]) { it.o = oldBy[L.id]; it.osku = oskuBy[L.id]; } return it; });
   const entry = its.length === 1 ? { t: firebase.database.ServerValue.TIMESTAMP, name: its[0].name, sku: its[0].sku, m, d: its[0].d }
     : { t: firebase.database.ServerValue.TIMESTAMP, name: plural(its.length), sku: '', m, items: its };
   if (its.length === 1 && its[0].lost) entry.lost = its[0].lost;
+  if (its.length === 1 && its[0].o) { entry.o = its[0].o; entry.osku = its[0].osku; }
   if (user) entry.by = user;
   if (note) entry.note = note;
   await R.child('log').push(entry);
@@ -844,6 +906,10 @@ function openPd(id) {
   $('#pdT').textContent = ed ? 'Edytuj model' : 'Nowy model';
   $('#pn').value = ed ? ed.name : '';
   $('#ps').value = ed ? ed.sku : '';
+  $('#pos').value = ed ? ed.oldSku : '';
+  const cand = ed && !ed.oldSku ? S.products.filter(p => p.id !== ed.id && !p.oldSku) : [];
+  $('#pmgW').hidden = !cand.length;
+  $('#pmg').innerHTML = '<option value="">wybierz model…</option>' + cand.map(p => `<option value="${esc(p.id)}">${esc(p.sku)} · ${esc(p.name)} (${sum(p)} szt.)</option>`).join('');
   $('#pz').value = ed ? Object.keys(ed.sizes).sort(bySize).join(', ') : PRESETS.clothes;
   $('#pt').value = presetOf($('#pz').value);
   $('#pf').value = '';
@@ -872,7 +938,12 @@ $('#pdOk').onclick = async e => {
   e.preventDefault();
   const name = $('#pn').value.trim(), sku = $('#ps').value.trim();
   if (!name || !sku) return say('Podaj nazwę i SKU.');
-  if (S.products.some(p => p.id !== (ed && ed.id) && p.sku.toLowerCase() === sku.toLowerCase())) return say('Model z takim SKU już istnieje.');
+  const oldSku = $('#pos').value.trim().slice(0, 40);
+  const taken = v => S.products.some(p => p.id !== (ed && ed.id) && (p.sku.toLowerCase() === v.toLowerCase() || (p.oldSku && p.oldSku.toLowerCase() === v.toLowerCase())));
+  if (taken(sku)) return say('Model z takim SKU już istnieje.');
+  if (oldSku && oldSku.toLowerCase() === sku.toLowerCase()) return say('Stare SKU musi być inne niż SKU.');
+  if (oldSku && taken(oldSku)) return say('Stare SKU ' + oldSku + ' jest już używane przez inny model. Użyj „Dołącz”, żeby połączyć te modele.');
+  if (ed && ed.oldSku && !oldSku && oldSum(ed) + Object.values(ed.evOld || {}).reduce((a, b) => a + b, 0) > 0 && !await ask('Usunąć stare SKU ' + ed.oldSku + '? Jego sztuki zostaną policzone jako nowe SKU ' + sku + '.')) return;
   const sizes = [...new Set($('#pz').value.split(',').map(s => cleanKey(s.trim().toUpperCase())).filter(Boolean))];
   if (!sizes.length) return say('Podaj co najmniej jeden rozmiar.');
   const old = ed ? ed.sizes : {};
@@ -889,11 +960,12 @@ $('#pdOk').onclick = async e => {
         const o = toObj(p.sizes), n = {};
         sizes.forEach(s => { n[s] = o[s] || 0; });
         p.name = name; p.sku = sku; p.sizes = n;
+        if (oldSku) { p.oldSku = oldSku; p.old = capMap(numMap(p.old), n); if (!Object.keys(p.old).length) delete p.old; } else { delete p.oldSku; delete p.old; delete p.evOld; }
         return p;
       });
     } else {
       const n = {}; sizes.forEach(s => { n[s] = 0; });
-      await R.child('products/' + id).set({ id, name, sku, sizes: n });
+      await R.child('products/' + id).set(oldSku ? { id, name, sku, oldSku, sizes: n } : { id, name, sku, sizes: n });
       await logEv('add', name, sku, 'rozmiary: ' + sizes.join(', '));
     }
     if (photo) await R.child('photos/' + id).set(photo);
@@ -904,6 +976,39 @@ $('#pdOk').onclick = async e => {
     mapAssignNext = id; mapMode = 'view'; mapSel = null; mapPick = null;
     if (location.hash === '#mapa/' + id) showView('map'); else location.hash = '#mapa/' + id;
   }
+};
+// dołączenie innego modelu jako stare SKU: jego stan przechodzi do tego modelu jako „stare”, a on sam znika
+$('#pmgB').onclick = async () => {
+  const a = ed, b = S.products.find(p => p.id === $('#pmg').value);
+  if (!a || !b) return say('Wybierz model do dołączenia.');
+  if (evSum(b) > 0) return say('Model ' + b.name + ' ma sztuki na evencie. Najpierw przyjmij je z eventu.');
+  if (!await ask('Dołączyć model „' + b.name + '” (SKU ' + b.sku + ', ' + sum(b) + ' szt.) do „' + a.name + '” jako stare SKU? Jego stan zostanie doliczony do „' + a.name + '”, a model „' + b.name + '” zniknie z listy.')) return;
+  if (!online()) return;
+  let err = null;
+  try {
+    const res = await R.child('products').transaction(all => {
+      err = null;
+      if (!all) return all;
+      all = JSON.parse(JSON.stringify(all));
+      const A = all[a.id], B = all[b.id];
+      if (!A || !B) { err = 'Jeden z modeli został w międzyczasie usunięty.'; return; }
+      if (A.oldSku) { err = 'Ten model ma już stare SKU.'; return; }
+      if (Object.values(toObj(B.ev)).some(v => v > 0)) { err = 'Model ' + b.name + ' ma sztuki na evencie.'; return; }
+      A.sizes = toObj(A.sizes); A.old = {};
+      for (const [k, v] of Object.entries(numMap(B.sizes))) { A.sizes[k] = (Number(A.sizes[k]) || 0) + v; if (v > 0) A.old[k] = v; }
+      if (!Object.keys(A.old).length) delete A.old;
+      A.oldSku = String(B.sku || b.sku);
+      const za = toObj(A.zones), zb = toObj(B.zones);
+      for (const k in zb) { const va = zval(za[k]), vb = zval(zb[k]); if (vb === null) continue; za[k] = va === null ? vb : va === 1 || vb === 1 ? 1 : [...new Set((va + ',' + vb).split(','))].sort().join(','); }
+      if (Object.keys(za).length) A.zones = za;
+      delete all[b.id];
+      return all;
+    });
+    if (!res.committed) { if (err) say(err); return; }
+    try { await R.child('photos/' + b.id).remove(); } catch (x) {}
+    await logEv('merge', a.name, a.sku, 'stare SKU ' + b.sku + ' (' + b.name + '), ' + sum(b) + ' szt.');
+    $('#pd').close();
+  } catch (x) { say('Nie udało się połączyć modeli.'); }
 };
 $('#pdDel').onclick = async e => {
   e.preventDefault();
@@ -938,8 +1043,8 @@ $('#q').oninput = render;
 function renderLog() {
   const canDel = user === 'delma';
   $('#logL').innerHTML = S.log.map((l, i) => {
-    const parts = [fmtD(l.d), l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
-    const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
+    const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
+    const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
     return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
   }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
@@ -1033,7 +1138,7 @@ function sheetXml(rows, widths, filterRows) {
     + (filterRows > 1 ? '<autoFilter ref="A1:' + col(widths.length - 1) + filterRows + '"/>' : '')
     + '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
 }
-const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki' };
+const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki', merge: 'Połączono SKU' };
 const fmtP = d => Object.entries(d || {}).map(([k, n]) => k + ' × ' + n).join(', ');
 const pad2 = n => String(n).padStart(2, '0');
 const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
@@ -1044,12 +1149,14 @@ async function exportXlsx() {
   let totW = 0, totE = 0;
   S.products.slice().sort((a, b) => a.name.localeCompare(b.name, 'pl')).forEach((p, pi) => {
     const band = pi % 2 === 1, t = band ? XS.txtB : XS.txt;
-    chipKeys(p).forEach(k => {
-      const w = p.sizes[k] || 0, e = (p.ev && p.ev[k]) || 0; totW += w; totE += e;
-      stan.push([{ v: p.sku, s: t }, { v: p.name, s: t }, { v: k, s: band ? XS.numB : XS.num },
+    const parts = p.oldSku ? [[p.sku, k => (p.sizes[k] || 0) - (p.old[k] || 0), k => ((p.ev && p.ev[k]) || 0) - (p.evOld[k] || 0)], [p.oldSku + ' (stare)', k => p.old[k] || 0, k => p.evOld[k] || 0]]
+      : [[p.sku, k => p.sizes[k] || 0, k => (p.ev && p.ev[k]) || 0]];
+    parts.forEach(([sku, fw, fe]) => chipKeys(p).forEach(k => {
+      const w = fw(k), e = fe(k); totW += w; totE += e;
+      stan.push([{ v: sku, s: t }, { v: p.name, s: t }, { v: k, s: band ? XS.numB : XS.num },
         { v: w, s: w === 0 ? XS.zero : w <= 2 ? XS.low : band ? XS.numB : XS.num },
         { v: e, s: e > 0 ? XS.ev : band ? XS.ev0B : XS.ev0 }, { v: zNames(p).join(', '), s: t }]);
-    });
+    }));
   });
   const nS = stan.length;
   stan.push([{ v: 'Razem', s: XS.totL }, { v: '', s: XS.totL }, { v: '', s: XS.totL }, { v: totW, f: 'SUM(D2:D' + nS + ')', s: XS.totN }, { v: totE, f: 'SUM(E2:E' + nS + ')', s: XS.totN }, { v: '', s: XS.totL }]);
@@ -1060,8 +1167,10 @@ async function exportXlsx() {
   raw.map(cleanLogEntry).forEach(l => {
     const base = [{ v: xDate(l.t), s: XS.date }, cap(l.by), { v: OPN[l.m] || l.m, s: OPS[l.m] || XS.txt }];
     const row = (sku, name, d, lost) => hist.push([...base, sku, name, { v: fmtP(d), s: XS.wrap }, { v: fmtP(lost), s: lost ? XS.opOut : XS.wrap }, { v: l.note, s: XS.wrap }]);
-    if (l.items && l.items.length) l.items.forEach(it => row(it.sku, it.name, it.d, it.lost));
-    else row(l.sku, l.name, l.d, l.lost);
+    const minus = (d, o) => { const r = {}; for (const k in d) { const v = d[k] - ((o && o[k]) || 0); if (v > 0) r[k] = v; } return r; };
+    const rowO = (sku, name, d, lost, o, osku) => { if (!o) return row(sku, name, d, lost); const n = minus(d, o); if (Object.keys(n).length) row(sku, name, n, lost); row(osku + ' (stare)', name, o, null); };
+    if (l.items && l.items.length) l.items.forEach(it => rowO(it.sku, it.name, it.d, it.lost, it.o, it.osku));
+    else rowO(l.sku, l.name, l.d, l.lost, l.o, l.osku);
   });
   const M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', RL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships', PR = 'http://schemas.openxmlformats.org/package/2006/relationships', H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   const blob = zipFiles([
@@ -1267,7 +1376,7 @@ function renderMap() {
   if (mapZ && !ids.has(mapZ)) mapZ = null;
   if (mapMode !== 'view' || (mapPick && !ids.has(mapPick))) mapPick = null;
   const q = $('#mapQ').value.trim().toLowerCase();
-  const matches = q ? S.products.filter(p => (p.name + ' ' + p.sku).toLowerCase().includes(q)) : [];
+  const matches = q ? S.products.filter(p => hay(p).includes(q)) : [];
   const act = sel ? [sel] : matches;
   const hot = new Map(), zmap = new Map(Z.map(z => [z.id, z]));
   act.forEach(p => p.zones.forEach(zid => {
