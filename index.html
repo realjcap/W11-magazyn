@@ -1478,7 +1478,7 @@ function renderMap() {
     if (x0 < Infinity) setTimeout(() => mapFly(x0, y0, x1, y1), 0);
   }
   mapFlown = flyKey;
-  $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zDesc(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n ? '' : 'mu'}">${n ? esc(n) : 'brak miejsca'}</small></button>`; }).join('')
+  $('#mapRes').innerHTML = q && !(sel && q === sel.name.toLowerCase()) ? matches.slice(0, 8).map(p => { const n = zDesc(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n ? '' : 'mu'}">${n ? esc(n) : 'brak miejsca'}</small></button>`; }).join('')
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
   const O = OFFICE;
@@ -1541,7 +1541,9 @@ function renderMap() {
 $('#mapQ').oninput = () => { mapSel = null; mapPend = null; setMapHash('#mapa'); renderMap(); };
 $('#mapRes').onclick = e => {
   const b = e.target.closest('.mres'); if (!b) return;
-  mapSel = b.dataset.id; setMapHash('#mapa/' + mapSel); renderMap();
+  mapSel = b.dataset.id; mapPend = null;
+  const p = S.products.find(x => x.id === mapSel); if (p) $('#mapQ').value = p.name; // nazwa w wyszukiwarce, lista znika
+  $('#mapQ').blur(); setMapHash('#mapa/' + mapSel); renderMap();
 };
 $('#mapZone').onclick = e => {
   if (e.target.closest('#mapZoneX')) { mapPick = null; renderMap(); return; }
