@@ -253,6 +253,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .cr{display:flex;align-items:center;gap:6px}
 .cr input{width:70px}
 .oc{fill:#e0a030;fill-opacity:.28;pointer-events:none}
+.ox{fill:#7d2633;fill-opacity:.7;pointer-events:none}
 .zone.hot2,.pc.pc2{fill:#e07b10;stroke:#e07b10}
 .zone.hot2{stroke-width:2;fill-opacity:.6;animation:zpulse 1.3s ease-in-out infinite}
 .pc{fill:#2ea05a;stroke:#2ea05a;stroke-width:1;pointer-events:none;animation:zpulse 1.3s ease-in-out infinite}
@@ -343,7 +344,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="bar maptools">
     <button id="mapAssign" hidden>Przypisz miejsce</button>
     <span class="seg" id="mapSkuW" hidden><button type="button" id="mapSkuN"></button><button type="button" id="mapSkuO"></button></span>
+    <button id="mapPaint" hidden>Maluj słupki</button>
     <button id="mapEdit">Edytuj mapę</button>
+    <span class="seg" id="mapBrW" hidden><button type="button" data-b="o">Zajęty</button><button type="button" data-b="x">Nie liczyć</button><button type="button" data-b="e">Gumka</button></span>
   </div>
   <div class="panel" id="mapEditBar" hidden>
     <label class="f"><small>Nowy blok: słupków w poziomie × w pionie</small><span class="cr"><input type="number" id="nC" min="1" max="66" value="1" inputmode="numeric"> × <input type="number" id="nR" min="1" max="66" value="1" inputmode="numeric"></span></label>
@@ -530,6 +533,9 @@ function mapGeom() {
   MW = Math.max(HW + 12, (HH + 12) * MA); MH = MW / MA; BX0 = HW / 2 - MW / 2; BY0 = HH / 2 - MH / 2;
 }
 const fl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
+// ręcznie pomalowane słupki (tylko delma): mo = zajęty, mx = bordowy „nie liczyć”; zapis jako "rząd:kolumna,..."
+const tokSet = v => new Set(typeof v === 'string' ? v.split(',').filter(t => /^\d{1,2}:\d{1,2}$/.test(t)) : []);
+const tokStr = set => set.size ? [...set].sort().join(',') : null;
 // rozmiar bloku wynika z liczby słupków; blok zawsze w obrębie hali
 function zoneGeo(z) {
   z.w = z.c * (z.rot ? SH : SW); z.h = z.r * (z.rot ? SW : SH);
@@ -573,7 +579,7 @@ const oldSum = p => Object.values(p.old || {}).reduce((a, b) => a + b, 0);
 const hay = p => (p.name + ' ' + p.sku + ' ' + (p.oldSku || '')).toLowerCase();
 function rebuild() {
   S.zones = Object.entries(MZ || {}).filter(([id, z]) => okId(id) && z && typeof z === 'object')
-    .map(([id, z]) => zoneGeo({ id, name: txt(z.name, 40), x: Number(z.x) || 0, y: Number(z.y) || 0, rot: z.rot === true || z.rot === 1, c: cells(z.c, Number(z.w) || 0, 5, 66), r: cells(z.r, Number(z.h) || 0, 4, 66) }))
+    .map(([id, z]) => zoneGeo({ id, name: txt(z.name, 40), x: Number(z.x) || 0, y: Number(z.y) || 0, rot: z.rot === true || z.rot === 1, c: cells(z.c, Number(z.w) || 0, 5, 66), r: cells(z.r, Number(z.h) || 0, 4, 66), mo: tokSet(z.mo), mx: tokSet(z.mx) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...zsanOld(p), ...oldSan(p) }))
@@ -642,7 +648,7 @@ async function uploadAll(prods, logs, zones) {
   });
   logs.slice().reverse().forEach(l => { lg[R.child('log').push().key] = cleanLogEntry(l || {}); });
   const up = { products: pr, photos: ph, log: lg };
-  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => { const g = zoneGeo({ x: Number(z.x) || 0, y: Number(z.y) || 0, rot: z.rot === true || z.rot === 1, c: cells(z.c, Number(z.w) || 0, 5, 66), r: cells(z.r, Number(z.h) || 0, 4, 66) }); return [String(z.id), { id: String(z.id), name: txt(z.name, 40), ...g, rot: g.rot }]; }));
+  if (Array.isArray(zones)) up['map/zones'] = Object.fromEntries(zones.filter(z => z && okId(String(z.id))).map(z => { const g = zoneGeo({ x: Number(z.x) || 0, y: Number(z.y) || 0, rot: z.rot === true || z.rot === 1, c: cells(z.c, Number(z.w) || 0, 5, 66), r: cells(z.r, Number(z.h) || 0, 4, 66) }); const mo = tokStr(tokSet(z.mo instanceof Set ? [...z.mo].join(',') : z.mo)), mx = tokStr(tokSet(z.mx instanceof Set ? [...z.mx].join(',') : z.mx)); return [String(z.id), { id: String(z.id), name: txt(z.name, 40), ...g, rot: g.rot, ...(mo ? { mo } : {}), ...(mx ? { mx } : {}) }]; }));
   await R.update(up);
 }
 async function maybeMigrate() {
@@ -1148,7 +1154,7 @@ async function fullLog() {
 }
 async function exportJson() {
   const log = await fullLog(); if (!log) return false;
-  saveBlob(new Blob([JSON.stringify({ products: S.products, log, zones: S.zones })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
+  saveBlob(new Blob([JSON.stringify({ products: S.products, log, zones: S.zones.map(z => ({ ...z, mo: tokStr(z.mo), mx: tokStr(z.mx) })) })], { type: 'application/json' }), 'magazyn-' + stamp() + '.json');
   return true;
 }
 // --- prosty zapis pliku .xlsx (bez zewnętrznych bibliotek)
@@ -1431,7 +1437,7 @@ $('#rstOk').onclick = async e => {
 
 // --- mapa magazynu ("Gdzie ciuszek?")
 let mapVb = { x: BX0, y: BY0, w: MW, h: MH }, mapVbReset = () => {}, mapFly = () => {}, mapFlown = null;
-let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null, mapOld = false;
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null, mapOld = false, mapBrush = 'o';
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
 const zn = z => z.name || 'Blok bez nazwy';
 const zNames = (p, old) => (old ? p.zonesOld : p.zones).map(id => { const z = S.zones.find(x => x.id === id); return z ? zn(z) + palText(p, z, old) : null; }).filter(Boolean);
@@ -1467,7 +1473,8 @@ function renderMap() {
   // zielone = nowe SKU, pomarańczowe = stare SKU
   const hotOld = new Map();
   act.forEach(p => { p.zones.forEach(zid => addTo(hot, p, zid)); p.zonesOld.forEach(zid => addTo(hotOld, p, zid, true)); });
-  if (mapMode !== 'assign') mapRng = null;
+  if (mapMode !== 'assign' && mapMode !== 'paint') mapRng = null;
+  if (mapMode === 'paint' && user !== 'delma') mapMode = 'view';
   // jeden znaleziony model z miejscem: widok płynnie przelatuje do jego słupków
   const flyKey = act.length === 1 && (hot.size || hotOld.size) ? act[0].id + '|' + [...hot.keys(), ...hotOld.keys()].join(',') : null;
   if (flyKey && flyKey !== mapFlown && mapMode !== 'edit') {
@@ -1495,24 +1502,31 @@ function renderMap() {
     let pc = '', pn = '', pv = '', oc = '';
     const oz = occ.get(z.id);
     if (oz === 'all') oc = `<rect class="oc" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>`;
-    else if (oz) oz.forEach(t => { const [r, c] = t.split(':').map(Number); oc += `<rect class="oc" ${cx(r, c)}/>`; });
+    else if (oz) oz.forEach(t => { if (z.mo.has(t)) return; const [r, c] = t.split(':').map(Number); oc += `<rect class="oc" ${cx(r, c)}/>`; });
+    if (oz !== 'all') z.mo.forEach(t => { const [r, c] = t.split(':').map(Number); if (r < z.r && c < z.c) oc += `<rect class="oc" ${cx(r, c)}/>`; });
+    z.mx.forEach(t => { const [r, c] = t.split(':').map(Number); if (r < z.r && c < z.c) oc += `<rect class="ox" ${cx(r, c)}/>`; });
     if (hz && hz !== 'all') hz.forEach(t => { const [r, c] = t.split(':').map(Number); pc += `<rect class="pc" ${cx(r, c)}/>`; });
     if (ho && ho !== 'all' && hz !== 'all') ho.forEach(t => { if (hz && hz.has && hz.has(t)) return; const [r, c] = t.split(':').map(Number); pc += `<rect class="pc pc2" ${cx(r, c)}/>`; });
-    if ((mapMode === 'assign' || z.id === mapPick) && z.c * z.r > 1) for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) pn += `<text class="pn" x="${+(z.x + c * cw + .5).toFixed(2)}" y="${+(z.y + r * ch + 1.4).toFixed(2)}">${r * z.c + c + 1}</text>`;
+    if ((mapMode === 'assign' || mapMode === 'paint' || z.id === mapPick) && z.c * z.r > 1) for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) pn += `<text class="pn" x="${+(z.x + c * cw + .5).toFixed(2)}" y="${+(z.y + r * ch + 1.4).toFixed(2)}">${r * z.c + c + 1}</text>`;
     if (mapRng && mapRng.zid === z.id) { const r1 = Math.min(mapRng.a.r, mapRng.b.r), r2 = Math.max(mapRng.a.r, mapRng.b.r), c1 = Math.min(mapRng.a.c, mapRng.b.c), c2 = Math.max(mapRng.a.c, mapRng.b.c); pv = `<rect class="pv" x="${+(z.x + c1 * cw).toFixed(2)}" y="${+(z.y + r1 * ch).toFixed(2)}" width="${+((c2 - c1 + 1) * cw).toFixed(2)}" height="${+((r2 - r1 + 1) * ch).toFixed(2)}"/>`; }
     return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>${oc}${pc}${gr ? `<path class="zd" d="${gr}"/>` : ''}${gp ? `<path class="zd zp" d="${gp}"/>` : ''}${pn}${pv}<text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
   }).join('');
   const svg = $('#mapSvg');
   if (svg.__h !== h) { svg.innerHTML = h; svg.__h = h; }
   svg.classList.toggle('ed', mapMode === 'edit');
-  svg.classList.toggle('as', mapMode === 'assign');
-  $('#mapAssign').hidden = !(sel && Z.length && mapMode !== 'edit');
+  svg.classList.toggle('as', mapMode === 'assign' || mapMode === 'paint');
+  $('#mapAssign').hidden = !(sel && Z.length && mapMode !== 'edit' && mapMode !== 'paint');
   $('#mapAssign').textContent = mapMode === 'assign' ? 'Gotowe' : 'Przypisz miejsce';
   const two = mapMode === 'assign' && sel && sel.oldSku;
   $('#mapSkuW').hidden = !two;
   if (two) { $('#mapSkuN').textContent = 'Nowe ' + sel.sku; $('#mapSkuO').textContent = 'Stare ' + sel.oldSku; $('#mapSkuN').classList.toggle('on', !mapOld); $('#mapSkuO').classList.toggle('on', mapOld); }
   $('#mapAssign').classList.toggle('p', mapMode === 'assign');
-  $('#mapEdit').hidden = mapMode === 'assign';
+  $('#mapEdit').hidden = mapMode === 'assign' || mapMode === 'paint';
+  $('#mapPaint').hidden = user !== 'delma' || mapMode === 'assign' || mapMode === 'edit';
+  $('#mapPaint').textContent = mapMode === 'paint' ? 'Gotowe' : 'Maluj słupki';
+  $('#mapPaint').classList.toggle('p', mapMode === 'paint');
+  $('#mapBrW').hidden = mapMode !== 'paint';
+  document.querySelectorAll('#mapBrW button').forEach(b => b.classList.toggle('on', b.dataset.b === mapBrush));
   $('#mapEdit').textContent = mapMode === 'edit' ? 'Gotowe' : 'Edytuj mapę';
   $('#mapEdit').classList.toggle('p', mapMode === 'edit');
   $('#mapEditBar').hidden = mapMode !== 'edit';
@@ -1522,6 +1536,7 @@ function renderMap() {
   if (sz && document.activeElement !== $('#mapName')) $('#mapName').value = sz.name;
   let info;
   if (mapMode === 'edit') info = 'Tryb edycji mapy. Dotknij strefy, aby ją zaznaczyć.';
+  else if (mapMode === 'paint') info = 'Malowanie słupków: ' + { o: 'zajęty (bursztynowy)', x: 'nie liczyć (bordowy)', e: 'gumka (czyści kolor)' }[mapBrush] + '. Dotknij słupka albo przeciągnij po kilku. Ponowne pomalowanie tym samym kolorem go zdejmuje.';
   else if (mapMode === 'assign') info = (sel.oldSku ? 'Przypisujesz ' + (mapOld ? 'STARE SKU ' + sel.oldSku + ' (pomarańczowe)' : 'NOWE SKU ' + sel.sku + ' (zielone)') + '. ' : '') + 'Dotknij słupka albo przeciągnij po kilku, aby dodać lub usunąć miejsce dla: ' + sel.name + '. Ponowne zaznaczenie zakresu, który już jest przypisany, usuwa go.';
   else if (!Z.length) info = 'Mapa jest pusta. Kliknij „Edytuj mapę”, aby narysować strefy lub wstawić przykładowy układ.';
   else if (!q && !sel) info = 'Wpisz nazwę lub SKU, aby zobaczyć, gdzie leży ciuszek.';
@@ -1553,6 +1568,8 @@ $('#mapZone').onclick = e => {
   setMapHash('#mapa/' + mapSel); renderMap();
 };
 $('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
+$('#mapPaint').onclick = () => { if (user !== 'delma') return; mapMode = mapMode === 'paint' ? 'view' : 'paint'; mapPick = null; renderMap(); };
+$('#mapBrW').onclick = e => { const b = e.target.closest('button[data-b]'); if (b) { mapBrush = b.dataset.b; renderMap(); } };
 $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; mapOld = false; renderMap(); };
 $('#mapSkuN').onclick = () => { mapOld = false; renderMap(); };
 $('#mapSkuO').onclick = () => { mapOld = true; renderMap(); };
@@ -1590,6 +1607,20 @@ $('#mapDel').onclick = async () => {
   if (!online()) return;
   try { await R.child('map/zones/' + z.id).remove(); mapZ = null; } catch (x) { say(MAPERR); }
 };
+// malowanie słupków (delma): zajęty / nie liczyć / gumka; zapis w map/zones/<id>/mo i mx
+async function applyPaint(zid, a, b) {
+  const z = S.zones.find(x => x.id === zid);
+  if (!z || user !== 'delma' || !online()) return;
+  const tk = [];
+  for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c++) tk.push(r + ':' + c);
+  const mo = new Set(z.mo), mx = new Set(z.mx);
+  if (mapBrush === 'e') tk.forEach(t => { mo.delete(t); mx.delete(t); });
+  else {
+    const on = mapBrush === 'o' ? mo : mx, off = mapBrush === 'o' ? mx : mo;
+    if (tk.every(t => on.has(t))) tk.forEach(t => on.delete(t)); else tk.forEach(t => { on.add(t); off.delete(t); });
+  }
+  try { await R.child('map/zones/' + z.id).update({ mo: tokStr(mo), mx: tokStr(mx) }); } catch (x) { say(MAPERR); }
+}
 async function applyRange(zid, a, b) {
   const p = S.products.find(x => x.id === mapSel), z = S.zones.find(x => x.id === zid), old = !!(p && p.oldSku && mapOld);
   if (!p || !z || !online()) return;
@@ -1673,7 +1704,7 @@ async function applyRange(zid, a, b) {
     if (ptrs.size > 2) { e.stopImmediatePropagation(); return; }
     panMoved = false;
     const onZone = e.target.closest('[data-z]') || e.target.closest('.hnd');
-    if ((mapMode === 'edit' || mapMode === 'assign') && onZone) return; // obsłuży to edycja / przypisywanie niżej
+    if ((mapMode === 'edit' || mapMode === 'assign' || mapMode === 'paint') && onZone) return; // obsłuży to edycja / przypisywanie niżej
     if (mapMode === 'edit' && !onZone) { mapZ = null; renderMap(); }
     if (mapVb.w >= MW - .001 && e.pointerType === 'touch') { e.stopImmediatePropagation(); return; } // gdy widać całą mapę, palec przewija stronę
     pan = { sx: e.clientX, sy: e.clientY, vx: mapVb.x, vy: mapVb.y };
@@ -1708,11 +1739,11 @@ async function applyRange(zid, a, b) {
     if (panMoved) { panMoved = false; return; }
     if (mapMode === 'edit') return;
     const g = (downT && svg.contains(downT) ? downT : e.target).closest('[data-z]'); downT = null;
-    if (mapMode === 'assign') return;
+    if (mapMode === 'assign' || mapMode === 'paint') return;
     mapPick = g && g.dataset.z !== mapPick ? g.dataset.z : null; renderMap();
   });
   svg.addEventListener('pointerdown', e => {
-    if (mapMode === 'assign') {
+    if (mapMode === 'assign' || mapMode === 'paint') {
       const g = e.target.closest('[data-z]'), z = g && S.zones.find(x => x.id === g.dataset.z); if (!z) return;
       e.preventDefault(); const c = cellAt(z, pt(e));
       mapRng = { zid: z.id, a: c, b: c }; try { svg.setPointerCapture(e.pointerId); } catch (x) {}
@@ -1739,7 +1770,7 @@ async function applyRange(zid, a, b) {
     renderMap();
   });
   const end = async e => {
-    if (mapRng) { const g = mapRng; mapRng = null; renderMap(); if (e.type === 'pointerup') await applyRange(g.zid, g.a, g.b); return; }
+    if (mapRng) { const g = mapRng; mapRng = null; renderMap(); if (e.type === 'pointerup') { if (mapMode === 'paint') await applyPaint(g.zid, g.a, g.b); else await applyRange(g.zid, g.a, g.b); } return; }
     const d = mapDrag; if (!d) return;
     mapDrag = null;
     let pr = null;
