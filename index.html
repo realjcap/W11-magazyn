@@ -265,6 +265,14 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .seg button.on{background:var(--ac);color:var(--acx)}
 .hnd{fill:var(--ac);cursor:nwse-resize}
 #mapZone{margin-bottom:12px}
+#mzH{font-size:17px;font-weight:600;margin-top:4px}
+#mapHelp{width:min(520px,94vw);max-height:86vh;overflow:auto}
+.lgd h3{font-size:14px;margin:14px 0 6px;color:var(--mu)}
+.lgd p{display:flex;gap:10px;align-items:flex-start;margin:0 0 8px;font-size:14px;line-height:1.4}
+.lgd ul{margin:0;padding-left:18px;font-size:14px;line-height:1.45}
+.lgd li{margin-bottom:5px}
+.lgsw{flex:0 0 42px;width:42px;height:28px;margin-top:1px;background:var(--bg);border-radius:4px}
+.lgsw .zt{fill:var(--tx)}
 #mapZone h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 #mapZone h3 button{padding:4px 10px;font-size:13px}
 .mres{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;margin-bottom:6px}
@@ -338,7 +346,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="bar"><input type="search" id="mapQ" placeholder="Nazwa lub SKU, np. Bluza albo B1" autocomplete="off"></div>
   <div id="mapRes"></div>
   <div class="panel mapbox"><svg id="mapSvg" viewBox="-38.3 -6 221.6 277" role="img" aria-label="Mapa magazynu"></svg>
-    <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż całą halę">⤢</button><small id="mzL">100%</small></div></div>
+    <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż całą halę">⤢</button><small id="mzL">100%</small><button type="button" id="mzH" aria-label="Legenda mapy" title="Legenda — co oznaczają kolory">?</button></div></div>
   <p id="mapInfo" class="mapinfo"></p>
   <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
@@ -440,6 +448,31 @@ details[open]>summary .chev{transform:rotate(90deg)}
   </form>
 </dialog>
 
+<dialog id="mapHelp">
+  <h2>Legenda mapy</h2>
+  <div class="lgd">
+    <h3>Co jest na mapie</h3>
+    <p><svg class="lgsw" viewBox="0 0 24 16" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="23" height="15"/><path class="zd" d="M6.5 .5V15.5M18.5 .5V15.5M.5 4.5H23.5M.5 12.5H23.5"/><path class="zd zp" d="M12.5 .5V15.5M.5 8.5H23.5"/></svg><span><b>Jeden kwadracik = jeden słupek kartonów</b> (ok. 0,6 × 0,4 m). Cienkie linie dzielą słupki, grubsza linia co 2 × 2 słupki to krawędź palety EUR (1,2 × 0,8 m, 4 słupki).</span></p>
+    <p><svg class="lgsw" viewBox="0 0 24 16" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="23" height="15" rx="1"/><text class="zt" x="12" y="8" style="font-size:5px">A</text></svg><span><b>Blok</b> to rząd lub regał słupków. Jego nazwa jest na środku. Dotknij bloku, żeby zobaczyć listę modeli, które w nim leżą.</span></p>
+    <p><svg class="lgsw" viewBox="0 0 24 16" aria-hidden="true"><rect class="off" x=".5" y=".5" width="23" height="15"/><path class="door" d="M14 8V2A6 6 0 0 1 20 8"/></svg><span><b>Żółte pole</b> to biuro, łuk to drzwi. Gruba ciemna linia to ściany hali (14,5 × 26,5 m).</span></p>
+    <h3>Kolory słupków</h3>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/></svg><span><b>Biały</b> – wolny słupek.</span></p>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/><rect class="oc" x=".5" y=".5" width="11" height="7"/></svg><span><b>Bursztynowy</b> – zajęty: przypisany do jakiegoś modelu (także ze stanem 0) albo oznaczony ręcznie jako zajęty.</span></p>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/><rect class="ox" x=".5" y=".5" width="11" height="7"/></svg><span><b>Bordowy</b> – „nie liczyć”: słupek wyłączony, oznaczony ręcznie (np. przejście, uszkodzona paleta).</span></p>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/><rect class="pc" x=".5" y=".5" width="11" height="7"/></svg><span><b>Zielony, pulsujący</b> – miejsce wyszukanego modelu (nowe SKU).</span></p>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/><rect class="pc pc2" x=".5" y=".5" width="11" height="7"/></svg><span><b>Pomarańczowy, pulsujący</b> – miejsce starego SKU tego samego modelu.</span></p>
+    <p><svg class="lgsw" viewBox="0 0 12 8" aria-hidden="true"><rect class="zone" x=".5" y=".5" width="11" height="7"/><rect class="pv" x=".5" y=".5" width="11" height="7"/></svg><span><b>Niebieski</b> – słupki, które właśnie zaznaczasz palcem przy przypisywaniu lub malowaniu.</span></p>
+    <h3>Jak używać</h3>
+    <ul>
+      <li>Wpisz nazwę lub SKU – mapa sama przeleci do miejsca modelu.</li>
+      <li>Przybliżanie: ＋ / −, dwa palce albo kółko myszy. Przesuwanie: przeciągnij mapę. ⤢ pokazuje całą halę.</li>
+      <li>„Przypisz miejsce” (po wybraniu modelu): dotknij słupka albo przeciągnij po kilku. Ponowne zaznaczenie zdejmuje miejsce.</li>
+      <li>Przy przypisywaniu słupki mają numery – liczone rzędami od lewego górnego rogu bloku. Te same numery są w opisie miejsca, np. „Rząd A (słupki 1–4)”.</li>
+      <li>„Edytuj mapę” – dodawanie, przesuwanie, obracanie i usuwanie bloków.</li>
+    </ul>
+  </div>
+  <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
+</dialog>
 <dialog id="log">
   <h2>Historia zmian</h2>
   <div id="logL"></div>
@@ -1568,6 +1601,7 @@ $('#mapZone').onclick = e => {
   setMapHash('#mapa/' + mapSel); renderMap();
 };
 $('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
+$('#mzH').onclick = () => $('#mapHelp').showModal();
 $('#mapPaint').onclick = () => { if (user !== 'delma') return; mapMode = mapMode === 'paint' ? 'view' : 'paint'; mapPick = null; renderMap(); };
 $('#mapBrW').onclick = e => { const b = e.target.closest('button[data-b]'); if (b) { mapBrush = b.dataset.b; renderMap(); } };
 $('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; mapOld = false; renderMap(); };
