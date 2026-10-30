@@ -253,10 +253,15 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .cr{display:flex;align-items:center;gap:6px}
 .cr input{width:70px}
 .oc{fill:#e0a030;fill-opacity:.28;pointer-events:none}
+.zone.hot2,.pc.pc2{fill:#e07b10;stroke:#e07b10}
+.zone.hot2{stroke-width:2;fill-opacity:.6;animation:zpulse 1.3s ease-in-out infinite}
 .pc{fill:#2ea05a;stroke:#2ea05a;stroke-width:1;pointer-events:none;animation:zpulse 1.3s ease-in-out infinite}
 .pv{fill:var(--ac);fill-opacity:.4;stroke:var(--ac);stroke-width:1.5;pointer-events:none}
 .pn{font-size:1.5px;fill:var(--mu);pointer-events:none;font-family:inherit}
 #mapSvg.as{touch-action:none;cursor:pointer}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;margin:0}
+.seg button.on{background:var(--ac);color:var(--acx)}
 .hnd{fill:var(--ac);cursor:nwse-resize}
 #mapZone{margin-bottom:12px}
 #mapZone h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -337,6 +342,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
     <button id="mapAssign" hidden>Przypisz miejsce</button>
+    <span class="seg" id="mapSkuW" hidden><button type="button" id="mapSkuN"></button><button type="button" id="mapSkuO"></button></span>
     <button id="mapEdit">Edytuj mapę</button>
   </div>
   <div class="panel" id="mapEditBar" hidden>
@@ -546,13 +552,16 @@ function cleanLogEntry(l) {
 }
 const zval = v => { if (v === 1 || v === true) return 1; if (typeof v !== 'string') return null; const t = [...new Set(v.split(',').filter(x => /^\d{1,2}:\d{1,2}$/.test(x)))]; return t.length ? t.sort().join(',') : null; };
 function zsan(raw) { const zr = {}; Object.entries(toObj(raw)).forEach(([k, v]) => { const w = zval(v); if (okId(k) && w !== null) zr[k] = w; }); return { zones: Object.keys(zr), zraw: zr }; }
-function palSet(p, z) { const v = p.zraw[z.id]; if (v === 1) return null; const s = new Set(); String(v || '').split(',').forEach(t => { const [r, c] = t.split(':').map(Number); if (r < z.r && c < z.c) s.add(r + ':' + c); }); return s; }
+// osobne miejsca starego SKU (products/<id>/zonesOld), tylko gdy model ma stare SKU
+const zsanOld = p => { const o = txt(p.oldSku, 60) ? zsan(p.zonesOld) : { zones: [], zraw: {} }; return { zonesOld: o.zones, zrawOld: o.zraw }; };
+const zUnion = (a, b) => { const r = { ...toObj(a) }; for (const k in toObj(b)) { const va = zval(r[k]), vb = zval(b[k]); if (vb === null) continue; r[k] = va === null ? vb : va === 1 || vb === 1 ? 1 : [...new Set((va + ',' + vb).split(','))].sort().join(','); } return r; };
+function palSet(p, z, old) { const v = (old ? p.zrawOld : p.zraw)[z.id]; if (v === 1) return null; const s = new Set(); String(v || '').split(',').forEach(t => { const [r, c] = t.split(':').map(Number); if (r < z.r && c < z.c) s.add(r + ':' + c); }); return s; }
 function fmtPal(z, s) {
   const n = [...s].map(t => { const [r, c] = t.split(':').map(Number); return r * z.c + c + 1; }).sort((a, b) => a - b), o = [];
   for (let i = 0; i < n.length;) { let j = i; while (j + 1 < n.length && n[j + 1] === n[j] + 1) j++; o.push(j > i ? n[i] + '–' + n[j] : '' + n[i]); i = j + 1; }
   return o.join(', ');
 }
-const palText = (p, z) => { const s = palSet(p, z); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (słupki ' + fmtPal(z, s) + ')'; };
+const palText = (p, z, old) => { const s = palSet(p, z, old); return s === null || s.size >= z.c * z.r || !s.size ? '' : ' (słupki ' + fmtPal(z, s) + ')'; };
 // stare SKU: old = ile sztuk z sizes ma stare SKU, evOld = ile z ev ma stare SKU (old ≤ sizes, evOld ≤ ev)
 const capMap = (m, lim) => { const o = {}; for (const k in m) { const v = Math.min(m[k], lim[k] || 0); if (v > 0) o[k] = v; } return o; };
 function oldSan(p) {
@@ -567,7 +576,7 @@ function rebuild() {
     .map(([id, z]) => zoneGeo({ id, name: txt(z.name, 40), x: Number(z.x) || 0, y: Number(z.y) || 0, rot: z.rot === true || z.rot === 1, c: cells(z.c, Number(z.w) || 0, 5, 66), r: cells(z.r, Number(z.h) || 0, 4, 66) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
-    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...oldSan(p) }))
+    .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...zsanOld(p), ...oldSan(p) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null }));
   if (unlocked) rr();
@@ -625,6 +634,8 @@ async function uploadAll(prods, logs, zones) {
     if (Object.keys(ev).length) pr[id].ev = ev;
     const zl = (Array.isArray(p.zones) ? p.zones : Object.keys(toObj(p.zones))).map(String).filter(okId);
     if (zl.length) pr[id].zones = Object.fromEntries(zl.map(k => [k, (p.zraw && zval(p.zraw[k])) || 1]));
+    const zo = {}; if (p.oldSku) Object.entries(toObj(p.zrawOld || p.zonesOld)).forEach(([k, v]) => { const w = zval(v); if (okId(k) && w !== null) zo[k] = w; });
+    if (Object.keys(zo).length) pr[id].zonesOld = zo;
     const os = oldSan({ oldSku: p.oldSku, old: p.old, evOld: p.evOld, sizes: pr[id].sizes, ev: pr[id].ev || {} });
     if (os.oldSku) { pr[id].oldSku = os.oldSku; if (Object.keys(os.old).length) pr[id].old = os.old; if (Object.keys(os.evOld).length) pr[id].evOld = os.evOld; }
     const ph1 = safePhoto(p.photo); if (ph1) ph[id] = ph1;
@@ -1025,7 +1036,7 @@ $('#pdOk').onclick = async e => {
           const nv = stk[k].n !== undefined ? stk[k].n : cn, ov = stk[k].o !== undefined ? stk[k].o : co;
           n[k] = nv + ov; if (hadOld) po[k] = ov;
         }
-        if (oldSku) { p.oldSku = oldSku; p.old = capMap(po, n); if (!Object.keys(p.old).length) delete p.old; } else { delete p.oldSku; delete p.old; delete p.evOld; }
+        if (oldSku) { p.oldSku = oldSku; p.old = capMap(po, n); if (!Object.keys(p.old).length) delete p.old; } else { if (p.zonesOld) { p.zones = zUnion(p.zones, p.zonesOld); delete p.zonesOld; } delete p.oldSku; delete p.old; delete p.evOld; }
         return p;
       });
     } else {
@@ -1063,9 +1074,8 @@ $('#pmgB').onclick = async () => {
       for (const [k, v] of Object.entries(numMap(B.sizes))) { A.sizes[k] = (Number(A.sizes[k]) || 0) + v; if (v > 0) A.old[k] = v; }
       if (!Object.keys(A.old).length) delete A.old;
       A.oldSku = String(B.sku || b.sku);
-      const za = toObj(A.zones), zb = toObj(B.zones);
-      for (const k in zb) { const va = zval(za[k]), vb = zval(zb[k]); if (vb === null) continue; za[k] = va === null ? vb : va === 1 || vb === 1 ? 1 : [...new Set((va + ',' + vb).split(','))].sort().join(','); }
-      if (Object.keys(za).length) A.zones = za;
+      const zb = zUnion({}, B.zones); // miejsca dołączanego modelu stają się miejscami starego SKU
+      if (Object.keys(zb).length) A.zonesOld = zb;
       delete all[b.id];
       return all;
     });
@@ -1213,13 +1223,13 @@ async function exportXlsx() {
   let totW = 0, totE = 0;
   S.products.slice().sort((a, b) => a.name.localeCompare(b.name, 'pl')).forEach((p, pi) => {
     const band = pi % 2 === 1, t = band ? XS.txtB : XS.txt;
-    const parts = p.oldSku ? [[p.sku, k => (p.sizes[k] || 0) - (p.old[k] || 0), k => ((p.ev && p.ev[k]) || 0) - (p.evOld[k] || 0)], [p.oldSku + ' (stare)', k => p.old[k] || 0, k => p.evOld[k] || 0]]
+    const parts = p.oldSku ? [[p.sku, k => (p.sizes[k] || 0) - (p.old[k] || 0), k => ((p.ev && p.ev[k]) || 0) - (p.evOld[k] || 0)], [p.oldSku + ' (stare)', k => p.old[k] || 0, k => p.evOld[k] || 0, true]]
       : [[p.sku, k => p.sizes[k] || 0, k => (p.ev && p.ev[k]) || 0]];
-    parts.forEach(([sku, fw, fe]) => chipKeys(p).forEach(k => {
+    parts.forEach(([sku, fw, fe, old]) => chipKeys(p).forEach(k => {
       const w = fw(k), e = fe(k); totW += w; totE += e;
       stan.push([{ v: sku, s: t }, { v: p.name, s: t }, { v: k, s: band ? XS.numB : XS.num },
         { v: w, s: w === 0 ? XS.zero : w <= 2 ? XS.low : band ? XS.numB : XS.num },
-        { v: e, s: e > 0 ? XS.ev : band ? XS.ev0B : XS.ev0 }, { v: zNames(p).join(', '), s: t }]);
+        { v: e, s: e > 0 ? XS.ev : band ? XS.ev0B : XS.ev0 }, { v: zNames(p, old).join(', '), s: t }]);
     }));
   });
   const nS = stan.length;
@@ -1421,10 +1431,12 @@ $('#rstOk').onclick = async e => {
 
 // --- mapa magazynu ("Gdzie ciuszek?")
 let mapVb = { x: BX0, y: BY0, w: MW, h: MH }, mapVbReset = () => {}, mapFly = () => {}, mapFlown = null;
-let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null;
+let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null, mapOld = false;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
 const zn = z => z.name || 'Blok bez nazwy';
-const zNames = p => p.zones.map(id => { const z = S.zones.find(x => x.id === id); return z ? zn(z) + palText(p, z) : null; }).filter(Boolean);
+const zNames = (p, old) => (old ? p.zonesOld : p.zones).map(id => { const z = S.zones.find(x => x.id === id); return z ? zn(z) + palText(p, z, old) : null; }).filter(Boolean);
+// opis miejsc: nowe SKU i osobno stare SKU
+const zDesc = p => { const n = zNames(p), o = p.oldSku ? zNames(p, true) : []; return !o.length ? n.join(', ') : [n.length ? p.sku + ': ' + n.join(', ') : '', 'stare ' + p.oldSku + ': ' + o.join(', ')].filter(Boolean).join(' · '); };
 const mapZones = () => S.zones.map(z => mapDrag && mapDrag.id === z.id ? { ...z, ...mapDrag.z } : z);
 function setMapHash(h) { try { history.replaceState(null, '', location.pathname + location.search + h); } catch (e) {} }
 function renderMap() {
@@ -1446,35 +1458,34 @@ function renderMap() {
   const hot = new Map(), zmap = new Map(Z.map(z => [z.id, z]));
   // zajęte słupki: przypisane do dowolnego modelu (także ze stanem 0)
   const occ = new Map();
-  S.products.forEach(p => { p.zones.forEach(zid => {
+  const addTo = (M, p, zid, old) => {
     const z = zmap.get(zid); if (!z) return;
-    const s = palSet(p, z), cur = occ.get(zid);
-    if (cur === 'all' || s === null) occ.set(zid, 'all'); else { const u = cur || new Set(); s.forEach(t => u.add(t)); occ.set(zid, u); }
-  }); });
-  act.forEach(p => p.zones.forEach(zid => {
-    const z = zmap.get(zid); if (!z) return;
-    const s = palSet(p, z), cur = hot.get(zid);
-    if (cur === 'all' || s === null) hot.set(zid, 'all'); else { const u = cur || new Set(); s.forEach(t => u.add(t)); hot.set(zid, u); }
-  }));
+    const s = palSet(p, z, old), cur = M.get(zid);
+    if (cur === 'all' || s === null) M.set(zid, 'all'); else { const u = cur || new Set(); s.forEach(t => u.add(t)); M.set(zid, u); }
+  };
+  S.products.forEach(p => { p.zones.forEach(zid => addTo(occ, p, zid)); p.zonesOld.forEach(zid => addTo(occ, p, zid, true)); });
+  // zielone = nowe SKU, pomarańczowe = stare SKU
+  const hotOld = new Map();
+  act.forEach(p => { p.zones.forEach(zid => addTo(hot, p, zid)); p.zonesOld.forEach(zid => addTo(hotOld, p, zid, true)); });
   if (mapMode !== 'assign') mapRng = null;
   // jeden znaleziony model z miejscem: widok płynnie przelatuje do jego słupków
-  const flyKey = act.length === 1 && hot.size ? act[0].id + '|' + [...hot.keys()].join(',') : null;
+  const flyKey = act.length === 1 && (hot.size || hotOld.size) ? act[0].id + '|' + [...hot.keys(), ...hotOld.keys()].join(',') : null;
   if (flyKey && flyKey !== mapFlown && mapMode !== 'edit') {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    hot.forEach((v, zid) => { const z = zmap.get(zid), cw = z.w / z.c, ch = z.h / z.r;
+    [...hot, ...hotOld].forEach(([zid, v]) => { const z = zmap.get(zid), cw = z.w / z.c, ch = z.h / z.r;
       const add = (r, c) => { x0 = Math.min(x0, z.x + c * cw); y0 = Math.min(y0, z.y + r * ch); x1 = Math.max(x1, z.x + (c + 1) * cw); y1 = Math.max(y1, z.y + (r + 1) * ch); };
       if (v === 'all') { add(0, 0); add(z.r - 1, z.c - 1); } else v.forEach(t => { const [r, c] = t.split(':').map(Number); add(r, c); }); });
     if (x0 < Infinity) setTimeout(() => mapFly(x0, y0, x1, y1), 0);
   }
   mapFlown = flyKey;
-  $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zNames(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n.length ? '' : 'mu'}">${n.length ? esc(n.join(', ')) : 'brak miejsca'}</small></button>`; }).join('')
+  $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zDesc(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n ? '' : 'mu'}">${n ? esc(n) : 'brak miejsca'}</small></button>`; }).join('')
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
   const O = OFFICE;
   let h = `<rect class="floor" x="0" y="0" width="${HW}" height="${HH}"/><rect class="off" x="${O.x}" y="${O.y}" width="${O.w}" height="${O.h}"/>`
     + `<text class="offt" x="${O.x + O.w / 2}" y="${O.y + O.h / 2}">Biuro</text><path class="door" d="M${HW - 9} ${O.y}V${O.y - 9}A9 9 0 0 1 ${HW} ${O.y}"/>`
     + `<rect class="wall" x="0" y="0" width="${HW}" height="${HH}"/>` + Z.slice().sort((a, b) => (mapMode === 'edit' && a.id === mapZ) - (mapMode === 'edit' && b.id === mapZ)).map(z => {
-    const hz = hot.get(z.id), cls = 'zone' + (hz === 'all' ? ' hot' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
+    const hz = hot.get(z.id), ho = hotOld.get(z.id), cls = 'zone' + (hz === 'all' ? ' hot' : ho === 'all' ? ' hot2' : '') + (mapMode === 'edit' && z.id === mapZ ? ' sel' : '') + (mapMode !== 'edit' ? ' pick' : '') + (z.id === mapPick ? ' pk' : '');
     const n = Math.max(3, Math.floor(z.w / 1.7)), label = z.name.length > n ? z.name.slice(0, n - 1) + '…' : z.name;
     // cienkie linie między słupkami, grubsze co 2 słupki (krawędź palety)
     let gr = '', gp = '';
@@ -1486,6 +1497,7 @@ function renderMap() {
     if (oz === 'all') oc = `<rect class="oc" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>`;
     else if (oz) oz.forEach(t => { const [r, c] = t.split(':').map(Number); oc += `<rect class="oc" ${cx(r, c)}/>`; });
     if (hz && hz !== 'all') hz.forEach(t => { const [r, c] = t.split(':').map(Number); pc += `<rect class="pc" ${cx(r, c)}/>`; });
+    if (ho && ho !== 'all' && hz !== 'all') ho.forEach(t => { if (hz && hz.has && hz.has(t)) return; const [r, c] = t.split(':').map(Number); pc += `<rect class="pc pc2" ${cx(r, c)}/>`; });
     if ((mapMode === 'assign' || z.id === mapPick) && z.c * z.r > 1) for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) pn += `<text class="pn" x="${+(z.x + c * cw + .5).toFixed(2)}" y="${+(z.y + r * ch + 1.4).toFixed(2)}">${r * z.c + c + 1}</text>`;
     if (mapRng && mapRng.zid === z.id) { const r1 = Math.min(mapRng.a.r, mapRng.b.r), r2 = Math.max(mapRng.a.r, mapRng.b.r), c1 = Math.min(mapRng.a.c, mapRng.b.c), c2 = Math.max(mapRng.a.c, mapRng.b.c); pv = `<rect class="pv" x="${+(z.x + c1 * cw).toFixed(2)}" y="${+(z.y + r1 * ch).toFixed(2)}" width="${+((c2 - c1 + 1) * cw).toFixed(2)}" height="${+((r2 - r1 + 1) * ch).toFixed(2)}"/>`; }
     return `<g data-z="${esc(z.id)}"><rect class="${cls}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="1"/>${oc}${pc}${gr ? `<path class="zd" d="${gr}"/>` : ''}${gp ? `<path class="zd zp" d="${gp}"/>` : ''}${pn}${pv}<text class="zt" x="${z.x + z.w / 2}" y="${z.y + z.h / 2}">${esc(label)}</text></g>`;
@@ -1496,6 +1508,9 @@ function renderMap() {
   svg.classList.toggle('as', mapMode === 'assign');
   $('#mapAssign').hidden = !(sel && Z.length && mapMode !== 'edit');
   $('#mapAssign').textContent = mapMode === 'assign' ? 'Gotowe' : 'Przypisz miejsce';
+  const two = mapMode === 'assign' && sel && sel.oldSku;
+  $('#mapSkuW').hidden = !two;
+  if (two) { $('#mapSkuN').textContent = 'Nowe ' + sel.sku; $('#mapSkuO').textContent = 'Stare ' + sel.oldSku; $('#mapSkuN').classList.toggle('on', !mapOld); $('#mapSkuO').classList.toggle('on', mapOld); }
   $('#mapAssign').classList.toggle('p', mapMode === 'assign');
   $('#mapEdit').hidden = mapMode === 'assign';
   $('#mapEdit').textContent = mapMode === 'edit' ? 'Gotowe' : 'Edytuj mapę';
@@ -1507,19 +1522,19 @@ function renderMap() {
   if (sz && document.activeElement !== $('#mapName')) $('#mapName').value = sz.name;
   let info;
   if (mapMode === 'edit') info = 'Tryb edycji mapy. Dotknij strefy, aby ją zaznaczyć.';
-  else if (mapMode === 'assign') info = 'Dotknij słupka albo przeciągnij po kilku, aby dodać lub usunąć miejsce dla: ' + sel.name + '. Ponowne zaznaczenie zakresu, który już jest przypisany, usuwa go.';
+  else if (mapMode === 'assign') info = (sel.oldSku ? 'Przypisujesz ' + (mapOld ? 'STARE SKU ' + sel.oldSku + ' (pomarańczowe)' : 'NOWE SKU ' + sel.sku + ' (zielone)') + '. ' : '') + 'Dotknij słupka albo przeciągnij po kilku, aby dodać lub usunąć miejsce dla: ' + sel.name + '. Ponowne zaznaczenie zakresu, który już jest przypisany, usuwa go.';
   else if (!Z.length) info = 'Mapa jest pusta. Kliknij „Edytuj mapę”, aby narysować strefy lub wstawić przykładowy układ.';
   else if (!q && !sel) info = 'Wpisz nazwę lub SKU, aby zobaczyć, gdzie leży ciuszek.';
   else if (!act.length) info = 'Nic nie pasuje do wyszukiwania.';
-  else if (act.length === 1) { const n = zNames(act[0]); info = n.length ? act[0].name + ': ' + n.join(', ') + '.' : act[0].name + ': brak przypisanego miejsca. Użyj „Przypisz miejsce” albo edytuj model.'; }
+  else if (act.length === 1) { const n = zDesc(act[0]); info = n ? act[0].name + ': ' + n + '.' : act[0].name + ': brak przypisanego miejsca. Użyj „Przypisz miejsce” albo edytuj model.'; }
   else info = 'Pasuje ' + act.length + ' modeli. Zielone strefy to ich miejsca, wybierz model z listy.';
   $('#mapInfo').textContent = info;
   const pz = mapPick ? Z.find(z => z.id === mapPick) : null;
   $('#mapZone').hidden = !pz;
   if (pz) {
-    const inZ = S.products.filter(p => p.zones.includes(pz.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+    const inZ = S.products.filter(p => p.zones.includes(pz.id) || p.zonesOld.includes(pz.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
     $('#mapZone').innerHTML = `<h3><span>${esc(zn(pz))} <small class="mu">(${inZ.length})</small></span><button type="button" id="mapZoneX" aria-label="Zamknij">✕</button></h3>`
-      + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}${esc(palText(p, pz))}</small></button>`; }).join('')
+      + (inZ.length ? inZ.map(p => { const e = evSum(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small>${sum(p)} szt.${e ? ' · ' + e + ' na evencie' : ''}${p.zones.includes(pz.id) ? esc(palText(p, pz)) : ''}${p.zonesOld.includes(pz.id) ? ' · stare ' + esc(p.oldSku) + esc(palText(p, pz, true)) : ''}</small></button>`; }).join('')
         : '<p class="mu" style="margin:0;font-size:14px">W tej strefie nie ma przypisanych modeli.</p>');
   }
 }
@@ -1536,7 +1551,9 @@ $('#mapZone').onclick = e => {
   setMapHash('#mapa/' + mapSel); renderMap();
 };
 $('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
-$('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; renderMap(); };
+$('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; mapOld = false; renderMap(); };
+$('#mapSkuN').onclick = () => { mapOld = false; renderMap(); };
+$('#mapSkuO').onclick = () => { mapOld = true; renderMap(); };
 $('#mapAdd').onclick = async () => {
   if (!online()) return;
   const id = R.child('map/zones').push().key; mapZ = id;
@@ -1572,15 +1589,15 @@ $('#mapDel').onclick = async () => {
   try { await R.child('map/zones/' + z.id).remove(); mapZ = null; } catch (x) { say(MAPERR); }
 };
 async function applyRange(zid, a, b) {
-  const p = S.products.find(x => x.id === mapSel), z = S.zones.find(x => x.id === zid);
+  const p = S.products.find(x => x.id === mapSel), z = S.zones.find(x => x.id === zid), old = !!(p && p.oldSku && mapOld);
   if (!p || !z || !online()) return;
   const tk = [];
   for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c++) tk.push(r + ':' + c);
   const all = []; for (let r = 0; r < z.r; r++) for (let c = 0; c < z.c; c++) all.push(r + ':' + c);
-  const cs = p.zones.includes(zid) ? palSet(p, z) : new Set(), cur = new Set(cs === null ? all : cs);
+  const cs = (old ? p.zonesOld : p.zones).includes(zid) ? palSet(p, z, old) : new Set(), cur = new Set(cs === null ? all : cs);
   if (tk.every(t => cur.has(t))) tk.forEach(t => cur.delete(t)); else tk.forEach(t => cur.add(t));
   const v = cur.size === 0 ? null : cur.size >= all.length ? 1 : [...cur].sort().join(',');
-  try { await R.child('products/' + p.id + '/zones/' + zid).set(v); } catch (x) { say('Nie udało się zapisać miejsca.'); }
+  try { await R.child('products/' + p.id + (old ? '/zonesOld/' : '/zones/') + zid).set(v); } catch (x) { say('Nie udało się zapisać miejsca.'); }
 }
 {
   const svg = $('#mapSvg');
