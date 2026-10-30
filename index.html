@@ -656,7 +656,7 @@ function cardInner(p) {
         </div>
         <div class="sz">${chipKeys(p).map(s => {
           const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0;
-          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}</span>`;
+          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${p.oldSku ? n - ((p.old && p.old[s]) || 0) : n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}</span>`;
         }).join('')}</div>
         <div class="act">
           <button class="g" data-a="in">Dostawa</button>
