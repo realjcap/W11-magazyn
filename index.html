@@ -222,7 +222,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .chk input{width:auto}
 .danger{border-color:var(--rd)}
 .danger p{margin:4px 0 10px;font-size:13px;color:var(--mu)}
-#mapSvg{display:block;width:100%;max-width:calc(78vh * .8);margin:0 auto;height:auto;user-select:none;-webkit-user-select:none}
+#mapSvg{display:block;width:100%;height:max(340px,min(82dvh,1200px));user-select:none;-webkit-user-select:none}
 #mapSvg{touch-action:pan-y}
 #mapSvg.ed,#mapSvg.zm{touch-action:none}
 #mapSvg.zm{cursor:grab}
@@ -516,8 +516,13 @@ const num = v => Math.max(0, Math.floor(Number(v)) || 0);
 // rzut hali W11 w skali 1 jednostka = 10 cm: hala 14,5 × 26,5 m, biuro 9 × 6,5 m w prawym dolnym rogu
 const HW = 145, HH = 265, OFFICE = { x: 55, y: 200, w: 90, h: 65 };
 const SW = 6, SH = 4; // słupek 0,6 × 0,4 m (paleta EUR 1,2 × 0,8 m = 2 × 2 słupki); obrócony blok: 0,4 × 0,6 m
-// widok 100% = cała hala z marginesem; mapa ma proporcje 4:5
-const MH = HH + 12, MW = MH * .8, BX0 = HW / 2 - MW / 2, BY0 = -6;
+// widok 100% = cała hala z marginesem; proporcje widoku = proporcje ramki mapy na ekranie (liczone w mapGeom)
+let MA = .8, MW = HH * .8, MH = HH + 12, BX0 = 0, BY0 = -6;
+function mapGeom() {
+  const r = $('#mapSvg').getBoundingClientRect();
+  if (r.width > 20 && r.height > 20) MA = r.width / r.height;
+  MW = Math.max(HW + 12, (HH + 12) * MA); MH = MW / MA; BX0 = HW / 2 - MW / 2; BY0 = HH / 2 - MH / 2;
+}
 const fl = (v, a, b) => Math.min(b, Math.max(a, Number(v) || 0));
 // rozmiar bloku wynika z liczby słupków; blok zawsze w obrębie hali
 function zoneGeo(z) {
@@ -1415,7 +1420,7 @@ $('#rstOk').onclick = async e => {
 
 
 // --- mapa magazynu ("Gdzie ciuszek?")
-let mapVb = { x: BX0, y: BY0, w: MW, h: MH }, mapVbReset = () => {};
+let mapVb = { x: BX0, y: BY0, w: MW, h: MH }, mapVbReset = () => {}, mapFly = () => {}, mapFlown = null;
 let mapMode = 'view', mapSel = null, mapPend = null, mapZ = null, mapDrag = null, nameT = null, mapPick = null, mapRng = null, mapAssignNext = null;
 const MAPERR = 'Nie udało się zapisać mapy. Sprawdź reguły bazy (zapis do „map”).';
 const zn = z => z.name || 'Blok bez nazwy';
@@ -1452,6 +1457,16 @@ function renderMap() {
     if (cur === 'all' || s === null) hot.set(zid, 'all'); else { const u = cur || new Set(); s.forEach(t => u.add(t)); hot.set(zid, u); }
   }));
   if (mapMode !== 'assign') mapRng = null;
+  // jeden znaleziony model z miejscem: widok płynnie przelatuje do jego słupków
+  const flyKey = act.length === 1 && hot.size ? act[0].id + '|' + [...hot.keys()].join(',') : null;
+  if (flyKey && flyKey !== mapFlown && mapMode !== 'edit') {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    hot.forEach((v, zid) => { const z = zmap.get(zid), cw = z.w / z.c, ch = z.h / z.r;
+      const add = (r, c) => { x0 = Math.min(x0, z.x + c * cw); y0 = Math.min(y0, z.y + r * ch); x1 = Math.max(x1, z.x + (c + 1) * cw); y1 = Math.max(y1, z.y + (r + 1) * ch); };
+      if (v === 'all') { add(0, 0); add(z.r - 1, z.c - 1); } else v.forEach(t => { const [r, c] = t.split(':').map(Number); add(r, c); }); });
+    if (x0 < Infinity) setTimeout(() => mapFly(x0, y0, x1, y1), 0);
+  }
+  mapFlown = flyKey;
   $('#mapRes').innerHTML = q ? matches.slice(0, 8).map(p => { const n = zNames(p); return `<button type="button" class="mres${p.id === mapSel ? ' on' : ''}" data-id="${esc(p.id)}"><span>${esc(p.name)} <small class="mu">SKU ${esc(p.sku)}</small></span><small class="${n.length ? '' : 'mu'}">${n.length ? esc(n.join(', ')) : 'brak miejsca'}</small></button>`; }).join('')
     + (matches.length > 8 ? `<p class="mu" style="margin:0 0 8px;font-size:13px">…i ${matches.length - 8} więcej, zawęź wyszukiwanie</p>` : '') : '';
   const sz = mapMode === 'edit' ? Z.find(z => z.id === mapZ) : null;
@@ -1585,10 +1600,38 @@ async function applyRange(zid, a, b) {
   function zoomTo(nw, cx, cy, fx, fy) {
     nw = fl(nw, MW / ZMAX, MW);
     if (fx === undefined) { fx = (cx - mapVb.x) / mapVb.w; fy = (cy - mapVb.y) / mapVb.h; }
-    mapVb.w = nw; mapVb.h = nw * MH / MW; mapVb.x = cx - fx * mapVb.w; mapVb.y = cy - fy * mapVb.h;
+    stopFly(); mapVb.w = nw; mapVb.h = nw / MA; mapVb.x = cx - fx * mapVb.w; mapVb.y = cy - fy * mapVb.h;
     clampVb(); applyVb();
   }
-  mapVbReset = () => { mapVb = { x: BX0, y: BY0, w: MW, h: MH }; ptrs.clear(); pan = pinch = null; applyVb(); };
+  mapVbReset = () => { stopFly(); mapGeom(); mapVb = { x: BX0, y: BY0, w: MW, h: MH }; ptrs.clear(); pan = pinch = null; applyVb(); };
+  // płynny przelot widoku do prostokąta (x0,y0)-(x1,y1); przybliżenie zależy od obecnego
+  let flyRaf = 0;
+  const stopFly = () => { if (flyRaf) cancelAnimationFrame(flyRaf); flyRaf = 0; };
+  mapFly = (x0, y0, x1, y1) => {
+    stopFly(); mapGeom();
+    const bw = Math.max(x1 - x0 + 8, (y1 - y0 + 8) * MA) * 1.25;
+    let tw = mapVb.w >= MW - .001 ? Math.max(bw, MW / 3) : Math.max(bw, mapVb.w); // z całej hali: przybliż; przybliżona: zostaw skalę, chyba że miejsce się nie mieści
+    tw = fl(tw, MW / ZMAX, MW);
+    const th = tw / MA, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const to = { x: fl(cx - tw / 2, BX0, BX0 + MW - tw), y: fl(cy - th / 2, BY0, BY0 + MH - th), w: tw, h: th }, from = { ...mapVb };
+    if (['x', 'y', 'w'].every(k => Math.abs(to[k] - from[k]) < .5)) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { mapVb = to; applyVb(); return; }
+    const t0 = performance.now(), D = 650, ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const step = now => {
+      const k = ease(Math.min(1, (now - t0) / D));
+      // szerokość w skali logarytmicznej, żeby zoom wyglądał równo
+      const w = Math.exp(Math.log(from.w) + (Math.log(to.w) - Math.log(from.w)) * k);
+      mapVb = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k, w, h: w / MA };
+      applyVb();
+      flyRaf = k < 1 ? requestAnimationFrame(step) : 0;
+    };
+    flyRaf = requestAnimationFrame(step);
+  };
+  // zmiana rozmiaru ramki (obrót telefonu, okno): zachowaj środek i przybliżenie
+  if (window.ResizeObserver) new ResizeObserver(() => {
+    const z = MW / mapVb.w, cx = mapVb.x + mapVb.w / 2, cy = mapVb.y + mapVb.h / 2;
+    mapGeom(); const w = MW / z; mapVb = { x: cx - w / 2, y: cy - w / MA / 2, w, h: w / MA }; clampVb(); applyVb();
+  }).observe(svg);
   $('#mzIn').onclick = () => zoomTo(mapVb.w / 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
   $('#mzOut').onclick = () => zoomTo(mapVb.w * 1.6, mapVb.x + mapVb.w / 2, mapVb.y + mapVb.h / 2);
   $('#mzR').onclick = () => mapVbReset(); // ⤢ = cała hala
@@ -1597,6 +1640,7 @@ async function applyRange(zid, a, b) {
   const mid = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
   // gesty: dwa palce = przybliżanie, jeden palec na pustym miejscu (albo poza edycją) = przesuwanie
   svg.addEventListener('pointerdown', e => {
+    stopFly();
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size === 1) downT = e.target;
     if (ptrs.size === 2) {
