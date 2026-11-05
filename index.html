@@ -93,6 +93,9 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .f small{display:block;margin-bottom:3px;color:var(--mu)}
 .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .lg{padding:8px 0;border-bottom:1px solid var(--bd)}
+.lgu{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;background:none}
+.lgud{font-size:11px;border:1px solid var(--bd);border-radius:4px;padding:0 5px;color:var(--mu);vertical-align:1px}
+.lg:has(.lgud) > b{text-decoration:line-through;opacity:.7}
 .lgx{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;color:var(--r,#c62828);background:none}
 .in{color:var(--in)}.out{color:var(--rd)}.ev{color:var(--ev)}
 #logL{max-height:60vh;overflow:auto}
@@ -585,8 +588,10 @@ function cleanLogEntry(l) {
   const lost = numMap(l.lost);
   if (Object.keys(lost).length) o.lost = lost;
   const ol = numMap(l.o); if (Object.keys(ol).length) { o.o = ol; o.osku = txt(l.osku, 60); }
+  if (typeof l.ref === 'string' && okId(l.ref)) o.ref = l.ref;
+  if (typeof l.pid === 'string' && okId(l.pid)) o.pid = l.pid;
   const its = Object.values(toObj(l.items)).slice(0, 60).filter(it => it && typeof it === 'object');
-  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; const io = numMap(it.o); if (Object.keys(io).length) { x.o = io; x.osku = txt(it.osku, 60); } return x; });
+  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; const io = numMap(it.o); if (Object.keys(io).length) { x.o = io; x.osku = txt(it.osku, 60); } if (typeof it.pid === 'string' && okId(it.pid)) x.pid = it.pid; return x; });
   return o;
 }
 const zval = v => { if (v === 1 || v === true) return 1; if (typeof v !== 'string') return null; const t = [...new Set(v.split(',').filter(x => /^\d{1,2}:\d{1,2}$/.test(x)))]; return t.length ? t.sort().join(',') : null; };
@@ -789,8 +794,8 @@ const MODES = {
   evin: { t: 'Przyjazd z eventu', c: 'b', ok: 'Przyjmij do magazynu' },
   set: { t: 'Stan początkowy (bez historii)', c: 'p', ok: 'Ustaw stany' }
 };
-const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki', merge: '⇄ Połączono SKU' };
-const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out', merge: 'ev' };
+const LOGT = { in: '+ Dostawa', out: '− Wysyłka na Mszczonowską', evout: '→ Wyjazd na event', evin: '← Przyjazd z eventu', add: '＋ Dodano model', del: '✕ Usunięto model', reset: '⟲ Wyzerowano historię i statystyki', merge: '⇄ Połączono SKU', undo: '↶ Cofnięto operację' };
+const LOGC = { in: 'in', out: 'out', evout: 'ev', evin: 'ev', add: 'in', del: 'out', reset: 'out', merge: 'ev', undo: 'out' };
 let cur = null, mode = 'in', lines = [];
 const sizesOf = p => [...new Set([...Object.keys(p.sizes), ...Object.keys(p.ev || {})])].sort(bySize);
 const plural = n => n + (n === 1 ? ' model' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' modele' : ' modeli');
@@ -953,11 +958,12 @@ async function applyBatch(m, items, note) {
   if (!res.committed) { if (err) await say(err); return false; }
   if (!res.snapshot.val()) { await say('Nie udało się zapisać zmian. Spróbuj ponownie.'); return false; }
   if (m === 'set') return true; // stan początkowy: celowo bez wpisu w historii
-  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d }; if (lostBy[L.id]) it.lost = lostBy[L.id]; if (oldBy[L.id]) { it.o = oldBy[L.id]; it.osku = oskuBy[L.id]; } return it; });
+  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d, pid: L.id }; if (lostBy[L.id]) it.lost = lostBy[L.id]; if (oldBy[L.id]) { it.o = oldBy[L.id]; it.osku = oskuBy[L.id]; } return it; });
   const entry = its.length === 1 ? { t: firebase.database.ServerValue.TIMESTAMP, name: its[0].name, sku: its[0].sku, m, d: its[0].d }
     : { t: firebase.database.ServerValue.TIMESTAMP, name: plural(its.length), sku: '', m, items: its };
   if (its.length === 1 && its[0].lost) entry.lost = its[0].lost;
   if (its.length === 1 && its[0].o) { entry.o = its[0].o; entry.osku = its[0].osku; }
+  if (its.length === 1) entry.pid = its[0].pid;
   if (user) entry.by = user;
   if (note) entry.note = note;
   await R.child('log').push(entry);
@@ -1155,16 +1161,65 @@ $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
 function renderLog() {
   const canDel = user === 'delma';
+  const undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
   $('#logL').innerHTML = S.log.map((l, i) => {
     const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}<br>
+    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
   }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
 }
 $('#logB').onclick = () => { renderLog(); $('#log').showModal(); };
 // usuwanie pojedynczego wpisu historii (tylko delma; stany magazynu zostają bez zmian)
+// cofnięcie operacji: odwrotna zmiana stanów w jednej transakcji + wpis „undo” w historii
+async function undoOp(l) {
+  const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d, o: l.o, osku: l.osku, lost: l.lost, pid: l.pid }];
+  const ids = its.map(it => { const p = (it.pid && S.products.find(x => x.id === it.pid)) || S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku); return p ? p.id : null; });
+  const miss = its.filter((it, i) => !ids[i]);
+  if (miss.length) return say('Nie można cofnąć: nie ma już modelu ' + miss.map(it => it.name + ' (SKU ' + it.sku + ')').join(', ') + '.');
+  let err = null;
+  const res = await R.child('products').transaction(all => {
+    err = null;
+    if (!all) return all;
+    all = JSON.parse(JSON.stringify(all));
+    for (let i = 0; i < its.length; i++) {
+      const it = its[i], p = all[ids[i]];
+      if (!p) { err = 'Model ' + it.name + ' został usunięty.'; return; }
+      const hasOld = !!p.oldSku;
+      p.sizes = toObj(p.sizes); p.ev = toObj(p.ev); p.old = toObj(p.old); p.evOld = toObj(p.evOld);
+      const d = it.d || {}, o = hasOld ? (it.o || {}) : {}, lost = it.lost || {};
+      const need = (map, k, n, what) => { if ((Number(map[k]) || 0) < n) { err = it.name + ', rozmiar ' + k + ': za mało sztuk ' + what + ' (' + (Number(map[k]) || 0) + ', potrzeba ' + n + ').'; return false; } return true; };
+      for (const k in d) {
+        const n = d[k], on = Math.min(o[k] || 0, n);
+        if (l.m === 'in') { if (!need(p.sizes, k, n, 'w magazynie')) return; p.sizes[k] -= n; p.old[k] = Math.max(0, (p.old[k] || 0) - on); }
+        else if (l.m === 'out') { p.sizes[k] = (Number(p.sizes[k]) || 0) + n; if (on) p.old[k] = (p.old[k] || 0) + on; }
+        else if (l.m === 'evout') { if (!need(p.ev, k, n, 'na evencie')) return; p.ev[k] -= n; p.sizes[k] = (Number(p.sizes[k]) || 0) + n; if (on) { p.evOld[k] = Math.max(0, (p.evOld[k] || 0) - on); p.old[k] = (p.old[k] || 0) + on; } }
+        else if (l.m === 'evin') { if (!need(p.sizes, k, n, 'w magazynie')) return; p.sizes[k] -= n; p.ev[k] = (Number(p.ev[k]) || 0) + n; if (on) { p.old[k] = Math.max(0, (p.old[k] || 0) - on); p.evOld[k] = (p.evOld[k] || 0) + on; } }
+      }
+      if (l.m === 'evin') for (const k in lost) p.ev[k] = (Number(p.ev[k]) || 0) + lost[k]; // niezwrócone sztuki wracają na event
+      for (const m of ['ev', 'old', 'evOld']) { for (const k in p[m]) if (!(p[m][k] > 0)) delete p[m][k]; if (!Object.keys(p[m]).length || (m !== 'ev' && !hasOld)) delete p[m]; }
+      for (const k in p.old || {}) p.old[k] = Math.min(p.old[k], p.sizes[k] || 0);
+    }
+    return all;
+  });
+  if (!res.committed) { if (err) say('Nie można cofnąć. ' + err); return; }
+  const e = { t: firebase.database.ServerValue.TIMESTAMP, m: 'undo', ref: l.k, name: l.name, sku: l.sku, note: (OPN[l.m] || l.m) + ' z ' + new Date(l.t).toLocaleString('pl-PL') };
+  if (l.items && l.items.length) e.items = l.items; else e.d = l.d;
+  if (user) e.by = user;
+  await R.child('log').push(e);
+  toast('Cofnięto: ' + (OPN[l.m] || l.m) + ' · ' + l.name);
+}
 $('#logL').onclick = async e => {
+  const u = e.target.closest('.lgu');
+  if (u) {
+    const l = S.log.find(x => x.k === u.dataset.k); if (!l) return;
+    const what = l.items && l.items.length ? l.items.map(it => it.name + ' ' + fmtP(it.d)).join('; ') : l.name + ' ' + fmtP(l.d);
+    if (!await ask('Cofnąć „' + (OPN[l.m] || l.m) + '” z ' + new Date(l.t).toLocaleString('pl-PL') + '? Stany wrócą do stanu sprzed tej operacji: ' + what + '. W historii zostanie wpis o cofnięciu.')) return;
+    if (!online()) return;
+    u.disabled = true;
+    try { await undoOp(l); } catch (x) { say('Nie udało się cofnąć operacji.'); }
+    return;
+  }
   const b = e.target.closest('.lgx'); if (!b || user !== 'delma') return;
   const l = S.log.find(x => x.k === b.dataset.k); if (!l) return;
   if (!await ask('Usunąć z historii wpis „' + (LOGT[l.m] || l.m) + (l.name ? ' · ' + l.name : '') + '” z ' + new Date(l.t).toLocaleString('pl-PL') + '? Stany magazynu się nie zmienią, zmienią się tylko historia i statystyki.')) return;
@@ -1178,11 +1233,11 @@ function saveBlob(blob, name) {
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
-async function fullLog() {
+async function fullLog(keys) {
   if (!online()) return null;
   try {
     const v = (await R.child('log').once('value')).val() || {};
-    return Object.keys(v).sort().reverse().map(k => v[k]);
+    return Object.keys(v).sort().reverse().map(k => keys && v[k] && typeof v[k] === 'object' ? { ...v[k], _k: k } : v[k]);
   } catch (x) { await say('Nie udało się pobrać całej historii z bazy. Spróbuj ponownie.'); return null; }
 }
 async function exportJson() {
@@ -1251,7 +1306,7 @@ function sheetXml(rows, widths, filterRows) {
     + (filterRows > 1 ? '<autoFilter ref="A1:' + col(widths.length - 1) + filterRows + '"/>' : '')
     + '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
 }
-const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki', merge: 'Połączono SKU' };
+const OPN = { in: 'Dostawa', out: 'Wysyłka na Mszczonowską', evout: 'Wyjazd na event', evin: 'Przyjazd z eventu', add: 'Dodano model', del: 'Usunięto model', reset: 'Wyzerowano historię i statystyki', merge: 'Połączono SKU', undo: 'Cofnięto operację' };
 const fmtP = d => Object.entries(d || {}).map(([k, n]) => k + ' × ' + n).join(', ');
 const pad2 = n => String(n).padStart(2, '0');
 const fmtT = t => { const d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
@@ -1341,8 +1396,10 @@ function bLabel(t, p, short) {
 }
 function toRecs(log) {
   const out = [];
-  log.map(cleanLogEntry).forEach((l, i) => {
-    if (!STM.includes(l.m)) return;
+  // operacje cofnięte (jest do nich wpis „undo” z ref) nie liczą się do statystyk
+  const undone = new Set(log.map(cleanLogEntry).filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
+  log.map(l => ({ ...cleanLogEntry(l || {}), _k: l && l._k })).forEach((l, i) => {
+    if (!STM.includes(l.m) || (l._k && undone.has(l._k))) return;
     const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
     its.forEach(it => {
       const q = Object.values(it.d || {}).reduce((a, b) => a + b, 0);
@@ -1408,7 +1465,7 @@ function renderStats() {
 }
 async function loadStats() {
   if (!unlocked || !R) return;
-  const raw = await fullLog(); if (!raw) return;
+  const raw = await fullLog(true); if (!raw) return;
   stRecs = toRecs(raw); renderStats();
 }
 function statsRefresh() { if (view === 'st' && unlocked) { clearTimeout(stTimer); stTimer = setTimeout(loadStats, 600); } }
