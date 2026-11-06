@@ -953,9 +953,9 @@ function onCamCode(c) {
   c = String(c || '').trim();
   const now = Date.now();
   if (!c || !eanOk(c)) return;
-  if (c === camVote.c && now - camVote.t < 700) camVote.n++; else camVote = { c, n: 1, t: now };
+  if (c === camVote.c && now - camVote.t < (camSlow ? 2500 : 1200)) camVote.n++; else camVote = { c, n: 1, t: now };
   camVote.t = now;
-  if (camVote.n < (findCode(c) ? 2 : 4)) return;
+  if (camVote.n < (findCode(c) ? (camSlow ? 1 : 2) : (camSlow ? 2 : 4))) return;
   if (c === lastHit.c && now - lastHit.t < 1300) return; // ten sam kod: najwyżej co 1,3 s
   lastHit = { c, t: now }; camVote = { c: '', n: 0, t: 0 };
   handleScan(c);
@@ -965,40 +965,51 @@ function loadZX() {
   return new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
 }
 const CAMV = { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }; // wyższa rozdzielczość = mniej błędnych cyfr
+// czytnik kodów: wbudowany w przeglądarkę (Android/Chrome) albo ten sam silnik doładowany z sieci (iPhone/Safari: zxing-cpp w WebAssembly)
+const PONY = 'https://cdn.jsdelivr.net/npm/barcode-detector@3.0.1/dist/es/ponyfill.min.js';
+let DetCls = null, camSlow = false;
+async function getDetector(want) {
+  if ('BarcodeDetector' in window) {
+    try { const sup = await BarcodeDetector.getSupportedFormats(), f = want.filter(x => sup.includes(x)); if (f.length) return new BarcodeDetector({ formats: f }); } catch (x) {}
+  }
+  try { if (!DetCls) DetCls = (await import(PONY)).BarcodeDetector; return new DetCls({ formats: want }); } catch (x) { return null; }
+}
 async function startCam() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return say('Ta przeglądarka nie daje dostępu do aparatu.');
-  $('#opUnk').hidden = true; $('#scanBox').hidden = false; scanMsg('Skieruj aparat na kod kreskowy'); lastHit = { c: '', t: 0 }; camVote = { c: '', n: 0, t: 0 };
+  $('#opUnk').hidden = true; $('#scanBox').hidden = false; scanMsg('Uruchamiam aparat…'); lastHit = { c: '', t: 0 }; camVote = { c: '', n: 0, t: 0 }; camSlow = false;
   const v = $('#scanV');
+  const fmts = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']; // bez ITF i Code 39 – często dają fałszywe odczyty
   try {
-    let fmts = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']; // bez ITF i Code 39 – często dają fałszywe odczyty
-    if ('BarcodeDetector' in window) {
-      try { const sup = await BarcodeDetector.getSupportedFormats(); fmts = fmts.filter(f => sup.includes(f)); } catch (x) {}
-    }
-    if ('BarcodeDetector' in window && fmts.length) {
-      camStream = await navigator.mediaDevices.getUserMedia({ video: CAMV, audio: false });
-      try { const tr = camStream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (x) {}
-      v.srcObject = camStream; await v.play();
-      const det = new BarcodeDetector({ formats: fmts });
+    camStream = await navigator.mediaDevices.getUserMedia({ video: CAMV, audio: false });
+    try { const tr = camStream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (x) {}
+    v.setAttribute('playsinline', ''); v.muted = true; v.srcObject = camStream; await v.play();
+    scanMsg('Ładuję czytnik kodów…');
+    const det = await getDetector(fmts);
+    if (!camStream) return; // zamknięte w międzyczasie
+    if (det) {
+      scanMsg('Skieruj aparat na kod kreskowy');
       const tick = async () => {
         if (!camStream) return;
-        try { const r = await det.detect(v); if (r && r.length === 1 && r[0].rawValue) onCamCode(r[0].rawValue); } catch (x) {} // kilka kodów naraz w kadrze = pomijamy
-        camTimer = setTimeout(tick, 90);
+        try { if (v.readyState >= 2) { const r = await det.detect(v); if (r && r.length === 1 && r[0].rawValue) onCamCode(r[0].rawValue); } } catch (x) {} // kilka kodów naraz w kadrze = pomijamy
+        if (camStream) camTimer = setTimeout(tick, 100);
       };
       tick();
-    } else {
-      scanMsg('Uruchamiam skaner…');
-      await loadZX();
-      const hints = new Map(), F = ZXing.BarcodeFormat;
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.QR_CODE]);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-      zxReader = new ZXing.BrowserMultiFormatReader(hints, 120);
-      await zxReader.decodeFromConstraints({ video: CAMV }, v, res => { if (res) onCamCode(res.getText()); });
-      camStream = v.srcObject || true;
-      scanMsg('Skieruj aparat na kod kreskowy');
+      return;
     }
+    // ostatnia deska ratunku: biblioteka ZXing (wolniejsza, więc łagodniejsze potwierdzanie odczytu)
+    camStream.getTracks().forEach(t => t.stop()); camStream = null; v.srcObject = null;
+    scanMsg('Uruchamiam zapasowy czytnik…');
+    try { await loadZX(); } catch (x) { const e = new Error('reader'); e.name = 'ReaderLoad'; throw e; }
+    const hints = new Map(), F = ZXing.BarcodeFormat;
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.QR_CODE]);
+    zxReader = new ZXing.BrowserMultiFormatReader(hints, 100);
+    camSlow = true;
+    await zxReader.decodeFromConstraints({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } }, v, res => { if (res) onCamCode(res.getText()); });
+    camStream = v.srcObject || true;
+    scanMsg('Skieruj aparat na kod kreskowy');
   } catch (x) {
     stopCam();
-    say(x && x.name === 'NotAllowedError' ? 'Brak zgody na aparat. Zezwól stronie na użycie aparatu w ustawieniach przeglądarki.' : 'Nie udało się uruchomić aparatu.');
+    say(x && x.name === 'ReaderLoad' ? 'Nie udało się pobrać czytnika kodów. Sprawdź internet i spróbuj ponownie.' : x && x.name === 'NotAllowedError' ? 'Brak zgody na aparat. Na iPhonie: Ustawienia → Safari → Aparat → Zezwalaj (albo „aA” w pasku adresu → Ustawienia witryny).' : 'Nie udało się uruchomić aparatu' + (x && x.name ? ' (' + x.name + ')' : '') + '.');
   }
 }
 function stopCam() {
