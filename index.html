@@ -28,6 +28,8 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .lg small b{color:var(--tx)}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .bar input[type=search]{flex:1 1 200px}
+.ro .rw,body.ro .rw{display:none!important}
+.role{font-size:11px;border:1px solid rgba(255,255,255,.4);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
 .qw{flex:1 1 200px;position:relative;display:flex}
 .qw input{padding-right:44px}
 .qsc{position:absolute;right:3px;top:0;bottom:0;display:flex;align-items:center;border:0;background:none;padding:0 8px;color:var(--mu);line-height:0}
@@ -329,7 +331,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 </nav>
 
 <section id="vWh">
-<div class="bar big">
+<div class="bar big rw">
   <button class="g" id="bIn">Dostawa</button>
   <button class="r" id="bOut">Wysyłka na Mszczonowską</button>
   <button class="b" id="bEv">Event</button>
@@ -337,10 +339,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 
 <div class="bar">
   <span class="qw"><input type="search" id="q" placeholder="Nazwa, SKU lub kod"><button type="button" class="qsc" id="qScan" aria-label="Skanuj kod" title="Skanuj kod kreskowy"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
-  <button class="p" id="add">Dodaj model</button>
+  <button class="p rw" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
   <button id="ex">Eksportuj</button>
-  <label class="btn">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
+  <label class="btn rw">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -378,10 +380,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <p id="mapInfo" class="mapinfo"></p>
   <div class="panel" id="mapZone" hidden></div>
   <div class="bar maptools">
-    <button id="mapAssign" hidden>Przypisz miejsce</button>
+    <button class="rw" id="mapAssign" hidden>Przypisz miejsce</button>
     <span class="seg" id="mapSkuW" hidden><button type="button" id="mapSkuN"></button><button type="button" id="mapSkuO"></button></span>
-    <button id="mapPaint" hidden>Maluj słupki</button>
-    <button id="mapEdit">Edytuj mapę</button>
+    <button class="rw" id="mapPaint" hidden>Maluj słupki</button>
+    <button class="rw" id="mapEdit">Edytuj mapę</button>
     <span class="seg" id="mapBrW" hidden><button type="button" data-b="o">Zajęty</button><button type="button" data-b="x">Nie liczyć</button><button type="button" data-b="e">Gumka</button></span>
   </div>
   <div class="panel" id="mapEditBar" hidden>
@@ -729,7 +731,7 @@ async function uploadAll(prods, logs, zones) {
   await R.update(up);
 }
 async function maybeMigrate() {
-  if (migChecked || !loaded || !unlocked) return;
+  if (migChecked || !loaded || !unlocked || !canEdit()) return;
   migChecked = true;
   if (Object.keys(P).length) return;
   let old = null, done = false;
@@ -775,10 +777,10 @@ function cardInner(p) {
           return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${p.oldSku ? n - ((p.old && p.old[s]) || 0) : n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}</span>`;
         }).join('')}</div>
         <div class="act">
-          <button class="g" data-a="in">Dostawa</button>
-          <button class="r" data-a="out">Wysyłka</button>
+          <button class="g rw" data-a="in">Dostawa</button>
+          <button class="r rw" data-a="out">Wysyłka</button>
           <button class="e" data-a="map" aria-label="Pokaż na mapie" title="Gdzie ciuszek?">${MAPICON}</button>
-          <button class="e" data-a="edit" aria-label="Edytuj">Edytuj</button>
+          <button class="e rw" data-a="edit" aria-label="Edytuj">Edytuj</button>
         </div>
       </div>`;
 }
@@ -1043,6 +1045,7 @@ $('#opScan').onclick = () => { scanTarget = 'op'; scanHome(); if ($('#scanBox').
 function searchScan(c) {
   stopCam(); beep();
   const r = findCode(c);
+  if (!r && !canEdit()) { if ($('#scanD').open) $('#scanD').close(); $('#q').value = c; render(); toast('Nieznany kod ' + c + '.'); return; }
   if (!r) { // nieznany kod: od razu propozycja przypisania do modelu
     scanTarget = 'search';
     $('#scanSlot').appendChild($('#opUnk'));
@@ -1089,6 +1092,7 @@ $('#pd').addEventListener('close', () => { if (scanTarget === 'code') { stopCam(
 $('#scanX').onclick = () => { stopCam(); if (scanTarget === 'search') { $('#scanD').close(); return; } if (scanTarget === 'code') return; const f = cur && $('#opF').querySelector('input'); if (f) f.focus(); };
 $('#op').addEventListener('close', stopCam);
 function openOp(m, id) {
+  if (!canEdit()) return roDeny();
   if (m === 'set' && !SET_USERS.includes(user)) return say('Brak uprawnień do ustawiania stanu początkowego.');
   mode = m; lines = [];
   $('#opHint').hidden = m !== 'set';
@@ -1281,6 +1285,7 @@ $('#pt').onchange = () => { const v = $('#pt').value; if (PRESETS[v]) $('#pz').v
 $('#pz').oninput = () => { $('#pt').value = presetOf($('#pz').value); };
 let ed = null;
 function openPd(id) {
+  if (!canEdit()) return roDeny();
   ed = id ? S.products.find(p => p.id === id) : null;
   $('#pdT').textContent = ed ? 'Edytuj model' : 'Nowy model';
   $('#pn').value = ed ? ed.name : '';
@@ -1475,7 +1480,7 @@ function renderLog() {
   $('#logL').innerHTML = S.log.map((l, i) => {
     const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
+    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
   }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
 }
@@ -1522,6 +1527,7 @@ async function undoOp(l) {
 $('#logL').onclick = async e => {
   const u = e.target.closest('.lgu');
   if (u) {
+    if (!canEdit()) return roDeny();
     const l = S.log.find(x => x.k === u.dataset.k); if (!l) return;
     const what = l.items && l.items.length ? l.items.map(it => it.name + ' ' + fmtP(it.d)).join('; ') : l.name + ' ' + fmtP(l.d);
     if (!await ask('Cofnąć „' + (OPN[l.m] || l.m) + '” z ' + new Date(l.t).toLocaleString('pl-PL') + '? Stany wrócą do stanu sprzed tej operacji: ' + what + '. W historii zostanie wpis o cofnięciu.')) return;
@@ -1967,11 +1973,11 @@ $('#mapZone').onclick = e => {
   const p = S.products.find(x => x.id === mapSel); if (p) $('#mapQ').value = p.name;
   setMapHash('#mapa/' + mapSel); renderMap();
 };
-$('#mapEdit').onclick = () => { mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
+$('#mapEdit').onclick = () => { if (!canEdit()) return roDeny(); mapMode = mapMode === 'edit' ? 'view' : 'edit'; mapZ = null; mapDrag = null; renderMap(); };
 $('#mzH').onclick = () => $('#mapHelp').showModal();
 $('#mapPaint').onclick = () => { if (user !== 'delma') return; mapMode = mapMode === 'paint' ? 'view' : 'paint'; mapPick = null; renderMap(); };
 $('#mapBrW').onclick = e => { const b = e.target.closest('button[data-b]'); if (b) { mapBrush = b.dataset.b; renderMap(); } };
-$('#mapAssign').onclick = () => { mapMode = mapMode === 'assign' ? 'view' : 'assign'; mapOld = false; renderMap(); };
+$('#mapAssign').onclick = () => { if (!canEdit()) return roDeny(); mapMode = mapMode === 'assign' ? 'view' : 'assign'; mapOld = false; renderMap(); };
 $('#mapSkuN').onclick = () => { mapOld = false; renderMap(); };
 $('#mapSkuO').onclick = () => { mapOld = true; renderMap(); };
 $('#mapAdd').onclick = async () => {
@@ -2295,7 +2301,15 @@ function lockUI(on) {
   document.querySelectorAll('body > :not(#lock):not(script)').forEach(el => { el.inert = on; });
   if (on) $('#llg').focus();
 }
-function showWho() { $('#rstBox').hidden = user !== 'delma'; $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b> · <a href="#" id="lo">Wyloguj</a>' : ''; }
+// uprawnienia: delma i rudy edytują, każde inne konto to Brygadzista (tylko odczyt; blokują to też reguły bazy)
+const EDITORS = ['delma', 'rudy'];
+const canEdit = () => EDITORS.includes(user);
+const roDeny = () => { say('Konto Brygadzista ma tylko podgląd – bez zmian.'); return true; };
+function showWho() {
+  $('#rstBox').hidden = user !== 'delma';
+  document.body.classList.toggle('ro', !!user && !canEdit());
+  $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">Brygadzista</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
+}
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
 lockUI(true);
