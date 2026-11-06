@@ -120,6 +120,9 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .f small{display:block;margin-bottom:3px;color:var(--mu)}
 .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .lg{padding:8px 0;border-bottom:1px solid var(--bd)}
+.loghd{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.loghd label{font-size:13px;color:var(--mu);white-space:nowrap}
+.loghd select{width:auto;padding:4px 6px;margin-left:4px}
 .lgu{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;background:none}
 .lgud{font-size:11px;border:1px solid var(--bd);border-radius:4px;padding:0 5px;color:var(--mu);vertical-align:1px}
 .lg:has(.lgud) > b{text-decoration:line-through;opacity:.7}
@@ -514,7 +517,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
 </dialog>
 <dialog id="scanD"><h2>Skanuj kod</h2><div id="scanSlot"></div><form method="dialog" class="btns"><button value="x">Anuluj</button></form></dialog>
 <dialog id="log">
-  <h2>Historia zmian</h2>
+  <div class="loghd"><h2>Historia zmian</h2><label>Pokaż <select id="logN"><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="0">wszystkie</option></select></label></div>
+  <div class="mu" id="logC" style="font-size:12px;margin:-4px 0 8px"></div>
   <div id="logL"></div>
   <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
 </dialog>
@@ -747,12 +751,27 @@ try {
 let listening = false, logQ = null;
 function startDb() {
   if (!R || listening) return;
-  listening = true; logQ = R.child('log').limitToLast(100);
+  listening = true;
   R.child('products').on('value', s => { P = s.val() || {}; loaded = true; rebuild(); }, e => setConn('błąd bazy: ' + e.code));
   R.child('photos').on('value', s => { PH = s.val() || {}; rebuild(); }, () => {});
   R.child('map/zones').on('value', s => { MZ = s.val() || {}; rebuild(); }, () => {});
+  subLog();
+}
+// ile wpisów historii trzymać na żywo (wybór w oknie historii, zapamiętany na urządzeniu)
+let logLim = 100;
+try { const v = localStorage.getItem('w11-loglim'); if (v !== null && ['0', '100', '200', '500'].includes(v)) logLim = +v; } catch (e) {}
+function subLog() {
+  if (logQ) logQ.off();
+  logQ = logLim ? R.child('log').limitToLast(logLim) : R.child('log');
   logQ.on('value', s => { LG = s.val() || {}; rebuild(); notifyNew(); statsRefresh(); if ($('#log').open) renderLog(); }, () => {});
 }
+$('#logN').value = String(logLim);
+$('#logN').onchange = () => {
+  logLim = +$('#logN').value;
+  try { localStorage.setItem('w11-loglim', String(logLim)); } catch (e) {}
+  $('#logC').textContent = 'Wczytuję…';
+  if (listening && R) subLog();
+};
 function stopDb() {
   if (!R) return;
   listening = false;
@@ -1475,6 +1494,7 @@ $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
 $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
 function renderLog() {
+  $('#logC').textContent = 'Pokazano ' + S.log.length + (logLim && S.log.length >= logLim ? ' ostatnich' : '') + ' wpisów' + (logLim && S.log.length >= logLim ? ' – starsze: wybierz więcej' : '') + '.';
   const canDel = user === 'delma';
   const undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
   $('#logL').innerHTML = S.log.map((l, i) => {
