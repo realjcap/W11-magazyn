@@ -411,7 +411,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div id="opUnk" hidden><p><b>Nieznany kod <span id="unkC"></span></b><br><small class="mu">Przypisz go do modelu – następnym razem rozpozna się sam.</small></p>
     <div class="f"><small>Model</small><div class="sel" id="unkSel" hidden><div><div class="nm" id="unkN"></div><div class="sku" id="unkK"></div></div><button type="button" id="unkCh">Zmień</button></div>
       <div id="unkPick"><input type="search" id="unkQ" placeholder="Szukaj: nazwa lub SKU" autocomplete="off"><div class="pick" id="unkL"></div></div></div>
-    <label class="f"><small>Którego SKU dotyczy kod</small><select id="unkS"></select></label>
+    <label class="f"><small>Rozmiar, którego dotyczy kod</small><select id="unkS"></select></label>
     <div class="bar"><button type="button" class="p" id="unkOk">Przypisz kod</button><button type="button" id="unkX">Anuluj</button></div></div>
   <div id="opPick">
     <input type="search" id="opQ" placeholder="Zacznij wpisywać nazwę lub SKU" autocomplete="off">
@@ -480,7 +480,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     </select></label>
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
   <div class="f" id="pstW" hidden><small>Stan magazynu. Zmiana tutaj nie zapisuje się w historii ani w statystykach.</small><div id="pst"></div></div>
-  <div class="f" id="pcW" hidden><small>Kody kreskowe modelu (zeskanuj skanerem albo wpisz i naciśnij Enter)</small><div id="pcL"></div>
+  <div class="f" id="pcW" hidden><small>Kody kreskowe (każdy rozmiar ma swój kod: wybierz rozmiar, potem zeskanuj albo wpisz i naciśnij Enter)</small><div id="pcL"></div>
     <div class="cr"><input id="pcI" placeholder="kod" autocomplete="off" style="flex:1"><button type="button" id="pcScan" aria-label="Zeskanuj kod" title="Zeskanuj kod aparatem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><select id="pcS"></select><button type="button" id="pcA">Dodaj</button></div><div id="pcSlot"></div></div>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
@@ -882,8 +882,8 @@ function findCode(code) {
   return null;
 }
 const codeLabel = (p, v) => { const old = v.startsWith('o:'), sz = v.replace(/^o:/, ''); return (old ? 'stare SKU ' + p.oldSku : p.oldSku ? 'nowe SKU ' + p.sku : 'cały model') + (sz === '*' ? '' : ', rozmiar ' + sz); };
-// kody są wspólne dla całego modelu (bez podziału na rozmiary); przy dwóch SKU wybieramy, którego dotyczy kod
-const codeOpts = p => [['*', 'Nowe SKU ' + p.sku], ...(p.oldSku ? [['o:*', 'Stare SKU ' + p.oldSku]] : [])]
+// każdy rozmiar ma własny kod; „cały model” zostaje jako opcja awaryjna
+const codeOpts = p => [...sizesOf(p).map(z => [z, (p.oldSku ? p.sku + ' · ' : '') + 'rozmiar ' + z]), ...(p.oldSku ? sizesOf(p).map(z => ['o:' + z, 'stare ' + p.oldSku + ' · rozmiar ' + z]) : []), ['*', 'Cały model (bez rozmiaru)'], ...(p.oldSku ? [['o:*', 'Stare SKU ' + p.oldSku + ' – cały model']] : [])]
   .map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
 function beep() {
   try { navigator.vibrate && navigator.vibrate(60); } catch (x) {}
@@ -927,7 +927,7 @@ function showUnknown(code, pre) {
 let unkId = null;
 function unkPick(p) {
   unkId = p ? p.id : null;
-  $('#unkSel').hidden = !p; $('#unkPick').hidden = !!p; $('#unkS').closest('label').hidden = !(p && p.oldSku); $('#unkOk').disabled = !p;
+  $('#unkSel').hidden = !p; $('#unkPick').hidden = !!p; $('#unkS').closest('label').hidden = !p; $('#unkOk').disabled = !p;
   if (p) { $('#unkN').textContent = p.name; $('#unkK').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare ' + p.oldSku : ''); $('#unkS').innerHTML = codeOpts(p); }
   else unkList();
 }
@@ -943,7 +943,7 @@ $('#unkL').onclick = e => { const b = e.target.closest('.pi'); if (b) unkPick(S.
 $('#unkCh').onclick = () => { $('#unkQ').value = ''; unkPick(null); $('#unkQ').focus(); };
 $('#unkX').onclick = () => { $('#opUnk').hidden = true; if (scanTarget === 'search' && $('#scanD').open) $('#scanD').close(); };
 $('#unkOk').onclick = async () => {
-  const code = $('#opUnk').dataset.code, p = S.products.find(x => x.id === unkId), v = (p && p.oldSku && $('#unkS').value) || '*';
+  const code = $('#opUnk').dataset.code, p = S.products.find(x => x.id === unkId), v = $('#unkS').value || '*';
   if (!p) return say('Najpierw wybierz model.');
   if (!CODE_RE.test(code)) return say('Ten kod ma niedozwolone znaki (dozwolone: litery, cyfry, - i _).');
   if (!online()) return;
@@ -1442,10 +1442,10 @@ function renderCodes() {
   const p = S.products.find(x => x.id === ed.id) || ed;
   const ks = Object.keys(p.codes || {}).sort();
   $('#pcL').innerHTML = ks.length ? ks.map(k => `<span class="pc1">${esc(k)} <small class="mu">${esc(codeLabel(p, p.codes[k]))}</small><button type="button" data-c="${esc(k)}" aria-label="Usuń kod" title="Usuń kod">✕</button></span>`).join('') : '<small class="mu">Brak przypisanych kodów.</small>';
-  const keep = $('#pcS').value; $('#pcS').innerHTML = codeOpts(p); if (keep && p.oldSku) $('#pcS').value = keep; $('#pcS').hidden = !p.oldSku;
+  const keep = $('#pcS').value; $('#pcS').innerHTML = codeOpts(p); if (keep) $('#pcS').value = keep; $('#pcS').hidden = false;
 }
 async function addCode() {
-  const code = $('#pcI').value.trim(), v = (ed.oldSku && $('#pcS').value) || '*';
+  const code = $('#pcI').value.trim(), v = $('#pcS').value || '*';
   if (!ed || !code) return;
   if (!CODE_RE.test(code)) return say('Kod może mieć 3–40 znaków: litery, cyfry, - i _.');
   const other = S.products.find(p => p.id !== ed.id && p.codes[code]);
@@ -1454,6 +1454,8 @@ async function addCode() {
   const up = {}; up['products/' + ed.id + '/codes/' + code] = v; if (other) up['products/' + other.id + '/codes/' + code] = null;
   try { await R.update(up); } catch (x) { return say('Nie udało się zapisać kodu.'); }
   const p = S.products.find(x => x.id === ed.id); if (p) p.codes[code] = v;
+  // następny rozmiar od razu wybrany: można skanować rozmiary po kolei
+  const sel = $('#pcS'), i = sel.selectedIndex; if (v !== '*' && v !== 'o:*' && i >= 0 && i + 1 < sel.options.length && !['*', 'o:*'].includes(sel.options[i + 1].value)) sel.selectedIndex = i + 1;
   $('#pcI').value = ''; renderCodes(); $('#pcI').focus();
 }
 $('#pcA').onclick = addCode;
