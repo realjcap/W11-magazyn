@@ -30,8 +30,11 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .bar input[type=search]{flex:1 1 200px}
 .qw{flex:1 1 200px;position:relative;display:flex}
 .qw input{padding-right:44px}
-.qsc{position:absolute;right:3px;top:50%;transform:translateY(-50%);border:0;background:none;padding:6px 8px;color:var(--mu);line-height:0}
-.qsc:hover{color:var(--tx)}
+.qsc{position:absolute;right:3px;top:0;bottom:0;display:flex;align-items:center;border:0;background:none;padding:0 8px;color:var(--mu);line-height:0}
+.qsc svg{transition:transform .18s ease,color .18s ease}
+.qsc:hover,.qsc:active{transform:none!important;box-shadow:none!important;color:var(--ac)}
+.qsc:hover svg{transform:scale(1.15)}
+.qsc:active svg{transform:scale(.92)}
 .card.flash{animation:hit 1.2s ease}
 input,button,.btn{font:inherit;color:inherit}
 select{font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--bd);border-radius:6px;background:var(--card);width:100%}
@@ -84,11 +87,15 @@ button:hover,.btn:hover{border-color:var(--ac)}
 .row2 .ins small{font-size:10px;color:var(--mu);text-align:center}
 .scanbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
 .scanbar button{display:inline-flex;align-items:center;gap:6px}
+#pcScan{display:inline-flex;align-items:center;padding:8px 10px}
+#pcSlot #scanBox{margin:10px 0 0}
+#scanSlot #opUnk{margin:0 0 10px}
+#scanD:has(#opUnk:not([hidden])) > .btns{display:none}
 #scanBox{position:relative;margin:0 0 10px;border-radius:10px;overflow:hidden;background:#000}
 #scanBox video{display:block;width:100%;max-height:46vh;object-fit:cover}
 .scanln{position:absolute;left:8%;right:8%;top:50%;height:2px;background:#e53935;box-shadow:0 0 8px #e53935}
 #scanMsg{position:absolute;left:0;right:0;top:10px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px #000;padding:0 8px}
-#scanX{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);white-space:nowrap}
+#scanX{position:absolute;left:0;right:0;bottom:8px;margin:0 auto;width:max-content;white-space:nowrap}
 #opUnk{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:0 0 10px;background:var(--bg)}
 #opUnk p{margin:0 0 8px}
 .row.hit{animation:hit .7s ease}
@@ -469,7 +476,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <label class="f"><small>Rozmiary, oddzielone przecinkami</small><input id="pz" value="XS, S, M, L, XL, XXL"></label>
   <div class="f" id="pstW" hidden><small>Stan magazynu. Zmiana tutaj nie zapisuje się w historii ani w statystykach.</small><div id="pst"></div></div>
   <div class="f" id="pcW" hidden><small>Kody kreskowe modelu (zeskanuj skanerem albo wpisz i naciśnij Enter)</small><div id="pcL"></div>
-    <div class="cr"><input id="pcI" placeholder="kod" autocomplete="off" style="flex:1"><select id="pcS"></select><button type="button" id="pcA">Dodaj</button></div></div>
+    <div class="cr"><input id="pcI" placeholder="kod" autocomplete="off" style="flex:1"><button type="button" id="pcScan" aria-label="Zeskanuj kod" title="Zeskanuj kod aparatem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><select id="pcS"></select><button type="button" id="pcA">Dodaj</button></div><div id="pcSlot"></div></div>
   <label class="f"><small>Zdjęcie</small><input type="file" id="pf" accept="image/*"></label>
   <form method="dialog" class="btns">
     <button class="d" id="pdDel" value="x">Usuń model</button>
@@ -886,13 +893,14 @@ function handleScan(code) {
     const f = $('#opF').querySelector(r.old && mode === 'in' && cur.oldSku ? 'input[data-t="o"]' : 'input'); if (f) f.focus();
   }
 }
-function showUnknown(code) {
+function showUnknown(code, pre) {
   stopCam();
+  if (pre === undefined) pre = scanTarget === 'op' ? cur : null;
   $('#unkC').textContent = code; $('#opUnk').dataset.code = code;
   $('#unkQ').value = '';
-  unkPick(cur || null);
+  unkPick(pre || null);
   $('#opUnk').hidden = false;
-  if (!cur) $('#unkQ').focus();
+  if (!pre) $('#unkQ').focus();
 }
 // wybór modelu dla nieznanego kodu: wyszukiwarka zamiast długiej listy
 let unkId = null;
@@ -912,7 +920,7 @@ $('#unkQ').oninput = unkList;
 $('#unkQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#unkL .pi'); if (b) unkPick(S.products.find(p => p.id === b.dataset.id)); } };
 $('#unkL').onclick = e => { const b = e.target.closest('.pi'); if (b) unkPick(S.products.find(p => p.id === b.dataset.id)); };
 $('#unkCh').onclick = () => { $('#unkQ').value = ''; unkPick(null); $('#unkQ').focus(); };
-$('#unkX').onclick = () => { $('#opUnk').hidden = true; };
+$('#unkX').onclick = () => { $('#opUnk').hidden = true; if (scanTarget === 'search' && $('#scanD').open) $('#scanD').close(); };
 $('#unkOk').onclick = async () => {
   const code = $('#opUnk').dataset.code, p = S.products.find(x => x.id === unkId), v = (p && p.oldSku && $('#unkS').value) || '*';
   if (!p) return say('Najpierw wybierz model.');
@@ -921,7 +929,7 @@ $('#unkOk').onclick = async () => {
   try { await R.child('products/' + p.id + '/codes/' + code).set(v); } catch (x) { return say('Nie udało się zapisać kodu.'); }
   p.codes[code] = v; // od razu lokalnie, zanim przyjdzie zmiana z bazy
   $('#opUnk').hidden = true;
-  handleScan(code);
+  if (scanTarget === 'search') { if ($('#scanD').open) $('#scanD').close(); searchScan(code); } else handleScan(code);
 };
 // skaner USB działa jak klawiatura: bardzo szybkie znaki zakończone Enterem
 {
@@ -966,7 +974,7 @@ function onCamCode(c) {
   if (camVote.n < (findCode(c) ? (camSlow ? 1 : 2) : (camSlow ? 2 : 4))) return;
   if (c === lastHit.c && now - lastHit.t < 1300) return; // ten sam kod: najwyżej co 1,3 s
   lastHit = { c, t: now }; camVote = { c: '', n: 0, t: 0 };
-  if (scanTarget === 'search') searchScan(c); else handleScan(c);
+  if (scanTarget === 'search') searchScan(c); else if (scanTarget === 'code') codeScan(c); else handleScan(c);
 }
 function loadZX() {
   if (window.ZXing) return Promise.resolve();
@@ -1029,31 +1037,56 @@ function stopCam() {
   $('#scanBox').hidden = true;
 }
 // skaner jest jeden: przenosimy go do okna, w którym jest potrzebny
-const scanHome = () => { if ($('#scanBox').parentNode !== $('#op')) $('#op').insertBefore($('#scanBox'), $('#opUnk')); };
+const scanHome = () => { if ($('#opUnk').parentNode !== $('#op')) $('#op').insertBefore($('#opUnk'), $('#opPick')); if ($('#scanBox').parentNode !== $('#op')) $('#op').insertBefore($('#scanBox'), $('#opUnk')); };
 $('#opScan').onclick = () => { scanTarget = 'op'; scanHome(); if ($('#scanBox').hidden) startCam(); else stopCam(); };
 // wyszukiwarka na stronie głównej: skan → wpisanie SKU modelu i zamknięcie skanera
 function searchScan(c) {
   stopCam(); beep();
-  if ($('#scanD').open) $('#scanD').close();
   const r = findCode(c);
+  if (!r) { // nieznany kod: od razu propozycja przypisania do modelu
+    scanTarget = 'search';
+    $('#scanSlot').appendChild($('#opUnk'));
+    if (!$('#scanD').open) $('#scanD').showModal();
+    $('#q').value = c; render();
+    return showUnknown(c, null);
+  }
+  if ($('#scanD').open) $('#scanD').close();
   $('#q').value = r ? (r.old ? r.p.oldSku : r.p.sku) : c;
   render();
   if (r) setTimeout(() => { const el = cardEls && cardEls.get ? cardEls.get(r.p.id) : null; if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }, 60);
-  else toast('Nieznany kod ' + c + ' – przypisz go w „Edytuj” modelu albo przy dostawie.');
 }
 $('#qScan').onclick = () => {
   scanTarget = 'search';
   $('#scanSlot').appendChild($('#scanBox'));
   $('#scanD').showModal(); startCam();
 };
-$('#scanD').addEventListener('close', () => { stopCam(); scanTarget = 'op'; scanHome(); });
+$('#scanD').addEventListener('close', () => { stopCam(); scanTarget = 'op'; $('#opUnk').hidden = true; scanHome(); });
+// skanowanie kodu w edycji modelu: kod trafia do pola i od razu się zapisuje
+function codeScan(c) {
+  stopCam(); beep();
+  $('#pcI').value = c; addCode();
+}
+$('#pcScan').onclick = () => {
+  if (!$('#scanBox').hidden && scanTarget === 'code') { stopCam(); return; }
+  scanTarget = 'code'; $('#pcSlot').appendChild($('#scanBox')); startCam();
+};
+$('#pd').addEventListener('close', () => { if (scanTarget === 'code') { stopCam(); scanTarget = 'op'; scanHome(); } });
 // skaner USB w wyszukiwarce: Enter po kodzie zamienia go na SKU modelu
-$('#q').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const r = findCode($('#q').value);
-  if (r && !S.products.some(p => p.name.toLowerCase() === $('#q').value.trim().toLowerCase())) { e.preventDefault(); searchScan($('#q').value.trim()); }
-});
-$('#scanX').onclick = () => { stopCam(); if (scanTarget === 'search') { $('#scanD').close(); return; } const f = cur && $('#opF').querySelector('input'); if (f) f.focus(); };
+{
+  let n = 0, t0 = 0, last = 0;
+  $('#q').addEventListener('keydown', e => {
+    const now = performance.now();
+    if (e.key !== 'Enter') {
+      if (e.key.length === 1) { if (now - last > 80) { n = 0; t0 = now; } n++; last = now; }
+      return;
+    }
+    const v = $('#q').value.trim(), fast = n >= 4 && now - last < 80 && (last - t0) / Math.max(1, n - 1) < 40; // skaner USB „pisze” bardzo szybko
+    n = 0;
+    const r = findCode(v);
+    if ((r && !S.products.some(p => p.name.toLowerCase() === v.toLowerCase())) || (fast && CODE_RE.test(v))) { e.preventDefault(); searchScan(v); }
+  });
+}
+$('#scanX').onclick = () => { stopCam(); if (scanTarget === 'search') { $('#scanD').close(); return; } if (scanTarget === 'code') return; const f = cur && $('#opF').querySelector('input'); if (f) f.focus(); };
 $('#op').addEventListener('close', stopCam);
 function openOp(m, id) {
   if (m === 'set' && !SET_USERS.includes(user)) return say('Brak uprawnień do ustawiania stanu początkowego.');
@@ -1066,7 +1099,7 @@ function openOp(m, id) {
   $('#opQ').value = '';
   const p = id ? S.products.find(x => x.id === id) : null;
   if (p) pickItem(p); else showPick();
-  $('#opUnk').hidden = true; stopCam();
+  $('#opUnk').hidden = true; stopCam(); scanTarget = 'op'; scanHome();
   $('#opScanW').hidden = !['in', 'out', 'evout', 'evin'].includes(m);
   $('#op').showModal();
   if (!p) $('#opQ').focus();
