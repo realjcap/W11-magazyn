@@ -922,40 +922,59 @@ $('#unkOk').onclick = async () => {
 // aparat telefonu: BarcodeDetector (Android/Chrome) albo biblioteka ZXing (np. iPhone)
 let camStream = null, camTimer = 0, zxReader = null, lastHit = { c: '', t: 0 };
 const scanMsg = t => { $('#scanMsg').textContent = t; };
+// suma kontrolna EAN-8 / EAN-13 / UPC-A: odrzuca źle odczytane cyfry
+function eanOk(c) {
+  if (!/^\d+$/.test(c) || ![8, 12, 13].includes(c.length)) return true; // inne kody (Code 128, QR) nie mają tej sumy
+  const d = c.split('').map(Number), chk = d.pop();
+  const sum = d.reverse().reduce((a, x, i) => a + x * (i % 2 ? 1 : 3), 0);
+  return (10 - sum % 10) % 10 === chk;
+}
+// kod przyjmujemy dopiero, gdy ten sam odczyt powtórzy się w kolejnych klatkach (znany kod 2×, nieznany 4×)
+let camVote = { c: '', n: 0, t: 0 };
 function onCamCode(c) {
+  c = String(c || '').trim();
   const now = Date.now();
+  if (!c || !eanOk(c)) return;
+  if (c === camVote.c && now - camVote.t < 700) camVote.n++; else camVote = { c, n: 1, t: now };
+  camVote.t = now;
+  if (camVote.n < (findCode(c) ? 2 : 4)) return;
   if (c === lastHit.c && now - lastHit.t < 1300) return; // ten sam kod: najwyżej co 1,3 s
-  lastHit = { c, t: now };
+  lastHit = { c, t: now }; camVote = { c: '', n: 0, t: 0 };
   handleScan(c);
 }
 function loadZX() {
   if (window.ZXing) return Promise.resolve();
   return new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
 }
+const CAMV = { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }; // wyższa rozdzielczość = mniej błędnych cyfr
 async function startCam() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return say('Ta przeglądarka nie daje dostępu do aparatu.');
-  $('#opUnk').hidden = true; $('#scanBox').hidden = false; scanMsg('Skieruj aparat na kod kreskowy'); lastHit = { c: '', t: 0 };
+  $('#opUnk').hidden = true; $('#scanBox').hidden = false; scanMsg('Skieruj aparat na kod kreskowy'); lastHit = { c: '', t: 0 }; camVote = { c: '', n: 0, t: 0 };
   const v = $('#scanV');
   try {
-    let fmts = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'qr_code'];
+    let fmts = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']; // bez ITF i Code 39 – często dają fałszywe odczyty
     if ('BarcodeDetector' in window) {
       try { const sup = await BarcodeDetector.getSupportedFormats(); fmts = fmts.filter(f => sup.includes(f)); } catch (x) {}
     }
     if ('BarcodeDetector' in window && fmts.length) {
-      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      camStream = await navigator.mediaDevices.getUserMedia({ video: CAMV, audio: false });
+      try { const tr = camStream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (x) {}
       v.srcObject = camStream; await v.play();
       const det = new BarcodeDetector({ formats: fmts });
       const tick = async () => {
         if (!camStream) return;
-        try { const r = await det.detect(v); if (r && r[0] && r[0].rawValue) onCamCode(r[0].rawValue); } catch (x) {}
-        camTimer = setTimeout(tick, 120);
+        try { const r = await det.detect(v); if (r && r.length === 1 && r[0].rawValue) onCamCode(r[0].rawValue); } catch (x) {} // kilka kodów naraz w kadrze = pomijamy
+        camTimer = setTimeout(tick, 90);
       };
       tick();
     } else {
       scanMsg('Uruchamiam skaner…');
       await loadZX();
-      zxReader = new ZXing.BrowserMultiFormatReader();
-      await zxReader.decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } } }, v, res => { if (res) onCamCode(res.getText()); });
+      const hints = new Map(), F = ZXing.BarcodeFormat;
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.QR_CODE]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxReader = new ZXing.BrowserMultiFormatReader(hints, 120);
+      await zxReader.decodeFromConstraints({ video: CAMV }, v, res => { if (res) onCamCode(res.getText()); });
       camStream = v.srcObject || true;
       scanMsg('Skieruj aparat na kod kreskowy');
     }
