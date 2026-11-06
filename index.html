@@ -392,7 +392,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="scanbar" id="opScanW" hidden><button type="button" id="opScan"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Skanuj kod</button><small class="mu">albo użyj skanera USB</small></div>
   <div id="scanBox" hidden><video id="scanV" playsinline muted></video><div class="scanln"></div><div id="scanMsg">Skieruj aparat na kod kreskowy</div><button type="button" id="scanX">Zakończ skanowanie</button></div>
   <div id="opUnk" hidden><p><b>Nieznany kod <span id="unkC"></span></b><br><small class="mu">Przypisz go do modelu – następnym razem rozpozna się sam.</small></p>
-    <label class="f"><small>Model</small><select id="unkP"></select></label>
+    <div class="f"><small>Model</small><div class="sel" id="unkSel" hidden><div><div class="nm" id="unkN"></div><div class="sku" id="unkK"></div></div><button type="button" id="unkCh">Zmień</button></div>
+      <div id="unkPick"><input type="search" id="unkQ" placeholder="Szukaj: nazwa lub SKU" autocomplete="off"><div class="pick" id="unkL"></div></div></div>
     <label class="f"><small>Rozmiar</small><select id="unkS"></select></label>
     <div class="bar"><button type="button" class="p" id="unkOk">Przypisz kod</button><button type="button" id="unkX">Anuluj</button></div></div>
   <div id="opPick">
@@ -881,17 +882,34 @@ function handleScan(code) {
 function showUnknown(code) {
   stopCam();
   $('#unkC').textContent = code; $('#opUnk').dataset.code = code;
-  const ps = S.products.slice().sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-  $('#unkP').innerHTML = ps.map(p => `<option value="${esc(p.id)}">${esc(p.name)} (SKU ${esc(p.sku)})</option>`).join('');
-  if (cur) $('#unkP').value = cur.id;
-  const fill = () => { const p = S.products.find(x => x.id === $('#unkP').value); $('#unkS').innerHTML = p ? codeOpts(p) : ''; };
-  $('#unkP').onchange = fill; fill();
+  $('#unkQ').value = '';
+  unkPick(cur || null);
   $('#opUnk').hidden = false;
+  if (!cur) $('#unkQ').focus();
 }
+// wybór modelu dla nieznanego kodu: wyszukiwarka zamiast długiej listy
+let unkId = null;
+function unkPick(p) {
+  unkId = p ? p.id : null;
+  $('#unkSel').hidden = !p; $('#unkPick').hidden = !!p; $('#unkS').closest('label').hidden = !p; $('#unkOk').disabled = !p;
+  if (p) { $('#unkN').textContent = p.name; $('#unkK').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare ' + p.oldSku : ''); $('#unkS').innerHTML = codeOpts(p); }
+  else unkList();
+}
+function unkList() {
+  const q = $('#unkQ').value.trim().toLowerCase();
+  const l = S.products.filter(p => hay(p).includes(q)).sort((a, b) => a.name.localeCompare(b.name, 'pl')).slice(0, 30);
+  $('#unkL').innerHTML = l.map(p => `<button type="button" class="pi" data-id="${esc(p.id)}">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : '<i></i>'}<span>${esc(p.name)}<small>SKU ${esc(p.sku)}${p.oldSku ? ' · stare ' + esc(p.oldSku) : ''}</small></span></button>`).join('')
+    || '<p class="mu" style="padding:10px;margin:0">Nic nie pasuje.</p>';
+}
+$('#unkQ').oninput = unkList;
+$('#unkQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#unkL .pi'); if (b) unkPick(S.products.find(p => p.id === b.dataset.id)); } };
+$('#unkL').onclick = e => { const b = e.target.closest('.pi'); if (b) unkPick(S.products.find(p => p.id === b.dataset.id)); };
+$('#unkCh').onclick = () => { $('#unkQ').value = ''; unkPick(null); $('#unkQ').focus(); };
 $('#unkX').onclick = () => { $('#opUnk').hidden = true; };
 $('#unkOk').onclick = async () => {
-  const code = $('#opUnk').dataset.code, p = S.products.find(x => x.id === $('#unkP').value), v = $('#unkS').value;
-  if (!p || !CODE_RE.test(code)) return say('Ten kod ma niedozwolone znaki (dozwolone: litery, cyfry, - i _).');
+  const code = $('#opUnk').dataset.code, p = S.products.find(x => x.id === unkId), v = $('#unkS').value;
+  if (!p) return say('Najpierw wybierz model.');
+  if (!CODE_RE.test(code)) return say('Ten kod ma niedozwolone znaki (dozwolone: litery, cyfry, - i _).');
   if (!online()) return;
   try { await R.child('products/' + p.id + '/codes/' + code).set(v); } catch (x) { return say('Nie udało się zapisać kodu.'); }
   p.codes[code] = v; // od razu lokalnie, zanim przyjdzie zmiana z bazy
