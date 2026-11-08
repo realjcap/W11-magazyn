@@ -30,6 +30,19 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .bar input[type=search]{flex:1 1 200px}
 .ro .rw,body.ro .rw{display:none!important}
 .role{font-size:11px;border:1px solid rgba(255,255,255,.4);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
+.lblwrap{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0 0;overflow:hidden}
+.lbl{background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.25);transform-origin:top left}
+.lab{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:7% 5% 4%;font-family:Arial,Helvetica,sans-serif;font-weight:700;text-transform:uppercase;text-align:center;line-height:1.12;color:#000;background:#fff;overflow:hidden}
+.lab div{white-space:nowrap}
+#printArea{display:none}
+.stOn{font-size:12px;background:#2ea05a;color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  #printArea .lab{page-break-after:always;break-after:page}
+  #printArea .lab:last-child{page-break-after:auto;break-after:auto}
+  html,body{margin:0!important;padding:0!important;background:#fff!important}
+}
 .qw{flex:1 1 200px;position:relative;display:flex}
 .qw input{padding-right:44px}
 .qsc{position:absolute;right:3px;top:0;bottom:0;display:flex;align-items:center;border:0;background:none;padding:0 8px;color:var(--mu);line-height:0}
@@ -344,6 +357,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <span class="qw"><input type="search" id="q" placeholder="Nazwa, SKU lub kod"><button type="button" class="qsc" id="qScan" aria-label="Skanuj kod" title="Skanuj kod kreskowy"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
   <button class="p rw" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
+  <button class="rw" id="stB" title="Ten komputer drukuje formatki zlecone z telefonów">Tryb drukarki</button>
   <button id="ex">Eksportuj</button>
   <label class="btn rw">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
@@ -516,6 +530,26 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
 </dialog>
 <dialog id="scanD"><h2>Skanuj kod</h2><div id="scanSlot"></div><form method="dialog" class="btns"><button value="x">Anuluj</button></form></dialog>
+<dialog id="prd">
+  <h2>Drukuj formatkę</h2>
+  <div class="sel"><div><div class="nm" id="prN"></div><div class="sku" id="prK"></div></div></div>
+  <label class="f"><small>Rozmiar</small><select id="prS"></select></label>
+  <label class="f"><small>Liczba etykiet</small><input type="number" id="prQ" min="1" max="50" value="1" inputmode="numeric"></label>
+  <small class="mu">Podgląd</small>
+  <div class="lblwrap"><div class="lbl" id="prV"></div></div>
+  <p class="mu" id="prInfo" style="font-size:13px;margin:8px 0 0"></p>
+  <div class="btns"><button type="button" id="prX">Zamknij</button><button type="button" class="p" id="prGo">Drukuj na etykieciarce</button></div>
+</dialog>
+<dialog id="std">
+  <h2>Tryb drukarki</h2>
+  <p class="mu" style="font-size:14px">Ten komputer będzie drukował formatki zlecane z telefonów. Zostaw tę kartę otwartą i na wierzchu, a komputer bez uśpienia. Chrome musi być uruchomiony z opcją <code>--kiosk-printing</code>, inaczej przy każdym wydruku pojawi się okno drukowania.</p>
+  <div class="cr" style="gap:8px;margin:6px 0 10px"><label class="f" style="margin:0"><small>Szerokość etykiety (mm)</small><input type="number" id="stW" min="30" max="300"></label><label class="f" style="margin:0"><small>Wysokość (mm)</small><input type="number" id="stH" min="20" max="300"></label></div>
+  <div class="bar"><button type="button" id="stTest">Wydruk testowy</button><button type="button" class="p" id="stOn"></button></div>
+  <h3 style="font-size:14px;margin:14px 0 6px">Ostatnie zlecenia</h3>
+  <div id="stL" class="mu" style="font-size:13px"></div>
+  <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
+</dialog>
+<div id="printArea" aria-hidden="true"></div>
 <dialog id="log">
   <div class="loghd"><h2>Historia zmian</h2><label>Pokaż <select id="logN"><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="0">wszystkie</option></select></label></div>
   <div class="mu" id="logC" style="font-size:12px;margin:-4px 0 8px"></div>
@@ -783,6 +817,7 @@ if (R) {
   db.ref('.info/connected').on('value', s => { connected = !!s.val(); setConn(connected ? 'online, zmiany na żywo' : 'brak połączenia'); });
 }
 
+const PRNICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>';
 const MAPICON = '<svg class="mapic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
 function cardInner(p) {
   return `${p.photo ? `<img class="ph" src="${esc(p.photo)}" alt="${esc(p.name)}">` : '<div class="ph">Brak zdjęcia</div>'}
@@ -799,6 +834,7 @@ function cardInner(p) {
           <button class="g rw" data-a="in">Dostawa</button>
           <button class="r rw" data-a="out">Wysyłka</button>
           <button class="e" data-a="map" aria-label="Pokaż na mapie" title="Gdzie ciuszek?">${MAPICON}</button>
+          <button class="e rw" data-a="print" aria-label="Drukuj formatkę" title="Drukuj formatkę na etykieciarce">${PRNICON}</button>
           <button class="e rw" data-a="edit" aria-label="Edytuj">Edytuj</button>
         </div>
       </div>`;
@@ -1073,6 +1109,7 @@ function searchScan(c) {
     return showUnknown(c, null);
   }
   if ($('#scanD').open) $('#scanD').close();
+  if (r) lastScanHit = { pid: r.p.id, size: r.size, old: r.old };
   $('#q').value = r ? (r.old ? r.p.oldSku : r.p.sku) : c;
   render();
   if (r) setTimeout(() => { const el = cardEls && cardEls.get ? cardEls.get(r.p.id) : null; if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }, 60);
@@ -1485,6 +1522,7 @@ $('#grid').onclick = e => {
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const id = b.closest('.card').dataset.id, a = b.dataset.a;
   if (a === 'map') location.hash = '#mapa/' + id;
+  else if (a === 'print') openPrint(id);
   else if (a === 'edit') openPd(id); else openOp(a, id);
 };
 $('#add').onclick = () => openPd(null);
@@ -2316,6 +2354,130 @@ let ramNext = false;
   show();
 }
 
+// --- drukowanie formatek: telefon zleca (print/<id>), komputer w „trybie drukarki” drukuje na etykieciarce
+let LBL = { w: 150, h: 100 };
+try { const v = JSON.parse(localStorage.getItem('w11-lbl') || 'null'); if (v && v.w > 0 && v.h > 0) LBL = v; } catch (e) {}
+let lastScanHit = null; // ostatnio zeskanowany kod w wyszukiwarce (model + rozmiar) – podpowiedź w oknie druku
+// formatka: nazwa (zawijana), SKU, rozmiar – wyśrodkowane, wielkie litery, jak dotychczasowe etykiety
+function labelHtml(name, sku, size, w, h) {
+  const words = String(name || '').toUpperCase().split(/\s+/).filter(Boolean), lines = [], max = 16; // ok. 16 znaków w linii
+  let cur = '';
+  words.forEach(wd => { if (cur && (cur + ' ' + wd).length > max) { lines.push(cur); cur = wd; } else cur = cur ? cur + ' ' + wd : wd; });
+  if (cur) lines.push(cur);
+  const all = [...lines.slice(0, 3), String(sku || '').toUpperCase(), String(size || '').toUpperCase()].filter(Boolean);
+  const longest = Math.max(...all.map(l => l.length), 8);
+  const fs = Math.min(h * 0.82 / all.length / 1.12, w * 0.9 / (longest * 0.66)); // mm, tak żeby wszystko się zmieściło
+  return `<div class="lab" style="width:${w}mm;height:${h}mm;font-size:${fs.toFixed(2)}mm">${all.map(l => `<div>${esc(l)}</div>`).join('')}</div>`;
+}
+let prP = null;
+function prSkuFor(p, v) { return v.startsWith('o:') ? p.oldSku : p.sku; }
+function prRender() {
+  const p = prP; if (!p) return;
+  const v = $('#prS').value || '', sz = v.replace(/^o:/, '');
+  $('#prV').innerHTML = labelHtml(p.name, prSkuFor(p, v), sz, LBL.w, LBL.h);
+  const box = $('.lblwrap').clientWidth - 22, px = LBL.w * 3.78, k = Math.min(1, box / px);
+  $('#prV').style.transform = 'scale(' + k + ')'; $('#prV').style.width = px + 'px'; $('#prV').style.height = LBL.h * 3.78 + 'px'; $('#prV').style.marginLeft = Math.max(0, (box - px * k) / 2) + 'px';
+  $('.lblwrap').style.height = (LBL.h * 3.78 * k + 22) + 'px';
+}
+function openPrint(id) {
+  if (!canEdit()) return roDeny();
+  const p = S.products.find(x => x.id === id); if (!p) return;
+  prP = p;
+  $('#prN').textContent = p.name; $('#prK').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare ' + p.oldSku : '');
+  $('#prS').innerHTML = sizesOf(p).map(z => `<option value="${esc(z)}">${esc(z)}</option>`).join('') + (p.oldSku ? sizesOf(p).map(z => `<option value="o:${esc(z)}">${esc(z)} (stare SKU ${esc(p.oldSku)})</option>`).join('') : '');
+  if (lastScanHit && lastScanHit.pid === p.id && lastScanHit.size && lastScanHit.size !== '*') $('#prS').value = (lastScanHit.old ? 'o:' : '') + lastScanHit.size;
+  $('#prQ').value = 1; $('#prInfo').textContent = '';
+  $('#prd').showModal(); prRender();
+}
+$('#prS').onchange = prRender;
+$('#prX').onclick = () => $('#prd').close();
+$('#prGo').onclick = async () => {
+  const p = prP; if (!p || !online()) return;
+  const v = $('#prS').value || '', q = Math.max(1, Math.min(50, parseInt($('#prQ').value) || 1));
+  const job = { t: firebase.database.ServerValue.TIMESTAMP, st: 'new', pid: p.id, name: p.name, sku: prSkuFor(p, v), size: v.replace(/^o:/, ''), qty: q, by: user || '' };
+  try {
+    const ref = R.child('print').push(job); await ref;
+    $('#prInfo').textContent = 'Wysłano do etykieciarki. Czekam na wydruk…';
+    watchJob(ref.key);
+  } catch (x) { say('Nie udało się wysłać zlecenia druku. Sprawdź reguły bazy (gałąź „print”).'); }
+};
+// telefon: czekamy na potwierdzenie z komputera
+function watchJob(key) {
+  const ref = R.child('print/' + key); let done = false;
+  const off = () => { try { ref.off(); } catch (e) {} };
+  ref.on('value', s => {
+    const j = s.val(); if (!j || done) return;
+    if (j.st === 'done') { done = true; off(); toast('Wydrukowano: ' + j.name + ' ' + j.size + (j.qty > 1 ? ' × ' + j.qty : '')); if ($('#prd').open) $('#prInfo').textContent = 'Wydrukowano.'; }
+    else if (j.st === 'err') { done = true; off(); say('Drukowanie nie powiodło się: ' + (j.msg || 'błąd drukarki')); }
+  }, () => {});
+  setTimeout(() => { if (!done) { off(); if ($('#prd').open) $('#prInfo').textContent = 'Brak potwierdzenia od komputera z etykieciarką. Czy jest na nim włączony „Tryb drukarki”?'; } }, 45000);
+}
+// komputer z etykieciarką
+let station = false, stQ = null, stBusy = false;
+try { station = localStorage.getItem('w11-station') === '1'; } catch (e) {}
+function stShow() {
+  $('#stB').textContent = station ? 'Tryb drukarki: WŁ.' : 'Tryb drukarki';
+  $('#stB').classList.toggle('g', station);
+  $('#stOn').textContent = station ? 'Wyłącz tryb drukarki' : 'Włącz tryb drukarki na tym komputerze';
+  $('#stW').value = LBL.w; $('#stH').value = LBL.h;
+}
+function printNow(html) {
+  return new Promise(ok => {
+    $('#printArea').innerHTML = html;
+    let st = document.getElementById('pageSize'); if (!st) { st = document.createElement('style'); st.id = 'pageSize'; document.head.appendChild(st); }
+    st.textContent = `@page{size:${LBL.w}mm ${LBL.h}mm;margin:0}`;
+    const fin = () => { window.removeEventListener('afterprint', fin); setTimeout(() => { $('#printArea').innerHTML = ''; ok(); }, 300); };
+    window.addEventListener('afterprint', fin);
+    setTimeout(() => window.print(), 50);
+    setTimeout(fin, 8000); // na wszelki wypadek
+  });
+}
+async function stRun() {
+  if (!station || stBusy || !stQ) return;
+  stBusy = true;
+  try {
+    for (;;) {
+      const all = toObj((await R.child('print').orderByKey().limitToLast(30).once('value')).val());
+      const key = Object.keys(all).sort().find(k => all[k] && all[k].st === 'new');
+      if (!key) break;
+      const j = all[key];
+      if (Date.now() - (Number(j.t) || 0) > 15 * 60 * 1000) { await R.child('print/' + key).update({ st: 'err', msg: 'zlecenie przeterminowane' }); continue; }
+      // przejęcie zlecenia (gdyby było kilka komputerów w trybie drukarki)
+      const tr = await R.child('print/' + key + '/st').transaction(v => v === 'new' ? 'printing' : undefined);
+      if (!tr.committed) continue;
+      const html = Array.from({ length: Math.max(1, Math.min(50, Number(j.qty) || 1)) }, () => labelHtml(j.name, j.sku, j.size, LBL.w, LBL.h)).join('');
+      await printNow(html);
+      await R.child('print/' + key).update({ st: 'done', dt: firebase.database.ServerValue.TIMESTAMP, station: user || '' });
+    }
+  } catch (x) {} finally { stBusy = false; }
+}
+function stStart() {
+  if (stQ || !R) return;
+  stQ = R.child('print').limitToLast(30);
+  stQ.on('value', s => { const v = toObj(s.val()); stList(v); stRun(); }, () => {});
+}
+function stStop() { if (stQ) { stQ.off(); stQ = null; } }
+function stList(v) {
+  const ks = Object.keys(v).sort().reverse().slice(0, 10);
+  const T = { new: 'czeka', printing: 'drukuje…', done: 'wydrukowano', err: 'błąd' };
+  $('#stL').innerHTML = ks.length ? ks.map(k => { const j = v[k] || {}; return `<div>${new Date(Number(j.t) || 0).toLocaleTimeString('pl-PL')} · ${esc(j.name)} ${esc(j.size)}${j.qty > 1 ? ' × ' + j.qty : ''} · ${esc(cap(j.by || ''))} · <b>${T[j.st] || esc(j.st)}</b></div>`; }).join('') : 'Brak zleceń.';
+}
+function stApply() {
+  if (station && canEdit()) stStart(); else stStop();
+  stShow();
+  $('#who').querySelector('.stOn')?.remove();
+  if (station && canEdit() && user) $('#who').insertAdjacentHTML('afterbegin', '<span class="stOn">🖨 drukarka</span> ');
+}
+$('#stB').onclick = () => { stShow(); if (station && stQ) stQ.once('value', s => stList(toObj(s.val()))); $('#std').showModal(); };
+$('#stOn').onclick = () => {
+  if (!canEdit()) return roDeny();
+  station = !station; try { localStorage.setItem('w11-station', station ? '1' : '0'); } catch (e) {}
+  stApply();
+};
+['stW', 'stH'].forEach(id => { $('#' + id).onchange = () => { const w = +$('#stW').value, h = +$('#stH').value; if (w >= 30 && h >= 20) { LBL = { w, h }; try { localStorage.setItem('w11-lbl', JSON.stringify(LBL)); } catch (e) {} } }; });
+$('#stTest').onclick = () => printNow(labelHtml('Core Crewneck Regular Czarny', 'DMCORE05001-99X', 'M', LBL.w, LBL.h));
+stShow();
+
 // --- logowanie przez Firebase Authentication
 const DOMAIN = '@dzik-w11.app';
 function lockUI(on) {
@@ -2330,6 +2492,7 @@ const roDeny = () => { say('Konto Brygadzista ma tylko podgląd – bez zmian.')
 function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
+  setTimeout(stApply, 0);
   $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">Brygadzista</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 let auth = null;
