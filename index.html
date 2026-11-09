@@ -137,6 +137,14 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .f small{display:block;margin-bottom:3px;color:var(--mu)}
 .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .lg{padding:8px 0;border-bottom:1px solid var(--bd)}
+.sortable span{cursor:pointer;user-select:none}
+.sortable span:hover{color:var(--tx)}
+.sortable span.on{color:var(--ac)}
+.sortable span.on::after{content:' ▼';font-size:10px}
+.sortable span.on.asc::after{content:' ▲'}
+.logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
+.logf select{flex:1 1 160px;width:auto}
+.logf input{flex:2 1 160px}
 .loghd{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .loghd label{font-size:13px;color:var(--mu);white-space:nowrap}
 .loghd select{width:auto;padding:4px 6px;margin-left:4px}
@@ -384,7 +392,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="trow thead"><span>Okres</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
   <div class="tbl" id="stPer"></div>
   <h3 class="sh"><span id="stPT">Według produktu</span> <small class="mu" id="stRange"></small></h3>
-  <div class="trow thead"><span id="stPC">Produkt</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
+  <div class="trow thead sortable" id="stPH"><span data-sort="name" id="stPC">Produkt</span><span data-sort="in">Dostawy</span><span data-sort="out">Wysyłki</span><span data-sort="evout">Na event</span><span data-sort="evin">Z eventu</span></div>
   <div class="tbl" id="stProd"></div>
   <div class="panel danger" id="rstBox" hidden style="margin-top:18px">
     <b>Strefa ryzyka</b>
@@ -556,6 +564,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <div id="printArea" aria-hidden="true"></div>
 <dialog id="log">
   <div class="loghd"><h2>Historia zmian</h2><label>Pokaż <select id="logN"><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="0">wszystkie</option></select></label></div>
+  <div class="logf"><select id="logF" aria-label="Rodzaj operacji"><option value="">Wszystkie operacje</option><option value="in">Dostawy</option><option value="out">Wysyłki</option><option value="ev">Eventy (wyjazd i przyjazd)</option><option value="model">Modele (dodanie, usunięcie, łączenie)</option><option value="undo">Cofnięcia</option><option value="other">Inne</option></select><input type="search" id="logS" placeholder="Szukaj: nazwa, SKU, osoba" autocomplete="off"></div>
   <div class="mu" id="logC" style="font-size:12px;margin:-4px 0 8px"></div>
   <div id="logL"></div>
   <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
@@ -1542,7 +1551,17 @@ function renderLog() {
   $('#logC').textContent = 'Pokazano ' + S.log.length + (logLim && S.log.length >= logLim ? ' ostatnich' : '') + ' wpisów' + (logLim && S.log.length >= logLim ? ' – starsze: wybierz więcej' : '') + '.';
   const canDel = user === 'delma';
   const undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
-  $('#logL').innerHTML = S.log.map((l, i) => {
+  // filtr rodzaju operacji i wyszukiwanie
+  const f = $('#logF').value, q = $('#logS').value.trim().toLowerCase();
+  const G = { in: ['in'], out: ['out'], ev: ['evout', 'evin'], model: ['add', 'del', 'merge'], undo: ['undo'] };
+  const list = S.log.filter(l => {
+    if (f === 'other' ? Object.values(G).flat().includes(l.m) : f && !G[f].includes(l.m)) return false;
+    if (!q) return true;
+    const hay = [l.name, l.sku, l.by, l.note, ...(l.items || []).flatMap(it => [it.name, it.sku])].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  if (f || q) $('#logC').textContent += ' Pasuje: ' + list.length + '.';
+  $('#logL').innerHTML = list.map((l, i) => {
     const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
     return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
@@ -1550,6 +1569,8 @@ function renderLog() {
   }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
 }
 $('#logB').onclick = () => { renderLog(); $('#log').showModal(); };
+$('#logF').onchange = renderLog;
+$('#logS').oninput = renderLog;
 // usuwanie pojedynczego wpisu historii (tylko delma; stany magazynu zostają bez zmian)
 // cofnięcie operacji: odwrotna zmiana stanów w jednej transakcji + wpis „undo” w historii
 async function undoOp(l) {
@@ -1807,6 +1828,14 @@ function aggregate(recs, p) {
 const cell = x => x.q ? '<span><b>' + x.q + '</b> <small>(' + x.o.size + ')</small></span>' : '<span class="mu">–</span>';
 const rowCells = o => cell(o.in) + cell(o.out) + cell(o.evout) + cell(o.evin);
 const rowSum = o => STM.reduce((a, m) => a + o[m].q, 0);
+let stSort = { k: '', dir: -1 };
+$('#stPH').onclick = e => {
+  const sp = e.target.closest('[data-sort]'); if (!sp) return;
+  const k = sp.dataset.sort;
+  if (stSort.k === k) { if (stSort.dir === (k === 'name' ? -1 : 1)) stSort = { k: '', dir: -1 }; else stSort.dir = -stSort.dir; } // 3. klik: kolejność domyślna
+  else stSort = { k, dir: k === 'name' ? 1 : -1 };
+  renderStats();
+};
 function renderStats() {
   if (!stRecs) return;
   const names = new Map(); stRecs.forEach(r => names.set(r.sku, r.name));
@@ -1840,7 +1869,14 @@ function renderStats() {
   $('#stPer').innerHTML = act.map(b => `<details><summary class="trow"><span><span class="chev">▸</span>${esc(bLabel(b.t, per))}</span>${rowCells(b.tot)}</summary><div class="sub">${[...b.prod].sort((x, y) => rowSum(y[1]) - rowSum(x[1])).map(([k, o]) => `<div class="trow"><span>${lbl(k, o)}</span>${rowCells(o)}</div>`).join('')}</div></details>`).join('')
     || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
   $('#stRange').textContent = '(' + (per === 'day' ? 'ostatnie 30 dni' : per === 'week' ? 'ostatnie 12 tygodni' : 'ostatnie 12 miesięcy') + ')';
-  const pr = [...(allSz ? aggregate(allSz, per).P : A.P)].sort(stFilter ? (x, y) => bySize(x[0], y[0]) : (x, y) => rowSum(y[1]) - rowSum(x[1]));
+  // sortowanie: klik w nagłówek kolumny (ponowny klik odwraca kolejność); domyślnie suma malejąco, a rozmiary od XS
+  const sk = stSort.k, sd = stSort.dir;
+  const nameOf = (k, o) => stFilter ? k : String(o.name || k);
+  const cmp = !sk ? (stFilter ? (x, y) => bySize(x[0], y[0]) : (x, y) => rowSum(y[1]) - rowSum(x[1]))
+    : sk === 'name' ? (x, y) => sd * (stFilter ? bySize(x[0], y[0]) : nameOf(x[0], x[1]).localeCompare(nameOf(y[0], y[1]), 'pl'))
+    : (x, y) => sd * (x[1][sk].q - y[1][sk].q) || rowSum(y[1]) - rowSum(x[1]);
+  const pr = [...(allSz ? aggregate(allSz, per).P : A.P)].sort(cmp);
+  document.querySelectorAll('#stPH span').forEach(sp => { sp.classList.toggle('on', sp.dataset.sort === sk); sp.classList.toggle('asc', sp.dataset.sort === sk && sd > 0); });
   $('#stProd').innerHTML = pr.map(([k, o]) => `<div class="trow${stFilter && k === stSize ? ' on' : ''}" data-k="${esc(k)}" title="${stFilter ? 'Pokaż tylko ten rozmiar' : 'Pokaż statystyki modelu i rozmiarów'}"><span>${lbl(k, o)}</span>${rowCells(o)}</div>`).join('')
     || '<p class="mu" style="padding:12px;margin:0">Brak operacji w tym zakresie.</p>';
 }
