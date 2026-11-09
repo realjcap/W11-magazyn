@@ -2433,7 +2433,8 @@ function printNow(html) {
     st.textContent = `@page{size:${LBL.w}mm ${LBL.h}mm;margin:0}`;
     const fin = () => { window.removeEventListener('afterprint', fin); setTimeout(() => { $('#printArea').innerHTML = ''; ok(); }, 300); };
     window.addEventListener('afterprint', fin);
-    setTimeout(() => window.print(), 50);
+    void $('#printArea').offsetHeight; // wymuś ułożenie formatki przed drukiem
+    window.print(); // bez opóźnienia: w oknie w tle timery bywają wstrzymywane
     setTimeout(fin, 8000); // na wszelki wypadek
   });
 }
@@ -2456,7 +2457,14 @@ async function stRun() {
     }
   } catch (x) {} finally { stBusy = false; }
 }
+// ekran laptopa w trybie drukarki nie gaśnie (gdy przeglądarka to obsługuje)
+let wakeL = null;
+async function stWake() {
+  try { if (station && canEdit() && 'wakeLock' in navigator && document.visibilityState === 'visible' && !wakeL) { wakeL = await navigator.wakeLock.request('screen'); wakeL.addEventListener('release', () => { wakeL = null; }); } } catch (e) {}
+}
+document.addEventListener('visibilitychange', stWake);
 function stStart() {
+  stWake();
   if (stQ || !R) return;
   stQ = R.child('print').limitToLast(30);
   stQ.on('value', s => { const v = toObj(s.val()); stList(v); stRun(); }, () => {});
