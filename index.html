@@ -142,6 +142,8 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .sortable span.on{color:var(--ac)}
 .sortable span.on::after{content:' ▼';font-size:10px}
 .sortable span.on.asc::after{content:' ▲'}
+.lg mark.hl{background:#ffd54a;color:#000;border-radius:3px;padding:0 2px}
+.its li.hit{background:rgba(255,213,74,.18);border-radius:4px}
 .logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
 .logf select{flex:1 1 160px;width:auto}
 .logf input{flex:2 1 160px}
@@ -1566,7 +1568,21 @@ function renderLog() {
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
     return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
-  }).join('') || '<p class="mu">Brak zapisanych zmian.</p>';
+  }).join('') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
+  if (q) markText($('#logL'), q);
+}
+// podświetlenie szukanego tekstu (działa na gotowym tekście, bez wstawiania HTML z danych)
+function markText(root, q) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentNode.closest('button') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  nodes.forEach(n => {
+    const t = n.nodeValue, lt = t.toLowerCase(); let i = lt.indexOf(q);
+    if (i < 0) return;
+    const fr = document.createDocumentFragment(); let p = 0;
+    while (i >= 0) { fr.append(t.slice(p, i)); const m = document.createElement('mark'); m.className = 'hl'; m.textContent = t.slice(i, i + q.length); fr.append(m); p = i + q.length; i = lt.indexOf(q, p); }
+    fr.append(t.slice(p)); n.replaceWith(fr);
+  });
+  root.querySelectorAll('.its li').forEach(li => li.classList.toggle('hit', !!li.querySelector('mark.hl')));
 }
 $('#logB').onclick = () => { renderLog(); $('#log').showModal(); };
 $('#logF').onchange = renderLog;
