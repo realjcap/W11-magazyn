@@ -2417,13 +2417,14 @@ try { const v = JSON.parse(localStorage.getItem('w11-lbl') || 'null'); if (v && 
 let lastScanHit = null; // ostatnio zeskanowany kod w wyszukiwarce (model + rozmiar) – podpowiedź w oknie druku
 // formatka: nazwa (zawijana), SKU, rozmiar – wyśrodkowane, wielkie litery, jak dotychczasowe etykiety
 function labelHtml(name, sku, size, w, h) {
-  const words = String(name || '').toUpperCase().split(/\s+/).filter(Boolean), lines = [], max = 16; // ok. 16 znaków w linii
-  let cur = '';
-  words.forEach(wd => { if (cur && (cur + ' ' + wd).length > max) { lines.push(cur); cur = wd; } else cur = cur ? cur + ' ' + wd : wd; });
-  if (cur) lines.push(cur);
-  const all = [...lines.slice(0, 3), String(sku || '').toUpperCase(), String(size || '').toUpperCase()].filter(Boolean);
-  const longest = Math.max(...all.map(l => l.length), 8);
-  const fs = Math.min(h * 0.82 / all.length / 1.12, w * 0.9 / (longest * 0.66)); // mm, tak żeby wszystko się zmieściło
+  const words = String(name || '').toUpperCase().split(/\s+/).filter(Boolean);
+  const wrap = max => { const L = []; let cur = ''; words.forEach(wd => { if (cur && (cur + ' ' + wd).length > max) { L.push(cur); cur = wd; } else cur = cur ? cur + ' ' + wd : wd; }); if (cur) L.push(cur); return L; };
+  const tail = [String(sku || '').toUpperCase(), String(size || '').toUpperCase()].filter(Boolean);
+  const fit = L => { const all = [...L, ...tail], longest = Math.max(...all.map(l => l.length), 8); return Math.min(h * 0.82 / all.length / 1.12, w * 0.9 / (longest * 0.68)); }; // mm
+  // cała nazwa zawsze na formatce: wybieramy takie łamanie linii, przy którym czcionka jest największa
+  let lines = wrap(16), fs = fit(lines);
+  for (let m = 10; m <= 40; m++) { const L = wrap(m), f = fit(L); if (f > fs + 0.01) { lines = L; fs = f; } }
+  const all = [...lines, ...tail];
   return `<div class="lab" style="width:${w}mm;height:${h}mm;font-size:${fs.toFixed(2)}mm">${all.map(l => `<div>${esc(l)}</div>`).join('')}</div>`;
 }
 let prP = null;
