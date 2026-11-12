@@ -144,6 +144,7 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .sortable span.on.asc::after{content:' ▲'}
 .lg mark.hl{background:#ffd54a;color:#000;border-radius:3px;padding:0 2px}
 .its li.hit{background:rgba(255,213,74,.18);border-radius:4px}
+.logmore{display:block;width:100%;margin:10px 0 4px}
 .logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
 .logf select{flex:1 1 160px;width:auto}
 .logf input{flex:2 1 160px}
@@ -152,7 +153,7 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .loghd select{width:auto;padding:4px 6px;margin-left:4px}
 .lgu{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;background:none}
 .lgud{font-size:11px;border:1px solid var(--bd);border-radius:4px;padding:0 5px;color:var(--mu);vertical-align:1px}
-.lg:has(.lgud) > b{text-decoration:line-through;opacity:.7}
+.lg.undone > b{text-decoration:line-through;opacity:.7}
 .lgx{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;color:var(--r,#c62828);background:none}
 .in{color:var(--in)}.out{color:var(--rd)}.ev{color:var(--ev)}
 #logL{max-height:60vh;overflow:auto}
@@ -192,7 +193,7 @@ dialog[open]{opacity:1;transform:none}
 #lf{animation:pop .3s .05s cubic-bezier(.2,.8,.2,1) both}
 #who a{transition:opacity .15s}
 #who a:hover{opacity:.75}
-.lg{animation:fade .3s ease-out both;animation-delay:calc(var(--i,0)*22ms)}
+.lg.an{animation:fade .3s ease-out both;animation-delay:calc(var(--i,0)*22ms)}
 @keyframes leave{to{opacity:0;transform:scale(.93)}}
 @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
 @keyframes dot{0%{box-shadow:0 0 0 0 rgba(46,160,90,.55)}70%,100%{box-shadow:0 0 0 6px rgba(46,160,90,0)}}
@@ -1549,6 +1550,8 @@ $('#bEv').onclick = () => $('#evm').showModal();
 $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
 $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
+const LOG_STEP = 100;
+let logShow = LOG_STEP;
 function renderLog() {
   $('#logC').textContent = 'Pokazano ' + S.log.length + (logLim && S.log.length >= logLim ? ' ostatnich' : '') + ' wpisów' + (logLim && S.log.length >= logLim ? ' – starsze: wybierz więcej' : '') + '.';
   const canDel = user === 'delma';
@@ -1563,12 +1566,14 @@ function renderLog() {
     return hay.includes(q);
   });
   if (f || q) $('#logC').textContent += ' Pasuje: ' + list.length + '.';
-  $('#logL').innerHTML = list.map((l, i) => {
+  // na raz rysujemy najwyżej logShow wpisów (duża lista potrafiła wysypać przeglądarkę na telefonie)
+  const more = list.length - logShow;
+  $('#logL').innerHTML = list.slice(0, logShow).map((l, i) => {
     const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
+    return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
-  }).join('') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
+  }).join('') + (more > 0 ? `<button type="button" id="logMore" class="logmore">Pokaż kolejne ${Math.min(LOG_STEP, more)} (zostało ${more})</button>` : '') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
   if (q) markText($('#logL'), q);
 }
 // podświetlenie szukanego tekstu (działa na gotowym tekście, bez wstawiania HTML z danych)
@@ -1584,9 +1589,9 @@ function markText(root, q) {
   });
   root.querySelectorAll('.its li').forEach(li => li.classList.toggle('hit', !!li.querySelector('mark.hl')));
 }
-$('#logB').onclick = () => { renderLog(); $('#log').showModal(); };
-$('#logF').onchange = renderLog;
-$('#logS').oninput = renderLog;
+$('#logB').onclick = () => { logShow = LOG_STEP; renderLog(); $('#log').showModal(); };
+$('#logF').onchange = () => { logShow = LOG_STEP; renderLog(); };
+$('#logS').oninput = () => { logShow = LOG_STEP; renderLog(); };
 // usuwanie pojedynczego wpisu historii (tylko delma; stany magazynu zostają bez zmian)
 // cofnięcie operacji: odwrotna zmiana stanów w jednej transakcji + wpis „undo” w historii
 async function undoOp(l) {
@@ -1627,6 +1632,7 @@ async function undoOp(l) {
   toast('Cofnięto: ' + (OPN[l.m] || l.m) + ' · ' + l.name);
 }
 $('#logL').onclick = async e => {
+  if (e.target.id === 'logMore') { logShow += LOG_STEP; renderLog(); return; }
   const u = e.target.closest('.lgu');
   if (u) {
     if (!canEdit()) return roDeny();
