@@ -2560,12 +2560,15 @@ function lockUI(on) {
 // uprawnienia: delma i rudy edytują, każde inne konto to Brygadzista (tylko odczyt; blokują to też reguły bazy)
 const EDITORS = ['delma', 'rudy'];
 const canEdit = () => EDITORS.includes(user);
-const roDeny = () => { say('Konto Brygadzista ma tylko podgląd – bez zmian.'); return true; };
+// nazwa roli w nagłówku dla kont tylko do odczytu (domyślnie Brygadzista)
+const RO_ROLES = { logistyka: 'Logistyka' };
+const roleName = () => RO_ROLES[user] || 'Brygadzista';
+const roDeny = () => { say('Konto ' + roleName() + ' ma tylko podgląd – bez zmian.'); return true; };
 function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
   setTimeout(stApply, 0);
-  $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">Brygadzista</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
+  $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">' + esc(roleName()) + '</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 let auth = null;
 try { auth = firebase.auth(); } catch (e) {}
