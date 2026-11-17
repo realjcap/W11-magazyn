@@ -284,7 +284,7 @@ dialog[open]{opacity:1;transform:none}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .bin{background:var(--in)}.bout{background:var(--rd)}.bev{background:var(--ev)}.bevi{background:#6aa9ff}
 h3.sh{font-size:15px;margin:18px 0 8px}
-.trow{display:grid;grid-template-columns:minmax(84px,1.6fr) repeat(4,minmax(44px,1fr));gap:6px;padding:9px 10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
+.trow{display:grid;grid-template-columns:minmax(84px,1.6fr) repeat(2,minmax(60px,1fr));gap:6px;padding:9px 10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
 .trow>span:not(:first-child){text-align:center}
 .thead{color:var(--mu);font-size:12px;background:var(--card);border:1px solid var(--bd);border-radius:8px 8px 0 0}
 .tbl{background:var(--card);border:1px solid var(--bd);border-top:0;border-radius:0 0 8px 8px}
@@ -413,13 +413,13 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="sumrow" id="stSum"></div>
   <div class="panel">
     <div class="chart" id="stChart"></div>
-    <div class="legend"><span><i class="bin"></i>Dostawy</span><span><i class="bout"></i>Wysyłki na Mszczonowską</span><span><i class="bev"></i>Wyjazdy na event</span><span><i class="bevi"></i>Przyjazdy z eventu</span></div>
+    <div class="legend"><span><i class="bin"></i>Dostawy</span><span><i class="bout"></i>Wysyłki na Mszczonowską</span></div>
   </div>
   <h3 class="sh">Według okresu <small class="mu">(sztuki, w nawiasie liczba operacji; kliknij okres, by zobaczyć produkty)</small></h3>
-  <div class="trow thead"><span>Okres</span><span>Dostawy</span><span>Wysyłki</span><span>Na event</span><span>Z eventu</span></div>
+  <div class="trow thead"><span>Okres</span><span>Dostawy</span><span>Wysyłki</span></div>
   <div class="tbl" id="stPer"></div>
   <h3 class="sh"><span id="stPT">Według produktu</span> <small class="mu" id="stRange"></small></h3>
-  <div class="trow thead sortable" id="stPH"><span data-sort="name" id="stPC">Produkt</span><span data-sort="in">Dostawy</span><span data-sort="out">Wysyłki</span><span data-sort="evout">Na event</span><span data-sort="evin">Z eventu</span></div>
+  <div class="trow thead sortable" id="stPH"><span data-sort="name" id="stPC">Produkt</span><span data-sort="in">Dostawy</span><span data-sort="out">Wysyłki</span></div>
   <div class="tbl" id="stProd"></div>
   <div class="panel danger" id="rstBox" hidden style="margin-top:18px">
     <b>Strefa ryzyka</b>
@@ -2021,6 +2021,7 @@ $('#im').onchange = async e => {
 let view = 'wh', per = 'day', stFilter = '', stSize = '', stRecs = null, stTimer = null, stAnim = true;
 const STM = ['in', 'out', 'evout', 'evin'];
 const UNM = [...STM, 'sewin']; // operacje, które da się cofnąć i edytować
+const SSM = ['in', 'out']; // operacje liczone w statystykach (eventy celowo pominięte)
 const DAYN = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'], MONN = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 const mk = () => ({ in: { q: 0, o: new Set() }, out: { q: 0, o: new Set() }, evout: { q: 0, o: new Set() }, evin: { q: 0, o: new Set() } });
 const fmtDM = t => { const d = new Date(t); return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1); };
@@ -2050,7 +2051,7 @@ function toRecs(log) {
   // operacje cofnięte (jest do nich wpis „undo” z ref) nie liczą się do statystyk
   const undone = new Set(log.map(cleanLogEntry).filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
   log.map(l => ({ ...cleanLogEntry(l || {}), _k: l && l._k })).forEach((l, i) => {
-    if (!STM.includes(l.m) || (l._k && undone.has(l._k))) return;
+    if (!SSM.includes(l.m) || (l._k && undone.has(l._k))) return;
     const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
     its.forEach(it => {
       const q = Object.values(it.d || {}).reduce((a, b) => a + b, 0);
@@ -2075,8 +2076,8 @@ function aggregate(recs, p) {
   return { B, T, P };
 }
 const cell = x => x.q ? '<span><b>' + x.q + '</b> <small>(' + x.o.size + ')</small></span>' : '<span class="mu">–</span>';
-const rowCells = o => cell(o.in) + cell(o.out) + cell(o.evout) + cell(o.evin);
-const rowSum = o => STM.reduce((a, m) => a + o[m].q, 0);
+const rowCells = o => cell(o.in) + cell(o.out);
+const rowSum = o => SSM.reduce((a, m) => a + o[m].q, 0);
 let stSort = { k: '', dir: -1 };
 $('#stPH').onclick = e => {
   const sp = e.target.closest('[data-sort]'); if (!sp) return;
@@ -2106,12 +2107,12 @@ function renderStats() {
   $('#stPC').textContent = stFilter ? 'Rozmiar' : 'Produkt';
   const lbl = (k, o) => esc(o.name) + (stFilter ? '' : `<small class="sk">${esc(k)}</small>`);
   const A = aggregate(recs, per);
-  const tiles = [['cin', 'Dostawy', 'in'], ['cout', 'Wysyłki na Mszczonowską', 'out'], ['cev', 'Wyjazdy na event', 'evout'], ['cevi', 'Przyjazdy z eventu', 'evin']];
+  const tiles = [['cin', 'Dostawy', 'in'], ['cout', 'Wysyłki na Mszczonowską', 'out']];
   $('#stSum').innerHTML = tiles.map(([c, l, m], i) => `<div class="tile ${c}" style="animation-delay:${i * 50}ms"><small>${l}</small><b>${A.T[m].q} szt.</b><small>${A.T[m].o.size} ${A.T[m].o.size === 1 ? 'operacja' : 'operacji'}</small></div>`).join('');
-  const mx = Math.max(1, ...A.B.flatMap(b => STM.map(m => b.tot[m].q)));
+  const mx = Math.max(1, ...A.B.flatMap(b => SSM.map(m => b.tot[m].q)));
   const cls = ['bin', 'bout', 'bev', 'bevi'];
   $('#stChart').className = 'chart' + (stAnim ? ' ga' : '');
-  $('#stChart').innerHTML = A.B.map(b => `<div class="cg" title="${esc(bLabel(b.t, per))}: dostawy ${b.tot.in.q}, wysyłki ${b.tot.out.q}, na event ${b.tot.evout.q}, z eventu ${b.tot.evin.q}"><div class="cbars">${STM.map((m, i) => `<i class="${cls[i]}" style="height:${b.tot[m].q ? Math.max(3, Math.round(b.tot[m].q / mx * 100)) : 0}%"></i>`).join('')}</div><small>${esc(bLabel(b.t, per, true))}</small></div>`).join('');
+  $('#stChart').innerHTML = A.B.map(b => `<div class="cg" title="${esc(bLabel(b.t, per))}: dostawy ${b.tot.in.q}, wysyłki ${b.tot.out.q}"><div class="cbars">${SSM.map((m, i) => `<i class="${cls[i]}" style="height:${b.tot[m].q ? Math.max(3, Math.round(b.tot[m].q / mx * 100)) : 0}%"></i>`).join('')}</div><small>${esc(bLabel(b.t, per, true))}</small></div>`).join('');
   stAnim = false;
   $('#stChart').scrollLeft = $('#stChart').scrollWidth;
   const act = A.B.filter(b => rowSum(b.tot) > 0).reverse();
