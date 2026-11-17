@@ -145,6 +145,15 @@ dialog h2{font-size:17px;margin:0 0 12px}
 .lg mark.hl{background:#ffd54a;color:#000;border-radius:3px;padding:0 2px}
 .its li.hit{background:rgba(255,213,74,.18);border-radius:4px}
 .logmore{display:block;width:100%;margin:10px 0 4px}
+.lge{float:right;margin:0 0 4px 8px;padding:2px 9px;font-size:13px;background:none}
+.lged{font-size:11px;border:1px dashed var(--ac);color:var(--ac);background:none;border-radius:4px;padding:0 5px;vertical-align:1px;margin-left:4px}
+.aud{margin:6px 0 2px;padding:6px 8px;border-left:3px solid var(--ac);background:var(--bg);font-size:12px;border-radius:0 6px 6px 0}
+.aud div+div{margin-top:4px;padding-top:4px;border-top:1px dashed var(--bd)}
+#leQ .it{border:1px solid var(--bd);border-radius:8px;padding:8px 10px;margin:0 0 10px}
+#leQ .it b{display:block;margin-bottom:6px;font-size:14px}
+#leQ .szs{display:flex;flex-wrap:wrap;gap:6px}
+#leQ .szs label{display:flex;align-items:center;gap:4px;font-size:13px}
+#leQ .szs input{width:64px}
 .logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
 .logf select{flex:1 1 160px;width:auto}
 .logf input{flex:2 1 160px}
@@ -565,6 +574,16 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
 </dialog>
 <div id="printArea" aria-hidden="true"></div>
+<dialog id="led">
+  <h2>Edytuj wpis historii</h2>
+  <p class="mu" style="font-size:13px;margin:-4px 0 10px">Zmiana ilości od razu poprawia stany magazynu o różnicę (np. 5 → 3 przy dostawie zdejmuje 2 szt.). Data, osoba i notatka nie ruszają stanów. Ślad edycji widzi wyłącznie konto delma – nie ma go w historii innych ani w Excelu.</p>
+  <div id="leHead" style="font-weight:600;margin-bottom:8px"></div>
+  <label class="f"><small>Data i godzina</small><input type="datetime-local" id="leT" step="1"></label>
+  <label class="f"><small>Kto</small><select id="leBy"></select></label>
+  <div id="leQ"></div>
+  <label class="f"><small>Notatka</small><input id="leN" maxlength="200"></label>
+  <div class="btns"><button type="button" id="leX">Anuluj</button><button type="button" class="p" id="leOk">Zapisz zmiany</button></div>
+</dialog>
 <dialog id="log">
   <div class="loghd"><h2>Historia zmian</h2><label>Pokaż <select id="logN"><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="0">wszystkie</option></select></label></div>
   <div class="logf"><select id="logF" aria-label="Rodzaj operacji"><option value="">Wszystkie operacje</option><option value="in">Dostawy</option><option value="out">Wysyłki</option><option value="ev">Eventy (wyjazd i przyjazd)</option><option value="model">Modele (dodanie, usunięcie, łączenie)</option><option value="undo">Cofnięcia</option><option value="other">Inne</option></select><input type="search" id="logS" placeholder="Szukaj: nazwa, SKU, osoba" autocomplete="off"></div>
@@ -1550,6 +1569,113 @@ $('#bEv').onclick = () => $('#evm').showModal();
 $('#evOut').onclick = () => { $('#evm').close(); openOp('evout'); };
 $('#evIn').onclick = () => { $('#evm').close(); openOp('evin'); };
 $('#q').oninput = render;
+// --- edycja historii (tylko delma); ślad edycji w osobnej gałęzi „<ROOT>-audit”, którą czyta tylko delma
+let AUD = {}, audQ = null;
+const audOpen = new Set();
+function audApply() {
+  const want = user === 'delma' && !!db;
+  if (want && !audQ) { audQ = db.ref(ROOT + '-audit'); audQ.on('value', s => { AUD = s.val() || {}; if ($('#log').open) renderLog(); }, () => { AUD = {}; }); }
+  if (!want && audQ) { audQ.off(); audQ = null; AUD = {}; audOpen.clear(); }
+}
+const ldt = t => { const d = new Date(t), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
+const snapOf = l => ({ t: Number(l.t) || 0, by: l.by || '', note: l.note || '', ...(l.items && l.items.length ? { items: l.items.map(it => ({ name: it.name || '', sku: it.sku || '', d: numMap(it.d) })) } : { d: numMap(l.d) }) });
+function audHtml(k) {
+  const fmtS = x => new Date(x.t).toLocaleString('pl-PL') + ' · ' + esc(cap(x.by || '–')) + ' · ' + (x.items ? x.items.map(it => esc(it.sku) + ' ' + fmtD(it.d)).join('; ') : fmtD(x.d)) + (x.note ? ' · „' + esc(x.note) + '”' : '');
+  const list = Object.keys(AUD[k] || {}).sort().map(id => AUD[k][id]).filter(a => a && a.before);
+  return '<div class="aud">' + list.map(a => `<div><b>Edycja ${new Date(Number(a.at) || 0).toLocaleString('pl-PL')}</b><br>było: ${fmtS(a.before)}<br>jest: ${fmtS(a.after || {})}</div>`).join('') + '</div>';
+}
+let leK = null, leRaw = null;
+async function openLogEdit(k) {
+  if (user !== 'delma' || !online()) return;
+  const raw = (await R.child('log/' + k).once('value')).val();
+  if (!raw) return say('Ten wpis już nie istnieje.');
+  leK = k; leRaw = raw;
+  const l = cleanLogEntry(raw);
+  $('#leHead').textContent = (LOGT[l.m] || l.m) + ' · ' + (l.items && l.items.length ? l.items.length + ' modele' : l.sku + ' ' + l.name);
+  $('#leT').value = ldt(l.t);
+  const who = [...new Set(['delma', 'rudy', l.by].filter(Boolean))];
+  $('#leBy').innerHTML = who.map(w => `<option value="${esc(w)}"${w === l.by ? ' selected' : ''}>${esc(cap(w))}</option>`).join('');
+  $('#leN').value = l.note || '';
+  const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
+  $('#leQ').innerHTML = its.map((it, i) => {
+    const p = S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku);
+    const sizes = [...new Set([...Object.keys(it.d || {}), ...(p ? sizesOf(p) : [])])].sort(bySize);
+    return `<div class="it" data-i="${i}"><b>${esc(it.sku)} ${esc(it.name)}</b><div class="szs">${sizes.map(z => `<label>${esc(z)} <input type="number" min="0" inputmode="numeric" data-s="${esc(z)}" value="${(it.d || {})[z] || 0}"></label>`).join('')}</div></div>`;
+  }).join('');
+  $('#led').showModal();
+}
+$('#leX').onclick = () => $('#led').close();
+$('#leOk').onclick = async () => {
+  if (user !== 'delma' || !leK || !leRaw || !online()) return;
+  const t = new Date($('#leT').value).getTime();
+  if (!t) return say('Podaj poprawną datę.');
+  const raw = JSON.parse(JSON.stringify(leRaw)), before = snapOf(cleanLogEntry(leRaw));
+  const readD = el => { const d = {}; el.querySelectorAll('input[data-s]').forEach(inp => { const n = Math.max(0, parseInt(inp.value) || 0); if (n > 0) d[inp.dataset.s] = n; }); return d; };
+  const clamp = (o, d) => { if (!o) return o; const r = {}; for (const z in o) { const v = Math.min(o[z], d[z] || 0); if (v > 0) r[z] = v; } return Object.keys(r).length ? r : null; };
+  const blocks = [...$('#leQ').querySelectorAll('.it')];
+  // pozycje przed edycją (do policzenia różnicy stanów); kolejność taka sama jak w formularzu
+  const itsOf = r => r.items && r.items.length ? r.items.map(it => ({ sku: it.sku, pid: it.pid, d: numMap(it.d), o: numMap(it.o) })) : [{ sku: r.sku, pid: r.pid, d: numMap(r.d), o: numMap(r.o) }];
+  const befIts = itsOf(leRaw);
+  let aftIts;
+  if (raw.items && raw.items.length) {
+    blocks.forEach(b => { const i = +b.dataset.i, it = raw.items[i]; if (!it) return; it.d = readD(b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; });
+    aftIts = itsOf(raw);
+    raw.items = raw.items.filter(it => Object.keys(it.d || {}).length);
+    if (!raw.items.length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
+    if (raw.items.length === 1) { raw.d = raw.items[0].d; if (raw.items[0].o) raw.o = raw.items[0].o; else delete raw.o; }
+  } else {
+    raw.d = readD(blocks[0]);
+    if (!Object.keys(raw.d).length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
+    const o = clamp(raw.o, raw.d); if (o) raw.o = o; else delete raw.o;
+    aftIts = itsOf(raw);
+  }
+  raw.t = t; raw.by = $('#leBy').value;
+  const note = $('#leN').value.trim().slice(0, 200); if (note) raw.note = note; else delete raw.note;
+  const after = snapOf(cleanLogEntry(raw));
+  if (JSON.stringify(after) === JSON.stringify(before)) { $('#led').close(); return; }
+  // stany magazynu: dopisujemy różnicę między wpisem po i przed edycją (cofnięta operacja nie rusza stanów)
+  const wasUndone = S.log.some(x => x.m === 'undo' && x.ref === leK);
+  const chg = JSON.stringify(befIts.map(x => [x.d, x.o])) !== JSON.stringify(aftIts.map(x => [x.d, x.o]));
+  if (chg && !wasUndone) {
+    const ids = befIts.map(it => { const p = (it.pid && S.products.find(x => x.id === it.pid)) || S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku); return p ? p.id : null; });
+    const miss = befIts.filter((it, i) => !ids[i] && JSON.stringify([it.d, it.o]) !== JSON.stringify([aftIts[i].d, aftIts[i].o]));
+    if (miss.length) return say('Nie można zmienić ilości: nie ma już modelu o SKU ' + miss.map(it => it.sku).join(', ') + '.');
+    let err = null;
+    const res = await R.child('products').transaction(all => {
+      err = null;
+      if (!all) return all;
+      all = JSON.parse(JSON.stringify(all));
+      // wpływ operacji na stany: [magazyn, event, stare SKU w magazynie, stare SKU na evencie]
+      const EF = { in: [1, 0, 1, 0], out: [-1, 0, -1, 0], evout: [-1, 1, -1, 1], evin: [1, -1, 1, -1] }[raw.m];
+      for (let i = 0; i < befIts.length; i++) {
+        const b = befIts[i], a = aftIts[i], p = ids[i] && all[ids[i]];
+        if (JSON.stringify([b.d, b.o]) === JSON.stringify([a.d, a.o])) continue;
+        if (!p) { err = 'Model SKU ' + b.sku + ' został usunięty.'; return; }
+        const hasOld = !!p.oldSku;
+        p.sizes = toObj(p.sizes); p.ev = toObj(p.ev); p.old = toObj(p.old); p.evOld = toObj(p.evOld);
+        const ks = new Set([...Object.keys(b.d), ...Object.keys(a.d)]);
+        for (const k of ks) {
+          const dn = (a.d[k] || 0) - (b.d[k] || 0), dold = hasOld ? (a.o[k] || 0) - (b.o[k] || 0) : 0;
+          p.sizes[k] = (Number(p.sizes[k]) || 0) + EF[0] * dn;
+          p.ev[k] = (Number(p.ev[k]) || 0) + EF[1] * dn;
+          if (hasOld) { p.old[k] = Math.max(0, (p.old[k] || 0) + EF[2] * dold); p.evOld[k] = Math.max(0, (p.evOld[k] || 0) + EF[3] * dold); }
+          if (p.sizes[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': w magazynie zabrakłoby ' + (-p.sizes[k]) + ' szt.'; return; }
+          if (p.ev[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': na evencie zabrakłoby ' + (-p.ev[k]) + ' szt.'; return; }
+        }
+        for (const m of ['ev', 'old', 'evOld']) { for (const k in p[m]) if (!(p[m][k] > 0)) delete p[m][k]; if (!Object.keys(p[m]).length || (m !== 'ev' && !hasOld)) delete p[m]; }
+        for (const k in p.old || {}) p.old[k] = Math.min(p.old[k], p.sizes[k] || 0);
+        for (const k in p.evOld || {}) p.evOld[k] = Math.min(p.evOld[k], (p.ev || {})[k] || 0);
+      }
+      return all;
+    });
+    if (!res.committed) return say('Nie zapisano zmian. ' + (err || 'Spróbuj ponownie.'));
+  }
+  try {
+    await R.child('log/' + leK).set(raw);
+    await db.ref(ROOT + '-audit/' + leK).push({ at: firebase.database.ServerValue.TIMESTAMP, before, after });
+    $('#led').close(); toast(chg && !wasUndone ? 'Zapisano zmiany we wpisie i poprawiono stany.' : 'Zapisano zmiany we wpisie.');
+  } catch (x) { say('Nie udało się zapisać. Sprawdź reguły bazy (gałąź „' + ROOT + '-audit”).'); }
+};
 const LOG_STEP = 100;
 let logShow = LOG_STEP;
 function renderLog() {
@@ -1571,8 +1697,8 @@ function renderLog() {
   $('#logL').innerHTML = list.slice(0, logShow).map((l, i) => {
     const parts = [fmtD(l.d), l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? 'nie wróciło: ' + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.lost ? ', nie wróciło: ' + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}<br>
-    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}</div>`;
+    return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canDel && l.k && STM.includes(l.m) ? `<button type="button" class="lge" data-k="${esc(l.k)}" aria-label="Edytuj wpis" title="Edytuj wpis (widoczne tylko dla delmy)">✎</button>` : ''}${canEdit() && l.k && STM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}${canDel && l.k && AUD[l.k] ? ` <button type="button" class="lged" data-k="${esc(l.k)}" title="Pokaż, co zmieniono">edytowano</button>` : ''}<br>
+    <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}${canDel && l.k && AUD[l.k] && audOpen.has(l.k) ? audHtml(l.k) : ''}</div>`;
   }).join('') + (more > 0 ? `<button type="button" id="logMore" class="logmore">Pokaż kolejne ${Math.min(LOG_STEP, more)} (zostało ${more})</button>` : '') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
   if (q) markText($('#logL'), q);
 }
@@ -1633,6 +1759,8 @@ async function undoOp(l) {
 }
 $('#logL').onclick = async e => {
   if (e.target.id === 'logMore') { logShow += LOG_STEP; renderLog(); return; }
+  const ee = e.target.closest('.lge'); if (ee) return openLogEdit(ee.dataset.k);
+  const ea = e.target.closest('.lged'); if (ea) { const k = ea.dataset.k; if (audOpen.has(k)) audOpen.delete(k); else audOpen.add(k); renderLog(); return; }
   const u = e.target.closest('.lgu');
   if (u) {
     if (!canEdit()) return roDeny();
@@ -2567,7 +2695,7 @@ const roDeny = () => { say('Konto ' + roleName() + ' ma tylko podgląd – bez z
 function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
-  setTimeout(stApply, 0);
+  setTimeout(stApply, 0); setTimeout(audApply, 0);
   $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">' + esc(roleName()) + '</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 let auth = null;
