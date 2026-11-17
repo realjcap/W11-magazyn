@@ -168,6 +168,14 @@ dialog h2{font-size:17px;margin:0 0 12px}
 #leQ .sws input{border-color:color-mix(in srgb,var(--sw) 55%,var(--bd))}
 #leQ .szs label{display:flex;align-items:center;gap:4px;font-size:13px}
 #leQ .szs input{width:64px}
+#leQ .it[data-new]{border-color:var(--ac);border-style:dashed}
+#leQ .it .lex{float:right;padding:2px 9px;font-size:13px;line-height:1.4}
+#leAdd{margin:0 0 10px}
+#leAdd .swb{margin-top:0;border-color:var(--ac);color:var(--ac)}
+#leAddL{max-height:200px;overflow:auto;border:1px solid var(--bd);border-radius:8px;margin-top:6px}
+#leAddL button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--bd);border-radius:0;background:transparent;padding:8px 10px;font-size:14px}
+#leAddL button:last-child{border-bottom:0}
+#leAddL small{color:var(--mu)}
 .logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
 .logf select{flex:1 1 160px;width:auto}
 .logf input{flex:2 1 160px}
@@ -596,6 +604,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <label class="f"><small>Data i godzina</small><input type="datetime-local" id="leT" step="1"></label>
   <label class="f"><small>Kto</small><select id="leBy"></select></label>
   <div id="leQ"></div>
+  <div id="leAdd"><button type="button" class="swb" id="leAddB">＋ Dodaj model do wpisu</button><div id="leAddW" hidden><input type="search" id="leAddQ" placeholder="Szukaj modelu: nazwa lub SKU" autocomplete="off" style="margin-top:8px"><div id="leAddL"></div></div></div>
   <label class="f"><small>Notatka</small><input id="leN" maxlength="200"></label>
   <div class="btns"><button type="button" id="leX">Anuluj</button><button type="button" class="p" id="leOk">Zapisz zmiany</button></div>
 </dialog>
@@ -1671,15 +1680,39 @@ async function openLogEdit(k) {
   $('#leBy').innerHTML = who.map(w => `<option value="${esc(w)}"${w === l.by ? ' selected' : ''}>${esc(cap(w))}</option>`).join('');
   $('#leN').value = l.note || '';
   const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d, s: l.s }];
-  $('#leQ').innerHTML = its.map((it, i) => {
-    const p = S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku);
-    const sizes = [...new Set([...Object.keys(it.d || {}), ...Object.keys(it.s || {}), ...(p ? sizesOf(p) : [])])].sort(bySize);
-    const inp = (z, v, t) => `<label>${esc(z)} <input type="number" min="0" inputmode="numeric" data-s="${esc(z)}"${t ? ' data-t="' + t + '"' : ''} value="${v || 0}"></label>`;
-    return `<div class="it" data-i="${i}"><b>${esc(it.sku)} ${esc(it.name)}</b><div class="szs">${sizes.map(z => inp(z, (it.d || {})[z])).join('')}</div>`
-      + (l.m === 'in' ? `<small class="sw" style="display:block;margin:8px 0 2px;font-weight:600">Bez naklejki (do szwalni)</small><div class="szs sws">${sizes.map(z => inp(z, (it.s || {})[z], 's')).join('')}</div>` : '') + '</div>';
-  }).join('');
+  leM = l.m;
+  $('#leQ').innerHTML = its.map((it, i) => leBlock(it, l.m, ' data-i="' + i + '"')).join('');
+  $('#leAddW').hidden = true; $('#leAddQ').value = '';
   $('#led').showModal();
 }
+let leM = '';
+function leBlock(it, m, attr, p) {
+  p = p || (it.pid && S.products.find(x => x.id === it.pid)) || S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku);
+  const base = m === 'sewin' && p ? Object.keys(p.sew || {}) : p ? sizesOf(p) : [];
+  const sizes = [...new Set([...Object.keys(it.d || {}), ...Object.keys(it.s || {}), ...base])].sort(bySize);
+  const inp = (z, v, t) => `<label>${esc(z)} <input type="number" min="0" inputmode="numeric" data-s="${esc(z)}"${t ? ' data-t="' + t + '"' : ''} value="${v || 0}"></label>`;
+  if (p && !attr.includes('data-pid')) attr += ' data-pid="' + esc(p.id) + '"';
+  return `<div class="it"${attr}>${attr.includes('data-new') ? '<button type="button" class="lex" title="Usuń z wpisu">✕</button>' : ''}<b>${esc(it.sku)} ${esc(it.name)}</b><div class="szs">${sizes.map(z => inp(z, (it.d || {})[z])).join('')}</div>`
+    + (m === 'in' ? `<small class="sw" style="display:block;margin:8px 0 2px;font-weight:600">Bez naklejki (do szwalni)</small><div class="szs sws">${sizes.map(z => inp(z, (it.s || {})[z], 's')).join('')}</div>` : '') + '</div>';
+}
+// dodawanie modelu do istniejącego wpisu (konto delma)
+function leAddList() {
+  const q = $('#leAddQ').value.trim().toLowerCase();
+  const have = new Set([...$('#leQ').querySelectorAll('.it[data-pid]')].map(b => b.dataset.pid));
+  const l = S.products.filter(p => !have.has(p.id) && (leM !== 'evin' || evSum(p) > 0) && (leM !== 'sewin' || sewSum(p) > 0) && hay(p).includes(q)).slice(0, 40);
+  $('#leAddL').innerHTML = l.map(p => `<button type="button" data-id="${esc(p.id)}"><span>${esc(p.name)} <small>${esc(p.sku)}</small></span><small>${leM === 'evin' ? 'event ' + evSum(p) : leM === 'sewin' ? 'szwalnia ' + sewSum(p) : 'stan ' + sum(p)}</small></button>`).join('')
+    || '<p class="mu" style="padding:10px;margin:0">Brak pasujących modeli.</p>';
+}
+$('#leAddB').onclick = () => { const w = $('#leAddW'); w.hidden = !w.hidden; if (!w.hidden) { leAddList(); $('#leAddQ').focus(); } };
+$('#leAddQ').oninput = leAddList;
+$('#leAddL').onclick = e => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  const p = S.products.find(x => x.id === b.dataset.id); if (!p) return;
+  $('#leQ').insertAdjacentHTML('beforeend', leBlock({ name: p.name, sku: p.sku, d: {} }, leM, ' data-new="1" data-pid="' + esc(p.id) + '"', p));
+  $('#leAddW').hidden = true; $('#leAddQ').value = '';
+  const i = $('#leQ').lastElementChild.querySelector('input'); if (i) i.focus();
+};
+$('#leQ').addEventListener('click', e => { const x = e.target.closest('.lex'); if (x) x.closest('.it').remove(); });
 $('#leX').onclick = () => $('#led').close();
 $('#leOk').onclick = async () => {
   if (user !== 'delma' || !leK || !leRaw || !online()) return;
@@ -1690,17 +1723,38 @@ $('#leOk').onclick = async () => {
   const setS = (o, el) => { if (raw.m !== 'in') return; const v = readS(el); if (Object.keys(v).length) o.s = v; else delete o.s; };
   const readD = el => { const d = {}; el.querySelectorAll('input[data-s]:not([data-t])').forEach(inp => { const n = Math.max(0, parseInt(inp.value) || 0); if (n > 0) d[inp.dataset.s] = n; }); return d; };
   const clamp = (o, d) => { if (!o) return o; const r = {}; for (const z in o) { const v = Math.min(o[z], d[z] || 0); if (v > 0) r[z] = v; } return Object.keys(r).length ? r : null; };
-  const blocks = [...$('#leQ').querySelectorAll('.it')];
+  const blocks = [...$('#leQ').querySelectorAll('.it:not([data-new])')];
+  const nblocks = [...$('#leQ').querySelectorAll('.it[data-new]')];
   // pozycje przed edycją (do policzenia różnicy stanów); kolejność taka sama jak w formularzu
   const itsOf = r => r.items && r.items.length ? r.items.map(it => ({ sku: it.sku, pid: it.pid, d: numMap(it.d), o: numMap(it.o), s: numMap(it.s) })) : [{ sku: r.sku, pid: r.pid, d: numMap(r.d), o: numMap(r.o), s: numMap(r.s) }];
   const befIts = itsOf(leRaw);
+  // nowe modele: wpis zamieniamy na wielomodelowy (items) i dopisujemy pozycje
+  const adds = [];
+  nblocks.forEach(b => {
+    const p = S.products.find(x => x.id === b.dataset.pid); if (!p) return;
+    const it = { name: p.name, sku: p.sku, pid: p.id, d: readD(b) }; setS(it, b);
+    if (!Object.keys(it.d).length && !it.s) return;
+    // stare SKU wychodzi pierwsze (jak przy zwykłej operacji)
+    const src = raw.m === 'out' || raw.m === 'evout' ? p.old : raw.m === 'evin' ? p.evOld : null;
+    if (p.oldSku && src) { const o = {}; for (const k in it.d) { const v = Math.min(src[k] || 0, it.d[k]); if (v > 0) o[k] = v; } if (Object.keys(o).length) { it.o = o; it.osku = p.oldSku; } }
+    adds.push(it);
+  });
+  if (adds.length) {
+    if (!(raw.items && raw.items.length)) {
+      const one = { name: raw.name, sku: raw.sku, d: raw.d || {} };
+      for (const f of ['pid', 'o', 'osku', 's', 'lost']) if (raw[f] !== undefined) { one[f] = raw[f]; delete raw[f]; }
+      raw.items = [one]; delete raw.d;
+    }
+    adds.forEach(it => { raw.items.push(it); befIts.push({ sku: it.sku, pid: it.pid, d: {}, o: {}, s: {} }); });
+  }
   let aftIts;
   if (raw.items && raw.items.length) {
-    blocks.forEach(b => { const i = +b.dataset.i, it = raw.items[i]; if (!it) return; it.d = readD(b); setS(it, b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; });
+    blocks.forEach(b => { const i = +b.dataset.i, it = raw.items[i]; if (!it) return; if (it === raw.items[0] && adds.length && !(leRaw.items && leRaw.items.length)) { it.d = readD(b); setS(it, b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; return; } it.d = readD(b); setS(it, b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; });
     aftIts = itsOf(raw);
     raw.items = raw.items.filter(it => Object.keys(it.d || {}).length || Object.keys(numMap(it.s)).length);
     if (!raw.items.length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
     if (raw.items.length === 1) { raw.d = raw.items[0].d; if (raw.items[0].o) raw.o = raw.items[0].o; else delete raw.o; if (raw.items[0].s) raw.s = raw.items[0].s; else delete raw.s; }
+    else { raw.name = plural(raw.items.length); raw.sku = ''; }
   } else {
     raw.d = readD(blocks[0]); setS(raw, blocks[0]);
     if (!Object.keys(raw.d).length && !Object.keys(numMap(raw.s)).length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
