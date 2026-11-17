@@ -101,6 +101,8 @@ button:hover,.btn:hover{border-color:var(--ac)}
 .v{background:#7b3fc4;border-color:#7b3fc4;color:#fff;font-weight:600}
 .v:hover{filter:brightness(1.1);border-color:transparent}
 .sw{color:var(--sw)}
+.stk{color:var(--am)}
+.lgpv{font-size:11px;padding:1px 6px;border-radius:9px;border:1px dashed var(--am);color:var(--am);white-space:nowrap}
 .swb{margin-top:10px;width:100%;border:1.5px dashed var(--sw);color:var(--sw);background:transparent;font-weight:600}
 .swb[aria-expanded=true]{background:color-mix(in srgb,var(--sw) 12%,transparent)}
 #opSewF{margin-top:8px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--sw) 8%,transparent);border:1px solid color-mix(in srgb,var(--sw) 35%,transparent)}
@@ -162,6 +164,8 @@ dialog h2{font-size:17px;margin:0 0 12px}
 #leQ .it{border:1px solid var(--bd);border-radius:8px;padding:8px 10px;margin:0 0 10px}
 #leQ .it b{display:block;margin-bottom:6px;font-size:14px}
 #leQ .szs{display:flex;flex-wrap:wrap;gap:6px}
+#leQ .sws label{color:var(--sw)}
+#leQ .sws input{border-color:color-mix(in srgb,var(--sw) 55%,var(--bd))}
 #leQ .szs label{display:flex;align-items:center;gap:4px;font-size:13px}
 #leQ .szs input{width:64px}
 .logf{display:flex;gap:6px;margin:4px 0 8px;flex-wrap:wrap}
@@ -597,7 +601,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 </dialog>
 <dialog id="log">
   <div class="loghd"><h2>Historia zmian</h2><label>Pokaż <select id="logN"><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="0">wszystkie</option></select></label></div>
-  <div class="logf"><select id="logF" aria-label="Rodzaj operacji"><option value="">Wszystkie operacje</option><option value="in">Dostawy</option><option value="out">Wysyłki</option><option value="ev">Eventy (wyjazd i przyjazd)</option><option value="model">Modele (dodanie, usunięcie, łączenie)</option><option value="undo">Cofnięcia</option><option value="other">Inne</option></select><input type="search" id="logS" placeholder="Szukaj: nazwa, SKU, osoba" autocomplete="off"></div>
+  <div class="logf"><select id="logF" aria-label="Rodzaj operacji"><option value="">Wszystkie operacje</option><option value="in">Dostawy</option><option value="out">Wysyłki</option><option value="ev">Eventy (wyjazd i przyjazd)</option><option value="model">Modele (dodanie, usunięcie, łączenie)</option><option value="undo">Cofnięcia</option><option value="stock" class="dlo" hidden>Korekty stanu (tylko delma)</option><option value="other">Inne</option></select><input type="search" id="logS" placeholder="Szukaj: nazwa, SKU, osoba" autocomplete="off"></div>
   <div class="mu" id="logC" style="font-size:12px;margin:-4px 0 8px"></div>
   <div id="logL"></div>
   <form method="dialog" class="btns"><button value="x">Zamknij</button></form>
@@ -1501,9 +1505,11 @@ $('#pdOk').onclick = async e => {
   const id = ed ? ed.id : Date.now().toString(36);
   try {
     if (ed) {
-      await R.child('products/' + id).transaction(p => {
+      let stB = null, stA = null;
+      const res = await R.child('products/' + id).transaction(p => {
         if (!p) return p;
         const o = toObj(p.sizes), n = {};
+        stB = { s: numMap(p.sizes), o: p.oldSku ? numMap(p.old) : {} };
         sizes.forEach(s => { n[s] = o[s] || 0; });
         p.name = name; p.sku = sku; p.sizes = n;
         const po = numMap(p.old), hadOld = !!p.oldSku;
@@ -1514,8 +1520,20 @@ $('#pdOk').onclick = async e => {
           n[k] = nv + ov; if (hadOld) po[k] = ov;
         }
         if (oldSku) { p.oldSku = oldSku; p.old = capMap(po, n); if (!Object.keys(p.old).length) delete p.old; } else { if (p.codes) { p.codes = toObj(p.codes); for (const k in p.codes) if (typeof p.codes[k] === 'string') p.codes[k] = p.codes[k].replace(/^o:/, ''); } if (p.zonesOld) { p.zones = zUnion(p.zones, p.zonesOld); delete p.zonesOld; } delete p.oldSku; delete p.old; delete p.evOld; }
+        stA = { s: numMap(p.sizes), o: p.oldSku ? numMap(p.old) : {} };
         return p;
       });
+      // korekta stanu: zapis tylko w gałęzi „-audit” (widzi ją wyłącznie delma; nie ma jej w historii, eksporcie ani statystykach)
+      if (res.committed && stB && stA && Object.keys(stk).length) {
+        const ch = {};
+        for (const k in stk) {
+          const bo = stB.o[k] || 0, ao = stA.o[k] || 0, bn = (stB.s[k] || 0) - bo, an = (stA.s[k] || 0) - ao;
+          if (bn !== an || bo !== ao) ch[k] = { bn, an, ...(bo !== ao ? { bo, ao } : {}) };
+        }
+        if (Object.keys(ch).length) {
+          try { await db.ref(ROOT + '-audit/_stock').push({ at: firebase.database.ServerValue.TIMESTAMP, by: user || '', pid: id, name, sku, oldSku: oldSku || '', before: 1, after: 1, ch }); } catch (x) {}
+        }
+      }
     } else {
       const n = {}; sizes.forEach(s => { n[s] = 0; });
       await R.child('products/' + id).set(oldSku ? { id, name, sku, oldSku, sizes: n } : { id, name, sku, sizes: n });
@@ -1634,9 +1652,9 @@ function audApply() {
   if (!want && audQ) { audQ.off(); audQ = null; AUD = {}; audOpen.clear(); }
 }
 const ldt = t => { const d = new Date(t), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
-const snapOf = l => ({ t: Number(l.t) || 0, by: l.by || '', note: l.note || '', ...(l.items && l.items.length ? { items: l.items.map(it => ({ name: it.name || '', sku: it.sku || '', d: numMap(it.d) })) } : { d: numMap(l.d) }) });
+const snapOf = l => ({ t: Number(l.t) || 0, by: l.by || '', note: l.note || '', ...(l.items && l.items.length ? { items: l.items.map(it => ({ name: it.name || '', sku: it.sku || '', d: numMap(it.d), ...(Object.keys(numMap(it.s)).length ? { s: numMap(it.s) } : {}) })) } : { d: numMap(l.d), ...(Object.keys(numMap(l.s)).length ? { s: numMap(l.s) } : {}) }) });
 function audHtml(k) {
-  const fmtS = x => new Date(x.t).toLocaleString('pl-PL') + ' · ' + esc(cap(x.by || '–')) + ' · ' + (x.items ? x.items.map(it => esc(it.sku) + ' ' + fmtD(it.d)).join('; ') : fmtD(x.d)) + (x.note ? ' · „' + esc(x.note) + '”' : '');
+  const fmtS = x => new Date(x.t).toLocaleString('pl-PL') + ' · ' + esc(cap(x.by || '–')) + ' · ' + (x.items ? x.items.map(it => esc(it.sku) + ' ' + fmtD(it.d) + (it.s ? ' <span class="sw">bez naklejki: ' + fmtD(it.s) + '</span>' : '')).join('; ') : fmtD(x.d) + (x.s ? ' <span class="sw">bez naklejki: ' + fmtD(x.s) + '</span>' : '')) + (x.note ? ' · „' + esc(x.note) + '”' : '');
   const list = Object.keys(AUD[k] || {}).sort().map(id => AUD[k][id]).filter(a => a && a.before);
   return '<div class="aud">' + list.map(a => `<div><b>Edycja ${new Date(Number(a.at) || 0).toLocaleString('pl-PL')}</b><br>było: ${fmtS(a.before)}<br>jest: ${fmtS(a.after || {})}</div>`).join('') + '</div>';
 }
@@ -1652,11 +1670,13 @@ async function openLogEdit(k) {
   const who = [...new Set(['delma', 'rudy', l.by].filter(Boolean))];
   $('#leBy').innerHTML = who.map(w => `<option value="${esc(w)}"${w === l.by ? ' selected' : ''}>${esc(cap(w))}</option>`).join('');
   $('#leN').value = l.note || '';
-  const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d }];
+  const its = l.items && l.items.length ? l.items : [{ name: l.name, sku: l.sku, d: l.d, s: l.s }];
   $('#leQ').innerHTML = its.map((it, i) => {
     const p = S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku);
-    const sizes = [...new Set([...Object.keys(it.d || {}), ...(p ? sizesOf(p) : [])])].sort(bySize);
-    return `<div class="it" data-i="${i}"><b>${esc(it.sku)} ${esc(it.name)}</b><div class="szs">${sizes.map(z => `<label>${esc(z)} <input type="number" min="0" inputmode="numeric" data-s="${esc(z)}" value="${(it.d || {})[z] || 0}"></label>`).join('')}</div></div>`;
+    const sizes = [...new Set([...Object.keys(it.d || {}), ...Object.keys(it.s || {}), ...(p ? sizesOf(p) : [])])].sort(bySize);
+    const inp = (z, v, t) => `<label>${esc(z)} <input type="number" min="0" inputmode="numeric" data-s="${esc(z)}"${t ? ' data-t="' + t + '"' : ''} value="${v || 0}"></label>`;
+    return `<div class="it" data-i="${i}"><b>${esc(it.sku)} ${esc(it.name)}</b><div class="szs">${sizes.map(z => inp(z, (it.d || {})[z])).join('')}</div>`
+      + (l.m === 'in' ? `<small class="sw" style="display:block;margin:8px 0 2px;font-weight:600">Bez naklejki (do szwalni)</small><div class="szs sws">${sizes.map(z => inp(z, (it.s || {})[z], 's')).join('')}</div>` : '') + '</div>';
   }).join('');
   $('#led').showModal();
 }
@@ -1666,7 +1686,9 @@ $('#leOk').onclick = async () => {
   const t = new Date($('#leT').value).getTime();
   if (!t) return say('Podaj poprawną datę.');
   const raw = JSON.parse(JSON.stringify(leRaw)), before = snapOf(cleanLogEntry(leRaw));
-  const readD = el => { const d = {}; el.querySelectorAll('input[data-s]').forEach(inp => { const n = Math.max(0, parseInt(inp.value) || 0); if (n > 0) d[inp.dataset.s] = n; }); return d; };
+  const readS = el => { const d = {}; el.querySelectorAll('input[data-t="s"]').forEach(inp => { const n = Math.max(0, parseInt(inp.value) || 0); if (n > 0) d[inp.dataset.s] = n; }); return d; };
+  const setS = (o, el) => { if (raw.m !== 'in') return; const v = readS(el); if (Object.keys(v).length) o.s = v; else delete o.s; };
+  const readD = el => { const d = {}; el.querySelectorAll('input[data-s]:not([data-t])').forEach(inp => { const n = Math.max(0, parseInt(inp.value) || 0); if (n > 0) d[inp.dataset.s] = n; }); return d; };
   const clamp = (o, d) => { if (!o) return o; const r = {}; for (const z in o) { const v = Math.min(o[z], d[z] || 0); if (v > 0) r[z] = v; } return Object.keys(r).length ? r : null; };
   const blocks = [...$('#leQ').querySelectorAll('.it')];
   // pozycje przed edycją (do policzenia różnicy stanów); kolejność taka sama jak w formularzu
@@ -1674,13 +1696,13 @@ $('#leOk').onclick = async () => {
   const befIts = itsOf(leRaw);
   let aftIts;
   if (raw.items && raw.items.length) {
-    blocks.forEach(b => { const i = +b.dataset.i, it = raw.items[i]; if (!it) return; it.d = readD(b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; });
+    blocks.forEach(b => { const i = +b.dataset.i, it = raw.items[i]; if (!it) return; it.d = readD(b); setS(it, b); const o = clamp(it.o, it.d); if (o) it.o = o; else delete it.o; });
     aftIts = itsOf(raw);
     raw.items = raw.items.filter(it => Object.keys(it.d || {}).length || Object.keys(numMap(it.s)).length);
     if (!raw.items.length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
-    if (raw.items.length === 1) { raw.d = raw.items[0].d; if (raw.items[0].o) raw.o = raw.items[0].o; else delete raw.o; }
+    if (raw.items.length === 1) { raw.d = raw.items[0].d; if (raw.items[0].o) raw.o = raw.items[0].o; else delete raw.o; if (raw.items[0].s) raw.s = raw.items[0].s; else delete raw.s; }
   } else {
-    raw.d = readD(blocks[0]);
+    raw.d = readD(blocks[0]); setS(raw, blocks[0]);
     if (!Object.keys(raw.d).length && !Object.keys(numMap(raw.s)).length) return say('Wpis musi mieć przynajmniej jedną sztukę. Żeby go usunąć, użyj ✕.');
     const o = clamp(raw.o, raw.d); if (o) raw.o = o; else delete raw.o;
     aftIts = itsOf(raw);
@@ -1691,10 +1713,11 @@ $('#leOk').onclick = async () => {
   if (JSON.stringify(after) === JSON.stringify(before)) { $('#led').close(); return; }
   // stany magazynu: dopisujemy różnicę między wpisem po i przed edycją (cofnięta operacja nie rusza stanów)
   const wasUndone = S.log.some(x => x.m === 'undo' && x.ref === leK);
-  const chg = JSON.stringify(befIts.map(x => [x.d, x.o])) !== JSON.stringify(aftIts.map(x => [x.d, x.o]));
+  const sig = x => JSON.stringify([x.d, x.o, x.s]);
+  const chg = befIts.map(sig).join() !== aftIts.map(sig).join();
   if (chg && !wasUndone) {
     const ids = befIts.map(it => { const p = (it.pid && S.products.find(x => x.id === it.pid)) || S.products.find(x => x.sku === it.sku) || S.products.find(x => x.oldSku && x.oldSku === it.sku); return p ? p.id : null; });
-    const miss = befIts.filter((it, i) => !ids[i] && JSON.stringify([it.d, it.o]) !== JSON.stringify([aftIts[i].d, aftIts[i].o]));
+    const miss = befIts.filter((it, i) => !ids[i] && sig(it) !== sig(aftIts[i]));
     if (miss.length) return say('Nie można zmienić ilości: nie ma już modelu o SKU ' + miss.map(it => it.sku).join(', ') + '.');
     let err = null;
     const res = await R.child('products').transaction(all => {
@@ -1705,11 +1728,11 @@ $('#leOk').onclick = async () => {
       const EF = { in: [1, 0, 1, 0], out: [-1, 0, -1, 0], evout: [-1, 1, -1, 1], evin: [1, -1, 1, -1], sewin: [1, 0, 0, 0] }[raw.m];
       for (let i = 0; i < befIts.length; i++) {
         const b = befIts[i], a = aftIts[i], p = ids[i] && all[ids[i]];
-        if (JSON.stringify([b.d, b.o]) === JSON.stringify([a.d, a.o])) continue;
+        if (sig(b) === sig(a)) continue;
         if (!p) { err = 'Model SKU ' + b.sku + ' został usunięty.'; return; }
         const hasOld = !!p.oldSku;
         p.sizes = toObj(p.sizes); p.ev = toObj(p.ev); p.old = toObj(p.old); p.evOld = toObj(p.evOld); p.sew = toObj(p.sew);
-        const ks = new Set([...Object.keys(b.d), ...Object.keys(a.d)]);
+        const ks = new Set([...Object.keys(b.d), ...Object.keys(a.d), ...Object.keys(b.s), ...Object.keys(a.s)]);
         for (const k of ks) {
           const dn = (a.d[k] || 0) - (b.d[k] || 0), dold = hasOld ? (a.o[k] || 0) - (b.o[k] || 0) : 0;
           p.sizes[k] = (Number(p.sizes[k]) || 0) + EF[0] * dn;
@@ -1717,6 +1740,7 @@ $('#leOk').onclick = async () => {
           if (hasOld) { p.old[k] = Math.max(0, (p.old[k] || 0) + EF[2] * dold); p.evOld[k] = Math.max(0, (p.evOld[k] || 0) + EF[3] * dold); }
           if (p.sizes[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': w magazynie zabrakłoby ' + (-p.sizes[k]) + ' szt.'; return; }
           if (p.ev[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': na evencie zabrakłoby ' + (-p.ev[k]) + ' szt.'; return; }
+          if (raw.m === 'in') { const ds = (a.s[k] || 0) - (b.s[k] || 0); if (ds) { p.sew[k] = (Number(p.sew[k]) || 0) + ds; if (p.sew[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': w szwalni zabrakłoby ' + (-p.sew[k]) + ' szt. (część już wróciła)'; return; } } }
           if (raw.m === 'sewin') { p.sew[k] = (Number(p.sew[k]) || 0) - dn; if (p.sew[k] < 0) { err = (b.sku || '') + ', rozmiar ' + k + ': w szwalni zabrakłoby ' + (-p.sew[k]) + ' szt.'; return; } }
         }
         for (const k in p.sew) if (!(p.sew[k] > 0)) delete p.sew[k];
@@ -1735,6 +1759,13 @@ $('#leOk').onclick = async () => {
     $('#led').close(); toast(chg && !wasUndone ? 'Zapisano zmiany we wpisie i poprawiono stany.' : 'Zapisano zmiany we wpisie.');
   } catch (x) { say('Nie udało się zapisać. Sprawdź reguły bazy (gałąź „' + ROOT + '-audit”).'); }
 };
+// korekty stanu z „Edytuj” (tylko dla delmy): wpisy z gałęzi „-audit/_stock”, pokazywane w historii jak zwykłe wpisy
+function stockEntries() {
+  return Object.values(toObj(AUD._stock)).filter(a => a && a.ch && typeof a.ch === 'object').map(a => {
+    const d = Object.entries(a.ch).sort((x, y) => bySize(x[0], y[0])).map(([k, c]) => k + ': ' + num(c.bn) + ' → ' + num(c.an) + (c.bo !== undefined ? ' (stare ' + txt(a.oldSku, 60) + ': ' + num(c.bo) + ' → ' + num(c.ao) + ')' : '')).join(', ');
+    return { t: Number(a.at) || 0, m: 'stock', name: txt(a.name, 120), sku: txt(a.sku, 60), by: txt(a.by, 40), d: {}, note: d, k: null, priv: true };
+  });
+}
 const LOG_STEP = 100;
 let logShow = LOG_STEP;
 function renderLog() {
@@ -1743,8 +1774,10 @@ function renderLog() {
   const undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
   // filtr rodzaju operacji i wyszukiwanie
   const f = $('#logF').value, q = $('#logS').value.trim().toLowerCase();
-  const G = { in: ['in', 'sewin'], out: ['out'], ev: ['evout', 'evin'], model: ['add', 'del', 'merge'], undo: ['undo'] };
-  const list = S.log.filter(l => {
+  $('#logF').querySelector('.dlo').hidden = !canDel;
+  const G = { stock: ['stock'], in: ['in', 'sewin'], out: ['out'], ev: ['evout', 'evin'], model: ['add', 'del', 'merge'], undo: ['undo'] };
+  const src = canDel ? S.log.concat(stockEntries()).sort((a, b) => b.t - a.t) : S.log;
+  const list = src.filter(l => {
     if (f === 'other' ? Object.values(G).flat().includes(l.m) : f && !G[f].includes(l.m)) return false;
     if (!q) return true;
     const hay = [l.name, l.sku, l.by, l.note, ...(l.items || []).flatMap(it => [it.name, it.sku])].join(' ').toLowerCase();
@@ -1756,7 +1789,7 @@ function renderLog() {
   $('#logL').innerHTML = list.slice(0, logShow).map((l, i) => {
     const parts = [fmtD(l.d), l.s ? '<span class="sw">bez naklejki (do szwalni): ' + fmtD(l.s) + '</span>' : '', l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? (l.m === 'sewin' ? 'zostało na głównym magazynie: ' : 'nie wróciło: ') + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.s ? (Object.keys(it.d || {}).length ? ', ' : '') + '<span class="sw">bez naklejki: ' + fmtD(it.s) + '</span>' : '') + (it.lost ? (l.m === 'sewin' ? ', zostało na głównym magazynie: ' : ', nie wróciło: ') + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
-    return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canDel && l.k && UNM.includes(l.m) ? `<button type="button" class="lge" data-k="${esc(l.k)}" aria-label="Edytuj wpis" title="Edytuj wpis (widoczne tylko dla delmy)">✎</button>` : ''}${canEdit() && l.k && UNM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${LOGC[l.m] || 'out'}">${LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}${canDel && l.k && AUD[l.k] ? ` <button type="button" class="lged" data-k="${esc(l.k)}" title="Pokaż, co zmieniono">edytowano</button>` : ''}<br>
+    return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canDel && l.k && UNM.includes(l.m) ? `<button type="button" class="lge" data-k="${esc(l.k)}" aria-label="Edytuj wpis" title="Edytuj wpis (widoczne tylko dla delmy)">✎</button>` : ''}${canEdit() && l.k && UNM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${l.m === 'stock' ? 'stk' : LOGC[l.m] || 'out'}">${l.m === 'stock' ? '✎ Korekta stanu' : LOGT[l.m] || l.m}</b> ${esc(l.sku)} ${esc(l.name)}${l.priv ? ' <span class="lgpv" title="Nie ma tego w historii innych osób ani w eksporcie">tylko delma</span>' : ''}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}${canDel && l.k && AUD[l.k] ? ` <button type="button" class="lged" data-k="${esc(l.k)}" title="Pokaż, co zmieniono">edytowano</button>` : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}${canDel && l.k && AUD[l.k] && audOpen.has(l.k) ? audHtml(l.k) : ''}</div>`;
   }).join('') + (more > 0 ? `<button type="button" id="logMore" class="logmore">Pokaż kolejne ${Math.min(LOG_STEP, more)} (zostało ${more})</button>` : '') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
   if (q) markText($('#logL'), q);
