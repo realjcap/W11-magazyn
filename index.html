@@ -884,7 +884,7 @@ function cardInner(p) {
         </div>
         <div class="sz">${chipKeys(p).map(s => {
           const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0;
-          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 2 ? 'l' : ''}"><b>${esc(s)}</b>${p.oldSku ? n - ((p.old && p.old[s]) || 0) : n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}${p.sew && p.sew[s] ? '<em class="sw">' + p.sew[s] + ' bez naklejki</em>' : ''}</span>`;
+          return `<span data-s="${esc(s)}" class="${e > 0 ? 'e' : n === 0 ? 'z' : n <= 5 ? 'l' : ''}"><b>${esc(s)}</b>${p.oldSku ? n - ((p.old && p.old[s]) || 0) : n}${n === 0 && !e ? '<i class="x" title="Brak w magazynie">!</i>' : ''}${e > 0 ? '<em>' + e + ' na evencie</em>' : ''}${p.old && p.old[s] ? '<em class="o">' + p.old[s] + ' stare</em>' : ''}${p.sew && p.sew[s] ? '<em class="sw">' + p.sew[s] + ' bez naklejki</em>' : ''}</span>`;
         }).join('')}</div>
         <div class="act">
           <button class="g rw" data-a="in">Dostawa</button>
@@ -1971,7 +1971,7 @@ async function exportXlsx() {
     parts.forEach(([sku, fw, fe, old]) => chipKeys(p).forEach(k => {
       const w = fw(k), e = fe(k), sw = old ? 0 : (p.sew[k] || 0); totW += w; totE += e; totS += sw;
       stan.push([{ v: sku, s: t }, { v: p.name, s: t }, { v: k, s: band ? XS.numB : XS.num },
-        { v: w, s: w === 0 ? XS.zero : w <= 2 ? XS.low : band ? XS.numB : XS.num },
+        { v: w, s: w === 0 ? XS.zero : w <= 5 ? XS.low : band ? XS.numB : XS.num },
         { v: e, s: e > 0 ? XS.ev : band ? XS.ev0B : XS.ev0 }, { v: sw, s: band ? XS.numB : XS.num }, { v: zNames(p, old).join(', '), s: t }]);
     }));
   });
