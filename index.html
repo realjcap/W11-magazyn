@@ -233,9 +233,9 @@ dialog[open]{opacity:1;transform:none}
 #lf.shake{animation:shake .38s ease}
 
 /* ukryta minigra: dzik je batony */
-#gmB{position:fixed;left:10px;bottom:10px;z-index:20;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
+#gmB{position:absolute;left:1px;top:1px;z-index:20;width:22px;height:22px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
 #gmB:hover,#gmB:focus-visible{opacity:1;transform:scale(1.08) rotate(-6deg)}
-#gmB i{display:block;width:24px;height:14px;background:var(--tx);-webkit-mask:var(--boarm) center/contain no-repeat;mask:var(--boarm) center/contain no-repeat}
+#gmB i{display:block;width:17px;height:10px;background:var(--tx);-webkit-mask:var(--boarm) center/contain no-repeat;mask:var(--boarm) center/contain no-repeat}
 #gm{width:min(440px,calc(100vw - 24px));padding:14px;text-align:center}
 #gm .gh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 #gm .gh h2{margin:0;font-size:18px}
