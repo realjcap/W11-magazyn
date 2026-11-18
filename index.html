@@ -233,17 +233,17 @@ dialog[open]{opacity:1;transform:none}
 #lf.shake{animation:shake .38s ease}
 
 /* ukryta minigra: dzik je batony */
-#gmB{position:absolute;left:1px;top:1px;z-index:20;width:22px;height:22px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
+#gmB{position:absolute;left:1px;top:1px;z-index:20;width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
 #gmB:hover,#gmB:focus-visible{opacity:1;transform:scale(1.08) rotate(-6deg)}
-#gmB i{display:block;width:17px;height:10px;background:var(--tx);-webkit-mask:var(--boarm) center/contain no-repeat;mask:var(--boarm) center/contain no-repeat}
+#gmB i{display:block;width:21px;height:12px;background:var(--tx);-webkit-mask:var(--boarm) center/contain no-repeat;mask:var(--boarm) center/contain no-repeat}
 #gm{width:min(440px,calc(100vw - 24px));padding:14px;text-align:center}
 #gm .gh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 #gm .gh h2{margin:0;font-size:18px}
 #gm .gsc{font-variant-numeric:tabular-nums;font-size:14px}
 #gm .gsc b{font-size:18px}
-#gmWrap{position:relative;width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;background:#1f3b2c;touch-action:none}
+#gmWrap{position:relative;width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;background:#0b0d0c;outline:0;touch-action:none}
 #gmC{display:block;width:100%;height:100%}
-#gmOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(10,20,15,.62);color:#fff;font-size:15px;padding:16px}
+#gmOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.6);color:#fff;font-size:15px;padding:16px}
 #gmOv[hidden]{display:none}
 #gmOv b{font-size:22px}
 #gmOv img{width:120px}
@@ -632,7 +632,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <div id="printArea" aria-hidden="true"></div>
 <dialog id="gm">
   <div class="gh"><h2>Dzik na batonach</h2><div class="gsc">Batony <b id="gmS">0</b> · rekord <b id="gmBest">0</b></div></div>
-  <div id="gmWrap"><canvas id="gmC"></canvas><div id="gmOv"></div></div>
+  <div id="gmWrap" tabindex="-1"><canvas id="gmC"></canvas><div id="gmOv"></div></div>
   <div id="gmPad"><button type="button" data-d="up" aria-label="Góra">▲</button><button type="button" data-d="left" aria-label="Lewo">◀</button><button type="button" data-d="down" aria-label="Dół">▼</button><button type="button" data-d="right" aria-label="Prawo">▶</button></div>
   <div class="gbt"><span class="mu">Strzałki – ruch · Spacja – pauza</span><button type="button" id="gmX">Zamknij</button></div>
 </dialog>
@@ -2959,7 +2959,7 @@ function gmFood() {
   GM.food = free[Math.floor(Math.random() * free.length)] || null;
 }
 function gmOv(html) { const o = $('#gmOv'); if (html) { o.innerHTML = html; o.hidden = false; } else o.hidden = true; }
-function gmStart() { if (GM.over || !GM.body.length) gmReset(); GM.run = true; gmOv(''); GM.last = performance.now(); GM.t = 0; }
+function gmStart() { if (GM.over || !GM.body.length) gmReset(); GM.run = true; gmOv(''); try { $('#gmWrap').focus({ preventScroll: true }); } catch (e) {} GM.last = performance.now(); GM.t = 0; }
 function gmPause() { if (!GM.run) return; GM.run = false; gmOv('<b>Pauza</b><span>Spacja lub strzałka – gramy dalej</span>'); }
 function gmTurn(d) {
   const D = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[d]; if (!D) return;
@@ -2989,7 +2989,7 @@ function gmDraw() {
   if (c.width !== W) { c.width = W; c.height = W; }
   const x = c.getContext('2d'), cs = W / GM.N, im = gmImgs();
   x.clearRect(0, 0, W, W);
-  for (let i = 0; i < GM.N; i++) for (let j = 0; j < GM.N; j++) if ((i + j) % 2) { x.fillStyle = 'rgba(255,255,255,.035)'; x.fillRect(i * cs, j * cs, cs, cs); }
+  for (let i = 0; i < GM.N; i++) for (let j = 0; j < GM.N; j++) if ((i + j) % 2) { x.fillStyle = 'rgba(255,255,255,.025)'; x.fillRect(i * cs, j * cs, cs, cs); }
   const bar = (cx, cy, w, ang) => { const bw = w, bh = bw * 63 / 200; x.save(); x.translate(cx, cy); x.rotate(ang); x.drawImage(im.bar, -bw / 2, -bh / 2, bw, bh); x.restore(); };
   if (GM.food) { const p = 1 + Math.sin(performance.now() / 180) * .06; bar((GM.food[0] + .5) * cs, (GM.food[1] + .5) * cs, cs * 1.7 * p, -0.5); }
   // ogon: zjedzone batony ułożone wzdłuż drogi dzika
@@ -3032,10 +3032,10 @@ function gmCongrats() {
           w: (6 + Math.random() * 6) * dpr, h: (3 + Math.random() * 4) * dpr, rot: Math.random() * 6, vr: (Math.random() - .5) * .4, c: COL[i % COL.length], life: 0 });
       }
     };
-    const T = 4000, t0 = performance.now(); let raf = 0, end = false, nextB = 0;
+    const T = 2500, t0 = performance.now(); let raf = 0, end = false, nextB = 0;
     const frame = t => {
       const el = t - t0;
-      if (!reduce && el > nextB && el < T - 1200) { burst(nextB ? 26 : 80); nextB = el + 380; }
+      if (!reduce && el > nextB && el < T - 800) { burst(nextB ? 26 : 80); nextB = el + 320; }
       x.clearRect(0, 0, c.width, c.height);
       for (const p of P) {
         p.vy += .32 * dpr; p.vx *= .985; p.vy *= .985; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
@@ -3064,7 +3064,8 @@ $('#gmB').onclick = async () => {
 $('#gmOv').addEventListener('click', e => { if (e.target.closest('#gmGo')) { gmReset(); gmStart(); } });
 $('#gmX').onclick = () => $('#gm').close();
 $('#gm').addEventListener('close', () => { GM.run = false; });
-$('#gm').addEventListener('keydown', e => {
+document.addEventListener('keydown', e => {
+  if (!$('#gm').open || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' }[e.key];
   if (k) { e.preventDefault(); gmTurn(k); return; }
   if (e.key === ' ') { e.preventDefault(); GM.run ? gmPause() : gmStart(); }
