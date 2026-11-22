@@ -232,6 +232,65 @@ dialog[open]{opacity:1;transform:none}
 .card.leaving{animation:leave .22s ease-in forwards;pointer-events:none}
 #lf.shake{animation:shake .38s ease}
 
+
+/* Slack (tylko delma) */
+.slcfg{padding:14px;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+.slcfg input{flex:1}
+.sldr{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);z-index:55;display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--bg);border-left:1px solid var(--bd);box-shadow:-12px 0 40px rgba(0,0,0,.28);transform:translateX(105%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s .28s}
+.sldr.open{transform:none;visibility:visible;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.sldrh{display:flex;align-items:center;gap:6px}
+.sldrh b{font-size:17px}
+.sldrh span{flex:1;font-size:12px}
+.sldrh button{padding:3px 9px}
+#slH{position:fixed;right:0;top:42%;z-index:54;padding:12px 6px;border-radius:10px 0 0 10px;border-right:0;background:#4a154b;color:#fff;border-color:#4a154b;box-shadow:-3px 2px 10px rgba(0,0,0,.25);transition:transform .2s,padding .2s}
+#slH:hover{padding-right:10px}
+#slH span{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:600;letter-spacing:.04em;font-size:13px}
+#slH b{position:absolute;top:-7px;left:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;line-height:18px;text-align:center}
+#slH.open{transform:translateX(100%)}
+.sl{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:8px}
+.sl.thr .slmain{display:none}
+.slconvs{display:flex;flex-direction:row;gap:4px;overflow-x:auto;border:1px solid var(--bd);border-radius:10px;padding:4px;background:var(--card)}
+.slconvs button{display:flex;align-items:center;gap:7px;text-align:left;border:0;background:transparent;padding:6px 10px;border-radius:8px;font-size:14px;flex:none;max-width:200px}
+.slconvs button.on{background:var(--ac);color:var(--acx)}
+.slconvs button img,.slconvs button i{width:22px;height:22px;border-radius:5px;flex:none;background:var(--bd)}
+.slconvs button span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slconvs button.un span{font-weight:700}
+.slconvs button.un::after{content:'';width:8px;height:8px;border-radius:50%;background:#e5484d;flex:none}
+.slmain,.slthr{display:flex;flex-direction:column;min-width:0;border:1px solid var(--bd);border-radius:10px;background:var(--card);overflow:hidden}
+.slhead{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd)}
+.slhead b{font-size:15px}
+.slhead span{flex:1;font-size:12px}
+.slhead button{padding:3px 9px}
+.slmsgs{flex:1;overflow:auto;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.slm{display:grid;grid-template-columns:36px 1fr;gap:8px;padding:6px 6px;border-radius:8px;position:relative}
+.slm:hover{background:color-mix(in srgb,var(--tx) 5%,transparent)}
+.slm img,.slm i.av{width:36px;height:36px;border-radius:7px;background:var(--bd)}
+.slm .h{font-size:13px}
+.slm .h b{font-size:14px;margin-right:6px}
+.slm .h small{color:var(--mu)}
+.slm .t{font-size:14px;line-height:1.45;white-space:normal;word-break:break-word}
+.slm .t code{font-size:12.5px;padding:1px 4px;border-radius:4px;background:color-mix(in srgb,var(--tx) 9%,transparent)}
+.slm .t pre{margin:4px 0;padding:8px;border-radius:6px;background:color-mix(in srgb,var(--tx) 7%,transparent);white-space:pre-wrap;font-size:12.5px}
+.slm .t blockquote{margin:2px 0;padding-left:8px;border-left:3px solid var(--bd);color:var(--mu)}
+.slm .f a{font-size:13px}
+.slm .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.slm .rx button{padding:1px 7px;font-size:13px;border-radius:12px;line-height:1.5}
+.slm .rx button.me{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.slm .th{margin-top:3px;font-size:13px;padding:0;border:0;background:none;color:var(--ac);font-weight:600}
+.slm .act{position:absolute;right:6px;top:-10px;display:none;gap:2px;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:2px}
+.slm:hover .act,.slm:focus-within .act{display:flex}
+.slm .act button{padding:2px 7px;font-size:14px;border:0;white-space:nowrap}
+.slday{text-align:center;font-size:12px;color:var(--mu);margin:10px 0 4px}
+.slform{display:flex;gap:6px;padding:8px;border-top:1px solid var(--bd)}
+.slform textarea{flex:1;resize:none;font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+.slpick{position:fixed;z-index:70;display:flex;flex-wrap:wrap;gap:2px;width:228px;padding:6px;border:1px solid var(--bd);border-radius:10px;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.slpick button{font-size:20px;padding:3px 6px;border:0;background:none}
+.slmore{align-self:center;font-size:13px;margin:4px 0}
+@media (max-width:760px){
+  .sldr{padding:8px}
+  .slm .act{display:flex;position:static;grid-column:2;justify-self:start;margin-top:2px;background:none;border:0;padding:0}
+}
+
 /* ukryta minigra: dzik je batony */
 #gmB{position:absolute;left:1px;top:1px;z-index:20;width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
 #gmB:hover,#gmB:focus-visible{opacity:1;transform:scale(1.08) rotate(-6deg)}
@@ -493,6 +552,29 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <p class="mu" style="margin:8px 0 0;font-size:13px">Przeciągnij blok, aby go przesunąć. Rozmiar bloku wynika z liczby słupków: słupek 0,6 × 0,4 m, paleta EUR to 2 × 2 słupki (grubsza linia).</p>
   </div>
 </section>
+
+<button type="button" id="slH" hidden aria-expanded="false" title="Slack"><span>Slack</span><b id="slBadge" hidden></b></button>
+<aside id="slDr" class="sldr" hidden aria-label="Slack">
+  <div class="sldrh"><b>Slack</b><span class="mu" id="slStat"></span><button type="button" id="slRef" title="Odśwież">⟳</button><button type="button" id="slSet" title="Zmień adres pośrednika">⚙</button><button type="button" id="slX" title="Zamknij (Esc)">✕</button></div>
+  <div id="slCfg" hidden class="slcfg">
+    <p style="margin:0 0 8px">Wklej adres pośrednika Slack (Cloudflare Worker), np. <code>https://w11-slack.twojanazwa.workers.dev</code>. Zapisuje się tylko na tym urządzeniu.</p>
+    <div class="bar" style="margin:0"><input id="slUrlIn" type="url" placeholder="https://…workers.dev" autocomplete="off"><button class="p" id="slUrlOk">Zapisz</button></div>
+  </div>
+  <div class="sl" id="slBox" hidden>
+    <div id="slConvs" class="slconvs"></div>
+    <div class="slmain">
+      <div class="slhead"><b id="slName"></b><span></span></div>
+      <div id="slMsgs" class="slmsgs"></div>
+      <form id="slForm" class="slform"><textarea id="slTx" rows="2" placeholder="Napisz wiadomość… (Enter – wyślij, Shift+Enter – nowa linia)"></textarea><button class="p" id="slSend">Wyślij</button></form>
+    </div>
+    <div id="slThr" class="slthr" hidden>
+      <div class="slhead"><button type="button" id="slThrX" title="Wróć do rozmowy">← Wróć</button><b>Wątek</b><span></span></div>
+      <div id="slThrMsgs" class="slmsgs"></div>
+      <form id="slThrForm" class="slform"><textarea id="slThrTx" rows="2" placeholder="Odpowiedz w wątku…"></textarea><button class="p">Wyślij</button></form>
+    </div>
+  </div>
+</aside>
+<div id="slPick" class="slpick" hidden></div>
 
 <footer class="mu">Dane są w bazie online i widać je na żywo na wszystkich urządzeniach. Status: <b id="conn">łączenie…</b>. Przycisk „Eksportuj” zapisuje kopię zapasową (JSON) albo zestawienie do Excela.</footer>
 
@@ -2975,6 +3057,7 @@ function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
   setTimeout(stApply, 0); setTimeout(audApply, 0);
+  $('#slH').hidden = $('#slDr').hidden = user !== 'delma'; if (user !== 'delma') slWipe(); else slShow(false);
   $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">' + esc(roleName()) + '</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 let auth = null;
@@ -3181,6 +3264,178 @@ $('#gmPad').addEventListener('pointerdown', e => { const b = e.target.closest('[
   });
   const end = () => { on = false; }; $('#gmWrap').addEventListener('pointerup', end); $('#gmWrap').addEventListener('pointercancel', end);
 })();
+
+// --- Slack (tylko konto delma): przez prywatnego pośrednika (Cloudflare Worker), nic nie trafia do bazy
+var SL = { url: '', convs: [], cur: null, me: '', msgs: [], thr: null, thrMsgs: [], timer: 0, n: 0, more: false, busy: false };
+try { SL.url = localStorage.getItem('w11-slack-url') || ''; } catch (e) {}
+const SL_EMO = { '+1': '👍', thumbsup: '👍', '-1': '👎', white_check_mark: '✅', heavy_check_mark: '✔️', eyes: '👀', pray: '🙏', joy: '😂', heart: '❤️', fire: '🔥', tada: '🎉', ok_hand: '👌', raised_hands: '🙌', smile: '😄', slightly_smiling_face: '🙂', thinking_face: '🤔', x: '❌', warning: '⚠️', rocket: '🚀', muscle: '💪', clap: '👏', 100: '💯', grinning: '😀', sweat_smile: '😅', wave: '👋', laughing: '😆', sob: '😭', rolling_on_the_floor_laughing: '🤣', heart_eyes: '😍', boar: '🐗', see_no_evil: '🙈', facepalm: '🤦', man_facepalming: '🤦‍♂️', woman_facepalming: '🤦‍♀️', star: '⭐', point_up: '☝️', wink: '😉', blush: '😊', cry: '😢', rage: '😡', sunglasses: '😎', hugging_face: '🤗', party_popper: '🎉', exclamation: '❗', question: '❓', moneybag: '💰', package: '📦', truck: '🚚' };
+const SL_QUICK = ['+1', 'white_check_mark', 'eyes', 'pray', 'joy', 'heart', 'fire', 'tada', 'ok_hand', 'raised_hands', 'thinking_face', 'x'];
+const slEmo = n => { const b = String(n).split('::')[0]; return SL_EMO[b] || ':' + b + ':'; };
+async function slApi(path, body) {
+  if (user !== 'delma' || !auth || !auth.currentUser) throw new Error('Tylko dla konta delma.');
+  const tok = await auth.currentUser.getIdToken();
+  const r = await fetch(SL.url.replace(/\/+$/, '') + path, body ? { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { headers: { Authorization: 'Bearer ' + tok } });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
+  return d;
+}
+function slFmt(t) {
+  let h = esc(t || '');
+  const blocks = [];
+  h = h.replace(/```([\s\S]*?)```/g, (_, c) => { blocks.push('<pre>' + c.replace(/^\n/, '') + '</pre>'); return '\u0000' + (blocks.length - 1) + '\u0000'; });
+  h = h.replace(/&lt;(https?:\/\/[^|&]+?)(?:\|([^&]*?))?&gt;/g, (_, u, l) => '<a href="' + u.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer">' + (l || u) + '</a>');
+  h = h.replace(/&lt;mailto:([^|&]+)(?:\|([^&]*?))?&gt;/g, (_, u, l) => l || u);
+  h = h.replace(/&lt;#[A-Z0-9]+\|([^&]*)&gt;/g, '#$1').replace(/&lt;!(here|channel|everyone)[^&]*&gt;/g, '@$1').replace(/&lt;!subteam\^[A-Z0-9]+\|([^&]*)&gt;/g, '$1');
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s.,!?)])/g, '$1<b>$2</b>').replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s.,!?)])/g, '$1<i>$2</i>').replace(/(^|[\s(])~([^~\n]+)~(?=$|[\s.,!?)])/g, '$1<s>$2</s>');
+  h = h.replace(/:([a-z0-9_+\-']+)(::skin-tone-\d)?:/g, (m, n) => SL_EMO[n] || m);
+  h = h.replace(/(^|\n)&gt; ?([^\n]*)/g, '$1<blockquote>$2</blockquote>');
+  h = h.replace(/\n/g, '<br>').replace(/<\/blockquote><br>/g, '</blockquote>').replace(/<br>(\u0000)/g, '$1').replace(/(\u0000\d+\u0000)<br>/g, '$1');
+  return h.replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[i]);
+}
+const slTime = ts => new Date(parseFloat(ts) * 1000);
+function slMsgHtml(m, inThread) {
+  const d = slTime(m.ts);
+  const rx = (m.reactions || []).map(r => `<button type="button" class="${r.users.includes(SL.me) ? 'me' : ''}" data-rx="${esc(r.name)}" data-ts="${esc(m.ts)}" title=":${esc(r.name)}:">${slEmo(r.name)} ${r.count}</button>`).join('');
+  return `<div class="slm" data-ts="${esc(m.ts)}">${m.img ? `<img src="${esc(m.img)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : '<i class="av"></i>'}<div>
+    <div class="h"><b>${esc(m.name)}</b><small>${d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}${m.edited ? ' · edytowano' : ''}</small></div>
+    <div class="t">${slFmt(m.text)}</div>
+    ${m.files && m.files.length ? '<div class="f">' + m.files.map(f => `📎 <a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a>`).join('<br>') + '</div>' : ''}
+    ${rx ? '<div class="rx">' + rx + '</div>' : ''}
+    ${!inThread && m.replies ? `<button type="button" class="th" data-thr="${esc(m.ts)}">💬 ${m.replies} ${m.replies === 1 ? 'odpowiedź' : m.replies < 5 ? 'odpowiedzi' : 'odpowiedzi'}</button>` : ''}
+  </div><div class="act"><button type="button" data-pick="${esc(m.ts)}" title="Dodaj reakcję">😊＋</button>${inThread ? '' : `<button type="button" data-thr="${esc(m.ts)}" title="Odpowiedz w wątku">💬</button>`}</div></div>`;
+}
+function slRenderList(el, list, inThread) {
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  let day = '', h = !inThread && SL.more ? '<button type="button" class="slmore" id="slOlder">Pokaż starsze</button>' : '';
+  list.forEach(m => {
+    const dk = slTime(m.ts).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (dk !== day) { day = dk; h += '<div class="slday">' + esc(dk) + '</div>'; }
+    h += slMsgHtml(m, inThread);
+  });
+  el.innerHTML = h || '<p class="mu" style="margin:auto">Brak wiadomości.</p>';
+  if (atBottom || el.dataset.first !== '1') { el.scrollTop = el.scrollHeight; el.dataset.first = '1'; }
+}
+function slRenderConvs() {
+  $('#slConvs').innerHTML = SL.convs.map(c => `<button type="button" data-c="${esc(c.id)}" class="${c.id === SL.cur ? 'on' : ''}${c.id !== SL.cur && parseFloat(c.latest) > parseFloat(c.last_read) ? ' un' : ''}" title="${esc(c.error || c.name)}">${c.img ? `<img src="${esc(c.img)}" alt="" referrerpolicy="no-referrer">` : '<i></i>'}<span>${esc(c.name)}</span></button>`).join('')
+    || '<p class="mu" style="padding:8px;margin:0;font-size:13px">Brak rozmów – ustaw CHANNELS w workerze.</p>';
+  slBadge();
+}
+function slStat(t) { $('#slStat').textContent = t || ''; }
+async function slLoadConvs() {
+  const d = await slApi('/convs'); SL.convs = d.convs || []; SL.me = d.me || '';
+  if (!SL.cur || !SL.convs.some(c => c.id === SL.cur)) SL.cur = (SL.convs.find(c => !c.error) || {}).id || null;
+  slRenderConvs();
+}
+async function slLoadMsgs(older) {
+  if (!SL.cur) return;
+  const c = SL.cur, q = '/history?c=' + encodeURIComponent(c) + (older && SL.msgs.length ? '&before=' + encodeURIComponent(SL.msgs[0].ts) : '');
+  const d = await slApi(q); if (c !== SL.cur) return;
+  const got = (d.messages || []).slice().reverse();
+  if (older) { SL.msgs = got.concat(SL.msgs); SL.more = d.more; const el = $('#slMsgs'), h0 = el.scrollHeight; slRenderList(el, SL.msgs); el.scrollTop = el.scrollHeight - h0; return; }
+  // przy odświeżaniu zachowujemy wcześniej doczytane starsze wiadomości
+  const old = SL.msgs.filter(m => got.length && parseFloat(m.ts) < parseFloat(got[0].ts));
+  SL.msgs = old.concat(got); if (!old.length) SL.more = d.more;
+  const conv = SL.convs.find(x => x.id === c); $('#slName').textContent = conv ? conv.name : c;
+  slRenderList($('#slMsgs'), SL.msgs);
+  const last = SL.msgs[SL.msgs.length - 1];
+  if (last && conv && parseFloat(last.ts) > parseFloat(conv.last_read)) { conv.last_read = last.ts; conv.latest = last.ts; slApi('/mark', { c, ts: last.ts }).catch(() => {}); slRenderConvs(); }
+}
+async function slLoadThr() {
+  if (!SL.thr) return;
+  const d = await slApi('/replies?c=' + encodeURIComponent(SL.cur) + '&ts=' + encodeURIComponent(SL.thr));
+  SL.thrMsgs = d.messages || []; slRenderList($('#slThrMsgs'), SL.thrMsgs, true);
+}
+async function slTick(full) {
+  if (SL.busy) return; SL.busy = true;
+  try {
+    if (full || SL.n++ % 4 === 0) await slLoadConvs();
+    await slLoadMsgs(); if (SL.thr) await slLoadThr();
+    slStat('odświeżono ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
+  } catch (e) { slStat('błąd: ' + e.message); }
+  SL.busy = false;
+}
+let slOpen = false;
+function slShow(on) {
+  clearInterval(SL.timer); SL.timer = 0;
+  slOpen = !!on && user === 'delma';
+  $('#slDr').classList.toggle('open', slOpen); $('#slH').classList.toggle('open', slOpen); $('#slH').setAttribute('aria-expanded', slOpen);
+  if (user !== 'delma') return;
+  const cfg = !SL.url; $('#slCfg').hidden = !cfg; $('#slBox').hidden = cfg;
+  if (cfg) { if (slOpen) { $('#slUrlIn').value = ''; $('#slUrlIn').focus(); } return; }
+  if (slOpen) { slTick(true); $('#slTx').focus({ preventScroll: true }); }
+  else slBadgeTick();
+  // otwarty pasek: rozmowa co 15 s; zamknięty: tylko licznik nieprzeczytanych co 60 s
+  SL.timer = setInterval(() => { if (document.visibilityState !== 'visible') return; slOpen ? slTick() : slBadgeTick(); }, slOpen ? 15000 : 60000);
+}
+async function slBadgeTick() { if (!SL.url || SL.busy) return; SL.busy = true; try { await slLoadConvs(); } catch (e) {} SL.busy = false; }
+function slBadge() {
+  const n = SL.convs.filter(c => (c.id !== SL.cur || !slOpen) && parseFloat(c.latest) > parseFloat(c.last_read)).length;
+  $('#slBadge').hidden = !n; $('#slBadge').textContent = n;
+}
+$('#slH').onclick = () => slShow(!slOpen);
+$('#slX').onclick = () => slShow(false);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && slOpen && !document.querySelector('dialog[open]')) { if (!$('#slPick').hidden) $('#slPick').hidden = true; else slShow(false); } });
+function slWipe() { // po wylogowaniu nic ze Slacka nie zostaje na ekranie
+  clearInterval(SL.timer); SL.timer = 0; Object.assign(SL, { convs: [], cur: null, msgs: [], thr: null, thrMsgs: [], me: '' });
+  ['#slConvs', '#slMsgs', '#slThrMsgs', '#slName'].forEach(q => { const e = $(q); if (e) e.innerHTML = ''; });
+  $('#slThr').hidden = true; $('#slBox').classList.remove('thr'); $('#slPick').hidden = true;
+  slOpen = false; $('#slDr').classList.remove('open'); $('#slH').classList.remove('open'); $('#slBadge').hidden = true;
+}
+$('#slUrlOk').onclick = () => {
+  const v = $('#slUrlIn').value.trim();
+  if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(v)) return say('Podaj pełny adres zaczynający się od https://');
+  SL.url = v; try { localStorage.setItem('w11-slack-url', v); } catch (e) {} slShow(true);
+};
+$('#slSet').onclick = () => { $('#slBox').hidden = true; $('#slCfg').hidden = false; $('#slUrlIn').value = SL.url; clearInterval(SL.timer); };
+$('#slRef').onclick = () => slTick(true);
+$('#slConvs').onclick = e => {
+  const b = e.target.closest('button[data-c]'); if (!b || b.dataset.c === SL.cur) return;
+  SL.cur = b.dataset.c; SL.msgs = []; SL.more = false; SL.thr = null; $('#slThr').hidden = true; $('#slBox').classList.remove('thr');
+  $('#slMsgs').dataset.first = ''; $('#slMsgs').innerHTML = '<p class="mu" style="margin:auto">Ładowanie…</p>'; slRenderConvs();
+  slLoadMsgs().catch(x => slStat('błąd: ' + x.message));
+};
+async function slSend(ta, thread) {
+  const text = ta.value.trim(); if (!text || !SL.cur) return;
+  ta.disabled = true;
+  try { await slApi('/send', { c: SL.cur, text, ...(thread ? { thread_ts: thread } : {}) }); ta.value = ''; SFX.play('tick'); await (thread ? slLoadThr() : slLoadMsgs()); if (!thread) $('#slMsgs').scrollTop = 1e9; }
+  catch (e) { say('Nie wysłano: ' + e.message); }
+  ta.disabled = false; ta.focus();
+}
+$('#slForm').onsubmit = e => { e.preventDefault(); slSend($('#slTx')); };
+$('#slThrForm').onsubmit = e => { e.preventDefault(); slSend($('#slThrTx'), SL.thr); };
+[['#slTx', '#slForm'], ['#slThrTx', '#slThrForm']].forEach(([t, f]) => $(t).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $(f).requestSubmit(); } }));
+let slPickTs = null;
+async function slReact(ts, name) {
+  const all = SL.msgs.concat(SL.thrMsgs), m = all.find(x => x.ts === ts); if (!m) return;
+  const r = (m.reactions || []).find(x => x.name === name), mine = r && r.users.includes(SL.me);
+  // od razu na ekranie, potem w Slacku
+  all.filter(x => x.ts === ts).forEach(x => {
+    x.reactions = x.reactions || []; let y = x.reactions.find(q => q.name === name);
+    if (mine) { y.count--; y.users = y.users.filter(u => u !== SL.me); if (!y.count) x.reactions = x.reactions.filter(q => q !== y); }
+    else if (y) { if (!y.users.includes(SL.me)) { y.count++; y.users.push(SL.me); } } else x.reactions.push({ name, count: 1, users: [SL.me] });
+  });
+  slRenderList($('#slMsgs'), SL.msgs); if (SL.thr) slRenderList($('#slThrMsgs'), SL.thrMsgs, true);
+  try { await slApi('/react', { c: SL.cur, ts, name, remove: !!mine }); SFX.play('tick'); } catch (e) { say('Nie dodano reakcji: ' + e.message); slTick(); }
+}
+function slClick(e) {
+  const rx = e.target.closest('[data-rx]'); if (rx) return slReact(rx.dataset.ts, rx.dataset.rx);
+  const th = e.target.closest('[data-thr]');
+  if (th) { SL.thr = th.dataset.thr; $('#slThr').hidden = false; $('#slBox').classList.add('thr'); $('#slThrMsgs').dataset.first = ''; $('#slThrMsgs').innerHTML = '<p class="mu" style="margin:auto">Ładowanie…</p>'; slLoadThr().catch(x => slStat('błąd: ' + x.message)); $('#slThrTx').focus(); return; }
+  const pk = e.target.closest('[data-pick]');
+  if (pk) {
+    slPickTs = pk.dataset.pick; const r = pk.getBoundingClientRect(), p = $('#slPick');
+    p.innerHTML = SL_QUICK.map(n => `<button type="button" data-q="${n}" title=":${n}:">${slEmo(n)}</button>`).join('');
+    p.hidden = false; p.style.left = Math.max(8, Math.min(innerWidth - 240, r.right - 228)) + 'px'; p.style.top = Math.max(8, Math.min(innerHeight - 120, r.bottom + 4)) + 'px';
+    return;
+  }
+  if (e.target.id === 'slOlder') slLoadMsgs(true).catch(x => slStat('błąd: ' + x.message));
+}
+$('#slMsgs').onclick = slClick; $('#slThrMsgs').onclick = slClick;
+$('#slPick').onclick = e => { const b = e.target.closest('[data-q]'); $('#slPick').hidden = true; if (b && slPickTs) slReact(slPickTs, b.dataset.q); };
+document.addEventListener('pointerdown', e => { if (!$('#slPick').hidden && !e.target.closest('#slPick,[data-pick]')) $('#slPick').hidden = true; });
+$('#slThrX').onclick = () => { SL.thr = null; SL.thrMsgs = []; $('#slThr').hidden = true; $('#slBox').classList.remove('thr'); };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && SL.timer) slOpen ? slTick() : slBadgeTick(); });
 </script>
 </body>
 </html>
