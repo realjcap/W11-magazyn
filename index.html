@@ -921,15 +921,20 @@ function fDist(a, b, max) { // odległość edycyjna z przestawieniem liter (OSA
   }
   return p1[b.length];
 }
+// popularne skróty kategorii pisane na Slacku / w wyszukiwarce → jedno słowo
+const fAlias = t => t.replace(/(^|[^a-z0-9])t[- ]?(?:shirt|s|sh)(?![a-z0-9])/g, '$1tshirt').replace(/(^|[^a-z0-9])(?:ts|tee)(?![a-z0-9])/g, '$1tshirt')
+  .replace(/(^|[^a-z0-9])koszul(?:ka|ki|ke|ek|kach|kami|kom|ce)?(?![a-z0-9])/g, '$1tshirt')
+  .replace(/(^|[^a-z0-9])long[- ]?sleeve(?![a-z0-9])/g, '$1longsleeve').replace(/(^|[^a-z0-9])(?:ls|long)(?![a-z0-9])/g, '$1longsleeve')
+  .replace(/(^|[^a-z0-9])tank[- ]?top(?![a-z0-9])/g, '$1tanktop').replace(/(^|[^a-z0-9])tank(?![a-z0-9])/g, '$1tanktop');
 const fWordsCache = new Map();
-const fWords = name => { let w = fWordsCache.get(name); if (!w) { w = fNorm(name).split(/[^a-z0-9]+/).filter(Boolean); fWordsCache.set(name, w); } return w; };
+const fWords = name => { let w = fWordsCache.get(name); if (!w) { w = fAlias(fNorm(name)).split(/[^a-z0-9]+/).filter(Boolean); fWordsCache.set(name, w); } return w; };
 // czy słowo z zapytania pasuje do słowa z nazwy (początek słowa albo literówka, także w trakcie pisania)
 const fWordOk = (t, w) => w.startsWith(t) || fDist(t, w, fTol(t.length)) <= fTol(t.length) || (t.length >= 4 && w.length > t.length && fDist(t, w.slice(0, t.length), 1) <= 1);
 function pmatch(p, q) {
   const qn = fNorm(q); if (!qn) return true;
   const h = fNorm(hay(p) + ' ' + Object.values(p.codes || {}).join(' '));
   if (h.includes(qn)) return true;
-  const toks = qn.split(/[^a-z0-9]+/).filter(Boolean), nw = fWords(p.name);
+  const toks = fAlias(qn).split(/[^a-z0-9]+/).filter(Boolean), nw = fWords(p.name);
   if (!toks.length) return false;
   return toks.every(t => /\d/.test(t) ? h.includes(t) : nw.some(w => fWordOk(t, w)));
 }
@@ -3368,20 +3373,21 @@ function slFind(text) {
       if (!m[0].length) x.re.lastIndex++;
     }
   }
-  // nazwy z literówkami i skrótami: co najmniej 2 słowa i połowa słów nazwy muszą wystąpić w wiadomości;
-  // zostają tylko modele z największą liczbą trafionych słów, żeby „Dark Brown” nie łapało też „Dark Grey”
-  const toks = [...new Set(t.split(/[^a-z0-9]+/).filter(Boolean))], tset = new Set(toks);
+  // nazwy z literówkami i skrótami (np. „reg” = regular): co najmniej 2 słowa i połowa słów nazwy muszą wystąpić w wiadomości;
+  // zostają tylko modele z największą liczbą trafionych słów, a gdy takich jest więcej niż 2 – opis jest niejednoznaczny i nic nie pokazujemy
+  const toks = [...new Set(fAlias(t).split(/[^a-z0-9]+/).filter(Boolean))], tset = new Set(toks);
   let best = 0; const cand = [];
   S.products.forEach(p => {
     if (hits.has(p.id)) return;
-    const nw = fWords(p.name); if (!nw.length) return;
-    const ok = w => tset.has(w) || (w.length >= 4 && toks.some(x => (x[0] === w[0] || x[1] === w[1]) && fDist(w, x, fTol(w.length)) <= fTol(w.length)));
+    const nw = fWords(p.name).filter(w => w.length > 1); if (!nw.length) return; // pojedyncze litery (np. „t” z „t-shirt”) nie liczą się
+    const ok = w => tset.has(w) || (w.length >= 5 && toks.some(x => x.length >= 3 && w.startsWith(x))) || (w.length >= 4 && toks.some(x => (x[0] === w[0] || x[1] === w[1]) && fDist(w, x, fTol(w.length)) <= fTol(w.length)));
     let m = 0; for (const w of nw) if (ok(w)) m++;
     const pass = nw.length === 1 ? nw[0].length >= 5 && tset.has(nw[0]) : m >= 2 && m / nw.length >= .5;
     if (!pass) return;
     const sc = m + m / nw.length / 10; if (sc > best) best = sc; cand.push([p, sc]);
   });
-  cand.filter(x => x[1] >= best - 1e-9).forEach(([p]) => hits.set(p.id, { p, sizes: new Set(), old: false }));
+  const top = cand.filter(x => x[1] >= best - 1e-9);
+  if (top.length <= 2) top.forEach(([p]) => hits.set(p.id, { p, sizes: new Set(), old: false }));
   return [...hits.values()].slice(0, 6);
 }
 function slStockHtml(text) {
