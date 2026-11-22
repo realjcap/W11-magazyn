@@ -3572,7 +3572,8 @@ $('#slThrX').onclick = () => { SL.thr = null; SL.thrMsgs = []; $('#slThr').hidde
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && SL.timer) slOpen ? slTick() : slBadgeTick(); });
 
 // --- logowanie Google dla delmy (przycisk pojawia się dopiero po wpisaniu loginu „delma”)
-const gProv = () => { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return p; };
+// max_age=0: prośba do Google o ponowne potwierdzenie tożsamości (hasło / klucz dostępu) przy każdym logowaniu
+const gProv = () => { const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account', max_age: '0' }); return p; };
 const gErr = x => x.code === 'auth/popup-closed-by-user' || x.code === 'auth/cancelled-popup-request' ? ''
   : x.code === 'auth/admin-restricted-operation' || x.code === 'auth/user-not-found' || x.code === 'auth/user-disabled' || x.code === 'auth/account-exists-with-different-credential' ? 'To konto Google nie ma dostępu.'
   : x.code === 'auth/unauthorized-domain' ? 'Ta strona nie jest dodana w Firebase (Authorized domains).'
