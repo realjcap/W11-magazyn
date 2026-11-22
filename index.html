@@ -285,7 +285,7 @@ dialog[open]{opacity:1;transform:none}
 .slm:hover .act,.slm:focus-within .act{display:flex}
 .slm .act button{padding:2px 7px;font-size:14px;border:0;white-space:nowrap}
 .slstk{position:relative;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-.slstk .chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--ac) 45%,var(--bd));background:color-mix(in srgb,var(--ac) 10%,transparent);color:var(--tx);cursor:default;transition:background .15s,color .15s}
+.slstk .chip{display:inline-block;cursor:pointer;font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--ac) 45%,var(--bd));background:color-mix(in srgb,var(--ac) 10%,transparent);color:var(--tx);transition:background .15s,color .15s}
 .slpop{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:6;width:min(380px,calc(100vw - 80px));max-height:320px;overflow:auto;padding:10px 12px;border:1.5px solid var(--ac);border-radius:12px;background:color-mix(in srgb,var(--ac) 7%,var(--card));box-shadow:0 0 0 4px color-mix(in srgb,var(--ac) 14%,transparent),0 14px 34px rgba(0,0,0,.35);font-size:13px;animation:slPop .14s ease-out}
 @keyframes slPop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .slck:hover .slpop,.slck:focus-within .slpop,.slck.open .slpop{display:block}
@@ -3418,13 +3418,25 @@ function slFind(text) {
   if (top.length <= 2) top.forEach(([p]) => hits.set(p.id, { p, sizes: new Set(), old: false }));
   return [...hits.values()].slice(0, 6);
 }
+// klik w chip: SKU trafia do wyszukiwarki magazynu, karta modelu się podświetla (na telefonie pasek się zamyka)
+function slGoto(pid) {
+  const p = S.products.find(x => x.id === pid); if (!p) return;
+  if (view !== 'wh') location.hash = '#magazyn';
+  $('#q').value = p.sku; render();
+  if (innerWidth <= 760) slShow(false);
+  setTimeout(() => {
+    const el = cardEls.get(p.id); if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }, 80);
+}
 function slStockHtml(text) {
   const hs = slFind(text); if (!hs.length) return '';
   const pops = hs.map(({ p, sizes }) => {
     const ks = chipKeys(p);
     return `<div class="spp"><div class="spn">${esc(p.name)}</div><div class="sps">SKU ${esc(p.sku)}${p.oldSku ? ' · stare ' + esc(p.oldSku) : ''} · razem ${sum(p)} szt.${evSum(p) ? ' · event ' + evSum(p) : ''}${sewSum(p) ? ' · szwalnia ' + sewSum(p) : ''}</div><div class="spz">${ks.map(k => { const n = p.sizes[k] || 0, nw = n - ((p.old && p.old[k]) || 0); return `<span class="${sizes.has(k) ? 'hit ' : ''}${n === 0 ? 'z' : n <= 5 ? 'l' : ''}">${esc(k)} <b>${nw}</b>${p.old && p.old[k] ? '<em class="o">' + p.old[k] + ' st.</em>' : ''}${p.ev && p.ev[k] ? '<em class="e">ev ' + p.ev[k] + '</em>' : ''}${p.sew && p.sew[k] ? '<em class="sw">' + p.sew[k] + ' bez nakl.</em>' : ''}</span>`; }).join('') || '<span>brak rozmiarów</span>'}</div></div>`;
   });
-  return `<div class="slstk">${hs.map((h, i) => `<span class="slck"><span class="chip" tabindex="0">📦 ${esc(h.p.sku)} · ${sum(h.p)} szt.</span><div class="slpop">${pops[i]}</div></span>`).join('')}</div>`;
+  return `<div class="slstk">${hs.map((h, i) => `<span class="slck"><span class="chip" tabindex="0" role="button" data-pid="${esc(h.p.id)}" title="Kliknij, aby pokazać model w magazynie">📦 ${esc(h.p.sku)} · ${sum(h.p)} szt.</span><div class="slpop">${pops[i]}</div></span>`).join('')}</div>`;
 }
 function slMsgHtml(m, inThread) {
   const d = slTime(m.ts);
@@ -3552,7 +3564,7 @@ async function slReact(ts, name) {
   try { await slApi('/react', { c: SL.cur, ts, name, remove: !!mine }); SFX.play('tick'); } catch (e) { say('Nie dodano reakcji: ' + e.message); slTick(); }
 }
 function slClick(e) {
-  const ch = e.target.closest('.slck .chip'); if (ch) { const b = ch.parentElement, was = b.classList.contains('open'); document.querySelectorAll('.slck.open').forEach(x => x.classList.remove('open')); if (!was) b.classList.add('open'); return; }
+  const ch = e.target.closest('.slck .chip'); if (ch) { slGoto(ch.dataset.pid); return; }
   const rx = e.target.closest('[data-rx]'); if (rx) return slReact(rx.dataset.ts, rx.dataset.rx);
   const th = e.target.closest('[data-thr]');
   if (th) { SL.thr = th.dataset.thr; $('#slThr').hidden = false; $('#slBox').classList.add('thr'); $('#slThrMsgs').dataset.first = ''; $('#slThrMsgs').innerHTML = '<p class="mu" style="margin:auto">Ładowanie…</p>'; slLoadThr().catch(x => slStat('błąd: ' + x.message)); $('#slThrTx').focus(); return; }
