@@ -330,7 +330,8 @@ dialog[open]{opacity:1;transform:none}
 /* Braki z BaseLinkera */
 #brBadge{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
 .brhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:0 0 10px}
-.brgr{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mu);cursor:pointer;margin-left:auto}
+.brgr{display:inline-flex!important;align-items:center;gap:6px;font-size:12px;color:var(--mu);cursor:pointer;margin:0 0 0 auto!important;white-space:nowrap;flex:0 0 auto;width:auto!important}
+.brgr input{width:auto!important;height:auto;margin:0!important;padding:0;flex:0 0 auto}
 .brord.gr{opacity:.6}
 .brhead b{font-size:17px}
 .brhead span{font-size:13px}
@@ -3540,8 +3541,9 @@ function slGoto(pid) {
     el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   }, 80);
 }
-function slStockHtml(text) {
-  const hs = slFind(text); if (!hs.length) return '';
+function slStockHtml(text) { return brStockHtml(slFind(text)); }
+function brStockHtml(hs) {
+  if (!hs.length) return '';
   const pops = hs.map(({ p, sizes }) => {
     const ks = chipKeys(p);
     return `<div class="spp"><div class="spn">${esc(p.name)}</div><div class="sps">SKU ${esc(p.sku)}${p.oldSku ? ' · stare ' + esc(p.oldSku) : ''} · razem ${sum(p)} szt.${evSum(p) ? ' · event ' + evSum(p) : ''}${sewSum(p) ? ' · szwalnia ' + sewSum(p) : ''}</div><div class="spz">${ks.map(k => { const n = p.sizes[k] || 0, nw = n - ((p.old && p.old[k]) || 0); return `<span class="${sizes.has(k) ? 'hit ' : ''}${n === 0 ? 'z' : n <= 5 ? 'l' : ''}">${esc(k)} <b>${nw}</b>${p.old && p.old[k] ? '<em class="o">' + p.old[k] + ' st.</em>' : ''}${p.ev && p.ev[k] ? '<em class="e">ev ' + p.ev[k] + '</em>' : ''}${p.sew && p.sew[k] ? '<em class="sw">' + p.sew[k] + ' bez nakl.</em>' : ''}</span>`; }).join('') || '<span>brak rozmiarów</span>'}</div></div>`;
@@ -3753,7 +3755,12 @@ function brOrders(all) { return BR && BR.orders ? Object.values(BR.orders).filte
 let brShowGreen = false; try { brShowGreen = localStorage.getItem('w11-br-green') === '1'; } catch (e) {}
 // produkty do dopasowania: z uwag sprzedawcy, a gdy w uwagach nic nie rozpoznano – z listy produktów zamówienia
 // unsure = brak uwag, a w zamówieniu jest kilka modeli → nie wiadomo, którego brakuje
-const brHits = o => { const h = slFind(o.c); if (h.length || !o.p) return { hs: h, src: o.c }; const hp = slFind(o.p); return { hs: hp, src: o.p, unsure: hp.length > 1 }; };
+// produkty z zamówienia dopasowujemy osobno dla każdej pozycji („ | ” rozdziela pozycje)
+const brHits = o => {
+  const h = slFind(o.c); if (h.length || !o.p) return { hs: h, src: o.c };
+  const hp = []; o.p.split(' | ').forEach(t => slFind(t).forEach(x => { const y = hp.find(q => q.p.id === x.p.id); if (y) x.sizes.forEach(z => y.sizes.add(z)); else hp.push(x); }));
+  return { hs: hp, src: o.p, fromOrder: true, unsure: hp.length > 1 };
+};
 // mapa braków dla strony głównej: model|rozmiar → { n: pewne zamówienia, u: zamówienia bez uwag z kilkoma modelami }
 let BRM = new Map(), brMapSig = '';
 function brMapUpdate() {
@@ -3787,7 +3794,7 @@ function renderBraki() {
     return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need"${x.u ? ' title="? = zamówienia bez uwag z kilkoma modelami – nie wiadomo, którego brakuje"' : ''}>${x.n ? x.n + ' zam.' : ''}${x.u ? (x.n ? ' + ' : '') + x.u + ' ?' : ''}</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
   }).join('')}</div>` : '';
   $('#brList').innerHTML = per.map(({ o, hs, src, unsure }) => `<div class="brord${o.star === 'green' ? ' gr' : ''}"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
-    <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${o.p && src === o.p ? `<div class="pr">${unsure ? '⚠ Brak uwag – nie wiadomo, którego modelu brakuje. ' : ''}W zamówieniu: ${esc(o.p)}</div>` : ''}${hs.length ? slStockHtml(src) : ''}</div>`).join('')
+    <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${o.p && src === o.p && hs.length ? `<div class="pr">${unsure ? '⚠ Brak uwag – nie wiadomo, którego modelu brakuje. ' : 'Brak uwag – model wzięty z zamówienia. '}W zamówieniu: ${hs.map(h => esc(h.p.name) + (h.sizes.size ? ' <b>' + esc([...h.sizes].join(', ')) + '</b>' : '')).join(' · ')}</div>` : ''}${hs.length ? brStockHtml(hs) : ''}</div>`).join('')
     || (at ? '<p class="mu">Nie ma teraz zamówień w tym statusie.</p>' : '');
 }
 $('#brGreen').onchange = e => { brShowGreen = e.target.checked; try { localStorage.setItem('w11-br-green', brShowGreen ? '1' : '0'); } catch (x) {} renderBraki(); };
