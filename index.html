@@ -354,6 +354,7 @@ dialog[open]{opacity:1;transform:none}
 .brord a.no{font-weight:700}
 .brord .cm{margin-top:3px;line-height:1.4}
 .brord .cm.none{color:var(--mu);font-style:italic}
+.brord .pr{margin-top:3px;font-size:13px;color:var(--mu)}
 /* ukryta minigra: dzik je batony */
 #gmB{position:absolute;left:1px;top:1px;z-index:20;width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bd);background:var(--card);opacity:.28;display:flex;align-items:center;justify-content:center;transition:opacity .2s,transform .2s}
 #gmB:hover,#gmB:focus-visible{opacity:1;transform:scale(1.08) rotate(-6deg)}
@@ -3744,7 +3745,10 @@ $('#secPwOk').onclick = async () => {
 let BR = null;
 const BR_STALE = 10 * 60 * 1000;
 const BR_STARS = ['orange', 'white', 'green', 'blue', 'red'];
-function brOrders() { return BR && BR.orders ? Object.values(BR.orders).filter(o => o && typeof o === 'object').map(o => ({ id: txt(o.id, 20), shop: txt(o.shop, 20), c: txt(o.c, 600), star: BR_STARS.includes(o.star) ? o.star : '' })) : []; }
+function brOrders() { return BR && BR.orders ? Object.values(BR.orders).filter(o => o && typeof o === 'object').map(o => ({ id: txt(o.id, 20), shop: txt(o.shop, 20), c: txt(o.c, 600), p: txt(o.p, 600), star: BR_STARS.includes(o.star) ? o.star : '' })) : []; }
+// produkty do dopasowania: z uwag sprzedawcy, a gdy w uwagach nic nie rozpoznano – z listy produktów zamówienia
+// unsure = brak uwag, a w zamówieniu jest kilka modeli → nie wiadomo, którego brakuje
+const brHits = o => { const h = slFind(o.c); if (h.length || !o.p) return { hs: h, src: o.c }; const hp = slFind(o.p); return { hs: hp, src: o.p, unsure: hp.length > 1 }; };
 function renderBraki() {
   const os = brOrders(), n = os.length;
   $('#brBadge').hidden = !n; $('#brBadge').textContent = n;
@@ -3755,17 +3759,17 @@ function renderBraki() {
   // zestawienie: model + rozmiar → ile zamówień, ile jest na stanie
   const need = new Map();
   const per = os.map(o => {
-    const hs = slFind(o.c);
-    hs.forEach(h => { const zs = h.sizes.size ? [...h.sizes] : ['']; zs.forEach(z => { const k = h.p.id + '|' + z; const x = need.get(k) || { p: h.p, z, n: 0 }; x.n++; need.set(k, x); }); });
-    return { o, hs };
+    const { hs, src, unsure } = brHits(o);
+    hs.forEach(h => { const zs = h.sizes.size ? [...h.sizes] : ['']; zs.forEach(z => { const k = h.p.id + '|' + z; const x = need.get(k) || { p: h.p, z, n: 0, u: 0 }; unsure ? x.u++ : x.n++; need.set(k, x); }); });
+    return { o, hs, src, unsure };
   });
-  const rows = [...need.values()].sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name, 'pl'));
+  const rows = [...need.values()].sort((a, b) => b.n - a.n || b.u - a.u || a.p.name.localeCompare(b.p.name, 'pl'));
   $('#brSum').innerHTML = rows.length ? `<div class="brsum"><h3>Potrzebne modele (${rows.length})</h3>${rows.map(x => {
     const have = x.z ? (x.p.sizes[x.z] || 0) : sum(x.p), ok = have >= x.n;
-    return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need">${x.n} zam.</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
+    return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need"${x.u ? ' title="? = zamówienia bez uwag z kilkoma modelami – nie wiadomo, którego brakuje"' : ''}>${x.n ? x.n + ' zam.' : ''}${x.u ? (x.n ? ' + ' : '') + x.u + ' ?' : ''}</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
   }).join('')}</div>` : '';
-  $('#brList').innerHTML = per.map(({ o, hs }) => `<div class="brord"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
-    <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${hs.length ? slStockHtml(o.c) : ''}</div>`).join('')
+  $('#brList').innerHTML = per.map(({ o, hs, src, unsure }) => `<div class="brord"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
+    <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${o.p && src === o.p ? `<div class="pr">${unsure ? '⚠ Brak uwag – nie wiadomo, którego modelu brakuje. ' : ''}W zamówieniu: ${esc(o.p)}</div>` : ''}${hs.length ? slStockHtml(src) : ''}</div>`).join('')
     || (at ? '<p class="mu">Nie ma teraz zamówień w tym statusie.</p>' : '');
 }
 $('#vBr').addEventListener('click', e => {
@@ -3804,9 +3808,13 @@ function brAutoGreen(lines) {
   const avail = new Map();
   lines.forEach(l => Object.entries(l.d || {}).forEach(([z, q]) => { if (q > 0) avail.set(l.id + '|' + z, (avail.get(l.id + '|' + z) || 0) + q); }));
   if (!avail.size) return;
-  const done = [];
-  brOrders().filter(o => o.star !== 'green' && brPend[o.id] === undefined && o.c).sort((a, b) => Number(a.id) - Number(b.id)).forEach(o => {
-    const hs = slFind(o.c); if (!hs.length) return;
+  const done = [], maybe = [];
+  brOrders().filter(o => o.star !== 'green' && brPend[o.id] === undefined && (o.c || o.p)).sort((a, b) => Number(a.id) - Number(b.id)).forEach(o => {
+    const { hs, unsure } = brHits(o); if (!hs.length) return;
+    if (unsure) { // kilka modeli bez uwag: pytamy, jeśli wysyłka zawiera którykolwiek z nich
+      if (hs.some(h => (h.sizes.size ? [...h.sizes] : Object.keys(h.p.sizes || {})).some(z => avail.get(h.p.id + '|' + z) > 0))) maybe.push(o.id);
+      return;
+    }
     const need = new Map();
     for (const h of hs) {
       const zs = h.sizes.size ? [...h.sizes] : (Object.keys(h.p.sizes || {}).length === 1 ? Object.keys(h.p.sizes) : null);
@@ -3817,9 +3825,12 @@ function brAutoGreen(lines) {
     for (const [k, n] of need) avail.set(k, avail.get(k) - n);
     done.push(o.id);
   });
-  if (!done.length) return;
   done.forEach((id, i) => brSetStar(id, 'green', i + 1));
-  toast('Braki: zielona gwiazdka dla ' + done.length + ' zam. (' + done.join(', ') + ')');
+  if (done.length) toast('Braki: zielona gwiazdka dla ' + done.length + ' zam. (' + done.join(', ') + ')');
+  if (maybe.length) setTimeout(async () => {
+    const ok = await ask('Zamówienia bez uwag sprzedawcy, z kilkoma modelami (w tym wysłanym teraz): ' + maybe.join(', ') + '. Nie wiadomo, którego modelu brakowało. Dać im zieloną gwiazdkę?');
+    if (ok) maybe.forEach((id, i) => brSetStar(id, 'green', done.length + i + 1));
+  }, done.length ? 600 : 0);
 }
 document.addEventListener('pointerdown', e => { if (!$('#brPick').hidden && !e.target.closest('#brPick, .brstar')) $('#brPick').hidden = true; });
 // wykonawca: tylko strona na komputerze z rozszerzeniem (konto z prawem edycji); kolejka po jednym poleceniu
@@ -3856,12 +3867,12 @@ let brLastSig = '';
 window.addEventListener('message', e => {
   if (e.source !== window || !e.data || typeof e.data !== 'object' || !e.data.w11braki) return;
   const d = e.data.w11braki; if (!R || !user || !canEdit() || !d || !Array.isArray(d.orders)) return;
-  const orders = d.orders.slice(0, 500).map(o => ({ id: String(o.id || '').replace(/\D/g, '').slice(0, 15), shop: String(o.shop || '').replace(/\D/g, '').slice(0, 15), c: String(o.c || '').slice(0, 600), star: BR_STARS.includes(o.star) ? o.star : '' })).filter(o => o.id);
+  const orders = d.orders.slice(0, 500).map(o => ({ id: String(o.id || '').replace(/\D/g, '').slice(0, 15), shop: String(o.shop || '').replace(/\D/g, '').slice(0, 15), c: String(o.c || '').slice(0, 600), p: String(o.p || '').slice(0, 600), star: BR_STARS.includes(o.star) ? o.star : '' })).filter(o => o.id);
   const at = Math.min(Number(d.at) || 0, Date.now());
   const sig = JSON.stringify(orders);
   const prevAt = BR && Number(BR.at) || 0;
   if (sig === brLastSig && at - prevAt < 2 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 2 min
-  if ((at <= prevAt || at - prevAt < 2 * 60 * 1000) && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c, star: o.star })))) return;
+  if ((at <= prevAt || at - prevAt < 2 * 60 * 1000) && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c, p: o.p, star: o.star })))) return;
   brLastSig = sig;
   db.ref(ROOT + '-braki').set({ at, by: user, orders }).catch(() => {});
 });
