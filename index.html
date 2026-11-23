@@ -384,6 +384,14 @@ dialog[open]{opacity:1;transform:none}
 #gmCg .t span{display:block;font-size:clamp(16px,4.2vw,26px);margin-top:6px}
 @keyframes gmFade{from{opacity:0}to{opacity:1}}
 @keyframes gmPop{0%{transform:scale(.3) rotate(-8deg);opacity:0}100%{transform:none;opacity:1}}
+.gmlb{margin-top:10px;text-align:left;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.gmlb h3{margin:0;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between}
+.gmlb ol{list-style:none;margin:0;padding:0;max-height:180px;overflow:auto}
+.gmlb li{display:grid;grid-template-columns:28px 1fr auto;gap:6px;padding:5px 10px;font-size:13px;border-bottom:1px solid var(--bd)}
+.gmlb li:last-child{border-bottom:0}
+.gmlb li b{font-variant-numeric:tabular-nums}
+.gmlb li.me{background:color-mix(in srgb,var(--ac) 14%,transparent);font-weight:600}
+.gmlb li .r{color:var(--mu);font-variant-numeric:tabular-nums}
 #gm .gbt{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px}
 /* animacja dzika po zalogowaniu */
 #lock.ram{overflow:hidden}
@@ -795,6 +803,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gh"><h2>Dzik na batonach</h2><div class="gsc">Batony <b id="gmS">0</b> · rekord <b id="gmBest">0</b></div></div>
   <div id="gmWrap" tabindex="-1"><canvas id="gmC"></canvas><div id="gmOv"></div></div>
   <div id="gmPad"><button type="button" data-d="up" aria-label="Góra">▲</button><button type="button" data-d="left" aria-label="Lewo">◀</button><button type="button" data-d="down" aria-label="Dół">▼</button><button type="button" data-d="right" aria-label="Prawo">▶</button></div>
+  <div id="gmLb" class="gmlb"></div>
   <div class="gbt"><span class="mu">Strzałki – ruch · Spacja – pauza</span><button type="button" id="gmX">Zamknij</button></div>
 </dialog>
 <dialog id="sec">
@@ -3286,6 +3295,7 @@ function gmTick() {
   if (hit) {
     GM.run = false; GM.over = true; SFX.play('crash');
     const rec = GM.score > GM.best; if (rec) { GM.best = GM.score; try { localStorage.setItem('w11-gm-best', GM.best); } catch (e) {} $('#gmBest').textContent = GM.best; }
+    lbSave(GM.score);
     gmOv(`<b>${rec ? 'Nowy rekord!' : 'Dzik się rozbił'}</b><span>Zjedzone batony: ${GM.score}</span><button type="button" class="p" id="gmGo">Jeszcze raz</button>`);
     return;
   }
@@ -3381,11 +3391,32 @@ $('#gmB').onclick = async () => {
   try { await gmCongrats(); } finally { gmBusy = false; }
   gmImgs(); gmReset(); GM.run = false; $('#gmBest').textContent = GM.best;
   gmOv(`<img src="${GM_BAR}" alt=""><b>Dzik na batonach</b><span>Zjadaj batony kokosowe, nie wjeżdżaj w ścianę ani w ogon.</span><button type="button" class="p" id="gmGo">Start</button><small>albo naciśnij strzałkę</small>`);
-  $('#gm').showModal(); if (!GM.raf) GM.raf = requestAnimationFrame(t => { GM.last = t; gmLoop(t); });
+  $('#gm').showModal(); lbOpen(); if (!GM.raf) GM.raf = requestAnimationFrame(t => { GM.last = t; gmLoop(t); });
 };
 $('#gmOv').addEventListener('click', e => { if (e.target.closest('#gmGo')) { gmReset(); gmStart(); } });
 $('#gmX').onclick = () => $('#gm').close();
-$('#gm').addEventListener('close', () => { GM.run = false; });
+$('#gm').addEventListener('close', () => { GM.run = false; if (lbRef) { lbRef.off(); lbRef = null; } });
+// --- ranking (wspólny dla wszystkich kont): w11-…-snake/<uid> = { name, best, at }; każdy zapisuje tylko swój wynik
+let lbRef = null, LB = {};
+const lbMe = () => auth && auth.currentUser && auth.currentUser.uid;
+function lbRender() {
+  const me = lbMe();
+  const rows = Object.entries(LB).filter(([, v]) => v && typeof v.best === 'number').map(([uid, v]) => ({ uid, name: txt(v.name, 30) || '?', best: v.best })).sort((a, b) => b.best - a.best || a.name.localeCompare(b.name, 'pl'));
+  const mine = rows.findIndex(r => r.uid === me);
+  const top = rows.slice(0, 10); if (mine >= 10) top.push(rows[mine]);
+  $('#gmLb').innerHTML = `<h3><span>🏆 Ranking</span><span class="mu">${rows.length} graczy</span></h3>` + (top.length ? '<ol>' + top.map(r => { const i = rows.indexOf(r); return `<li class="${r.uid === me ? 'me' : ''}"><span class="r">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1 + '.'}</span><span>${esc(r.name)}</span><b>${r.best}</b></li>`; }).join('') + '</ol>' : '<p class="mu" style="margin:0;padding:8px 10px;font-size:13px">Nikt jeszcze nie grał – bądź pierwszy!</p>');
+  if (mine >= 0 && rows[mine].best > GM.best) { GM.best = rows[mine].best; $('#gmBest').textContent = GM.best; }
+}
+function lbOpen() {
+  if (!db || !lbMe()) { $('#gmLb').hidden = true; return; }
+  $('#gmLb').hidden = false;
+  lbRef = db.ref(ROOT + '-snake'); lbRef.on('value', s => { LB = s.val() || {}; lbRender(); }, () => { $('#gmLb').hidden = true; });
+}
+function lbSave(score) {
+  const me = lbMe(); if (!db || !me || !score) return;
+  const cur = LB[me] && Number(LB[me].best) || 0; if (score <= cur) return;
+  db.ref(ROOT + '-snake/' + me).set({ name: cap(user || 'gracz'), best: score, at: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+}
 document.addEventListener('keydown', e => {
   if (!$('#gm').open || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' }[e.key];
