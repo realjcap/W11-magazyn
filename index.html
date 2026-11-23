@@ -391,7 +391,7 @@ dialog[open]{opacity:1;transform:none}
 .gmlb li:last-child{border-bottom:0}
 .gmlb li b{font-variant-numeric:tabular-nums}
 .gmlb li.me{background:color-mix(in srgb,var(--ac) 14%,transparent);font-weight:600}
-.gmlb li .r{color:var(--mu);font-variant-numeric:tabular-nums}
+.gmlb li .lbn{color:var(--mu);font-variant-numeric:tabular-nums}
 #gm .gbt{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px}
 /* animacja dzika po zalogowaniu */
 #lock.ram{overflow:hidden}
@@ -3404,7 +3404,7 @@ function lbRender() {
   const rows = Object.entries(LB).filter(([, v]) => v && typeof v.best === 'number').map(([uid, v]) => ({ uid, name: txt(v.name, 30) || '?', best: v.best })).sort((a, b) => b.best - a.best || a.name.localeCompare(b.name, 'pl'));
   const mine = rows.findIndex(r => r.uid === me);
   const top = rows.slice(0, 10); if (mine >= 10) top.push(rows[mine]);
-  $('#gmLb').innerHTML = `<h3><span>🏆 Ranking</span><span class="mu">${rows.length} graczy</span></h3>` + (top.length ? '<ol>' + top.map(r => { const i = rows.indexOf(r); return `<li class="${r.uid === me ? 'me' : ''}"><span class="r">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1 + '.'}</span><span>${esc(r.name)}</span><b>${r.best}</b></li>`; }).join('') + '</ol>' : '<p class="mu" style="margin:0;padding:8px 10px;font-size:13px">Nikt jeszcze nie grał – bądź pierwszy!</p>');
+  $('#gmLb').innerHTML = `<h3><span>🏆 Ranking</span><span class="mu">${rows.length} graczy</span></h3>` + (top.length ? '<ol>' + top.map(r => { const i = rows.indexOf(r); return `<li class="${r.uid === me ? 'me' : ''}"><span class="lbn">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1 + '.'}</span><span>${esc(r.name)}</span><b>${r.best}</b></li>`; }).join('') + '</ol>' : '<p class="mu" style="margin:0;padding:8px 10px;font-size:13px">Nikt jeszcze nie grał – bądź pierwszy!</p>');
   if (mine >= 0 && rows[mine].best > GM.best) { GM.best = rows[mine].best; $('#gmBest').textContent = GM.best; }
 }
 function lbOpen() {
