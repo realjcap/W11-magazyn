@@ -3459,9 +3459,15 @@ function slFind(text) {
   }
   // nazwy z literówkami i skrótami (np. „reg” = regular): co najmniej 2 słowa i połowa słów nazwy muszą wystąpić w wiadomości;
   // zostają tylko modele z największą liczbą trafionych słów, a gdy takich jest więcej niż 2 – opis jest niejednoznaczny i nic nie pokazujemy
+  // kod EAN z tekstu (np. „[EAN 5904988317752]”) → model i rozmiar 1:1
+  (t.match(/\b\d{8,14}\b/g) || []).forEach(code => S.products.forEach(p => Object.entries(p.codes || {}).forEach(([c, zv]) => { // codes: kod → rozmiar (stare SKU: „o:rozmiar”)
+    if (c !== code) return; const z = String(zv).replace(/^o:/, '');
+    const h = hits.get(p.id) || { p, sizes: new Set(), old: false }; if (p.sizes[z] !== undefined) h.sizes.add(z); hits.set(p.id, h);
+  })));
   const toks = [...new Set(fAlias(t).split(/[^a-z0-9]+/).filter(Boolean))], tset = new Set(toks);
   let best = 0; const cand = [];
-  S.products.forEach(p => {
+  // gdy w tekście jest SKU albo EAN, ufamy tylko jemu – bez zgadywania po nazwie
+  if (!hits.size) S.products.forEach(p => {
     if (hits.has(p.id)) return;
     const nw = fWords(p.name).filter(w => w.length > 1); if (!nw.length) return; // pojedyncze litery (np. „t” z „t-shirt”) nie liczą się
     const ok = w => tset.has(w) || (w.length >= 5 && toks.some(x => x.length >= 3 && w.startsWith(x))) || (w.length >= 4 && toks.some(x => (x[0] === w[0] || x[1] === w[1]) && fDist(w, x, fTol(w.length)) <= fTol(w.length)));
