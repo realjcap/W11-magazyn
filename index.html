@@ -1000,12 +1000,17 @@ const fAlias = t => t.replace(/(^|[^a-z0-9])t[- ]?(?:shirt|s|sh)(?![a-z0-9])/g, 
 const F_COLORS = [[/^czarn/, 'black'], [/^bial/, 'white'], [/^szar/, 'grey'], [/^gray$/, 'grey'], [/^granat/, 'navy'], [/^niebiesk/, 'blue'], [/^czerwon/, 'red'],
   [/^zielon/, 'green'], [/^braz/, 'brown'], [/^bezow/, 'beige'], [/^rozow/, 'pink'], [/^zolt/, 'yellow'], [/^fiolet/, 'purple'], [/^pomarancz/, 'orange'],
   [/^oliwk/, 'olive'], [/^kremow/, 'cream'], [/^ciemn/, 'dark'], [/^jasn/, 'light'], [/^grafit/, 'graphite'], [/^khaki$/, 'khaki']];
+// słowniczek przezwisk modeli → SKU (wszystkie odmiany słowa; dopisuj kolejne wiersze [/^rdzeń_słowa/, 'sku'])
+const F_SKU_ALIAS = [
+  [/^srub/, 'DMCOSL02016-99X'], // śruba, śruby, śrubę, śrubą, śrubie, śrub, śrubka…
+];
+const fSkuAlias = t => t.replace(/(^|[^a-z0-9])([a-z]+)(?![a-z0-9])/g, (m, b, w) => { for (const [re, sku] of F_SKU_ALIAS) if (re.test(w)) return b + sku.toLowerCase(); return m; });
 const fWordsCache = new Map();
 const fWords = name => { let w = fWordsCache.get(name); if (!w) { w = fAlias(fNorm(name)).split(/[^a-z0-9]+/).filter(Boolean); fWordsCache.set(name, w); } return w; };
 // czy słowo z zapytania pasuje do słowa z nazwy (początek słowa albo literówka, także w trakcie pisania)
 const fWordOk = (t, w) => w.startsWith(t) || fDist(t, w, fTol(t.length)) <= fTol(t.length) || (t.length >= 4 && w.length > t.length && fDist(t, w.slice(0, t.length), 1) <= 1);
 function pmatch(p, q) {
-  const qn = fNorm(q); if (!qn) return true;
+  const qn = fSkuAlias(fNorm(q)); if (!qn) return true;
   const h = fNorm(hay(p) + ' ' + Object.values(p.codes || {}).join(' '));
   if (h.includes(qn)) return true;
   const toks = fAlias(qn).split(/[^a-z0-9]+/).filter(Boolean), nw = fWords(p.name);
@@ -3445,7 +3450,7 @@ function slIndex() {
   return slIdx;
 }
 function slFind(text) {
-  const t = slNorm(text), hits = new Map();
+  const t = fSkuAlias(slNorm(text)), hits = new Map();
   if (!t || !S.products.length) return [];
   for (const x of slIndex()) {
     x.re.lastIndex = 0; let m;
