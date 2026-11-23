@@ -3800,8 +3800,8 @@ window.addEventListener('message', e => {
   const at = Math.min(Number(d.at) || 0, Date.now());
   const sig = JSON.stringify(orders);
   const prevAt = BR && Number(BR.at) || 0;
-  if (sig === brLastSig && at - prevAt < 5 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 5 min
-  if (at <= prevAt && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c, star: o.star })))) return;
+  if (sig === brLastSig && at - prevAt < 2 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 2 min
+  if ((at <= prevAt || at - prevAt < 2 * 60 * 1000) && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c, star: o.star })))) return;
   brLastSig = sig;
   db.ref(ROOT + '-braki').set({ at, by: user, orders }).catch(() => {});
 });
