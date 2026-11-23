@@ -3568,7 +3568,7 @@ async function slLoadThr() {
 async function slTick(full) {
   if (SL.busy) return; SL.busy = true;
   try {
-    if (full || SL.n++ % 4 === 0) await slLoadConvs();
+    if (full || SL.n++ % 5 === 0) await slLoadConvs(); // lista rozmów (nieprzeczytane) co ~30 s
     await slLoadMsgs(); if (SL.thr) await slLoadThr();
     slStat('odświeżono ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) { slStat('błąd: ' + e.message); }
@@ -3584,8 +3584,8 @@ function slShow(on) {
   if (cfg) { if (slOpen) { $('#slUrlIn').value = ''; $('#slUrlIn').focus(); } return; }
   if (slOpen) { slTick(true); if (innerWidth > 760) $('#slTx').focus({ preventScroll: true }); } // na telefonie bez automatycznej klawiatury
   else slBadgeTick();
-  // otwarty pasek: rozmowa co 15 s; zamknięty: tylko licznik nieprzeczytanych co 60 s
-  SL.timer = setInterval(() => { if (document.visibilityState !== 'visible') return; slOpen ? slTick() : slBadgeTick(); }, slOpen ? 15000 : 60000);
+  // otwarty pasek: rozmowa co 6 s; zamknięty: licznik nieprzeczytanych co 30 s (limity Slacka: ok. 50 odczytów/min na aplikację)
+  SL.timer = setInterval(() => { if (document.visibilityState !== 'visible') return; slOpen ? slTick() : slBadgeTick(); }, slOpen ? 6000 : 30000);
 }
 async function slBadgeTick() { if (!SL.url || SL.busy) return; SL.busy = true; try { await slLoadConvs(); } catch (e) {} SL.busy = false; }
 function slBadge() {
