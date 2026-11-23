@@ -1766,10 +1766,11 @@ $('#opOk').onclick = async e => {
   if (!online()) return;
   busy = true; $('#opOk').disabled = true; $('#opMore').disabled = true;
   let ok = false;
+  const shipped = mode === 'out' ? lines.map(l => ({ id: l.id, d: { ...l.d } })) : null;
   try { ok = await applyBatch(mode, lines, $('#opNote').value.trim(), opt); }
   catch (x) { await say('Nie udało się zapisać w bazie.'); }
   busy = false; $('#opOk').disabled = false; $('#opMore').disabled = false;
-  if (ok) { SFX.play(mode === 'in' ? (opKind === 'cnt' ? 'cnt' : 'in') : mode === 'out' ? 'out' : mode === 'evout' ? 'ev' : mode === 'evin' ? 'evin' : mode === 'sewin' ? 'sew' : 'in'); $('#op').close(); }
+  if (ok) { SFX.play(mode === 'in' ? (opKind === 'cnt' ? 'cnt' : 'in') : mode === 'out' ? 'out' : mode === 'evout' ? 'ev' : mode === 'evin' ? 'evin' : mode === 'sewin' ? 'sew' : 'in'); $('#op').close(); if (shipped) brAutoGreen(shipped); }
 };
 
 // --- dodawanie / edycja modelu
@@ -3777,21 +3778,49 @@ const brPend = {}; // zamówienie → kolor, na który czekamy
 document.body.insertAdjacentHTML('beforeend', '<div id="brPick" class="brpick" hidden>' + ['', ...BR_STARS].map(c => `<button type="button" data-c="${c}" class="brstar ${c}" title="${c ? c : 'bez gwiazdki'}">${c ? '★' : '☆'}</button>`).join('') + '</div>');
 $('#brPick').onclick = async e => {
   const b = e.target.closest('[data-c]'); const p = $('#brPick'); p.hidden = true; if (!b || !canEdit()) return;
-  const id = p.dataset.id, star = b.dataset.c;
+  brSetStar(p.dataset.id, b.dataset.c);
+};
+// auto = true: gwiazdka ustawiana automatycznie po wysyłce (bez osobnych komunikatów o sukcesie, dłuższy czas oczekiwania – polecenia idą w kolejce)
+async function brSetStar(id, star, auto = 0) {
   brPend[id] = star; renderBraki();
   try {
     const ref = db.ref(ROOT + '-brcmd').push();
     await ref.set({ id, star, by: user, at: firebase.database.ServerValue.TIMESTAMP });
-    const to = setTimeout(() => { ref.off(); delete brPend[id]; renderBraki(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 45000);
+    const to = setTimeout(() => { ref.off(); delete brPend[id]; renderBraki(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział' + (auto ? ' (zamówienie ' + id + ')' : '') + '. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 45000 + (auto ? auto * 30000 : 0));
     ref.child('res').on('value', s => {
       const r = s.val(); if (!r) return;
       clearTimeout(to); ref.child('res').off(); delete brPend[id];
-      if (r.ok) { toast(star === 'green' ? 'Oznaczono na zielono – zamówienie zniknie z braków.' : 'Gwiazdka ustawiona w BaseLinkerze.'); SFX.play('tick'); }
-      else say('Nie udało się ustawić gwiazdki: ' + (r.msg || 'błąd'));
+      if (r.ok) { if (!auto) { toast(star === 'green' ? 'Oznaczono na zielono – zamówienie zniknie z braków.' : 'Gwiazdka ustawiona w BaseLinkerze.'); SFX.play('tick'); } }
+      else say('Nie udało się ustawić gwiazdki' + (auto ? ' (zamówienie ' + id + ')' : '') + ': ' + (r.msg || 'błąd'));
       renderBraki();
     });
   } catch (x) { delete brPend[id]; renderBraki(); say('Nie udało się wysłać: ' + (x.message || x)); }
-};
+}
+// po wysyłce na Mszczonowską: zamówienia z braków, które ta wysyłka pokrywa, dostają zieloną gwiazdkę.
+// Zamówienie musi mieć rozpoznany każdy produkt i rozmiar w uwagach, a wysyłka musi pokryć je w całości.
+// Sztuki są rozdzielane od najstarszych zamówień (niższy numer); jedna sztuka = jedno zamówienie.
+function brAutoGreen(lines) {
+  if (!slUser() || !BR || !db) return;
+  const avail = new Map();
+  lines.forEach(l => Object.entries(l.d || {}).forEach(([z, q]) => { if (q > 0) avail.set(l.id + '|' + z, (avail.get(l.id + '|' + z) || 0) + q); }));
+  if (!avail.size) return;
+  const done = [];
+  brOrders().filter(o => o.star !== 'green' && brPend[o.id] === undefined && o.c).sort((a, b) => Number(a.id) - Number(b.id)).forEach(o => {
+    const hs = slFind(o.c); if (!hs.length) return;
+    const need = new Map();
+    for (const h of hs) {
+      const zs = h.sizes.size ? [...h.sizes] : (Object.keys(h.p.sizes || {}).length === 1 ? Object.keys(h.p.sizes) : null);
+      if (!zs) return; // brak rozmiaru w uwagach – nie zgadujemy
+      zs.forEach(z => need.set(h.p.id + '|' + z, (need.get(h.p.id + '|' + z) || 0) + 1));
+    }
+    for (const [k, n] of need) if ((avail.get(k) || 0) < n) return;
+    for (const [k, n] of need) avail.set(k, avail.get(k) - n);
+    done.push(o.id);
+  });
+  if (!done.length) return;
+  done.forEach((id, i) => brSetStar(id, 'green', i + 1));
+  toast('Braki: zielona gwiazdka dla ' + done.length + ' zam. (' + done.join(', ') + ')');
+}
 document.addEventListener('pointerdown', e => { if (!$('#brPick').hidden && !e.target.closest('#brPick, .brstar')) $('#brPick').hidden = true; });
 // wykonawca: tylko strona na komputerze z rozszerzeniem (konto z prawem edycji); kolejka po jednym poleceniu
 let brQ = [], brBusy = false, brWatch = false;
