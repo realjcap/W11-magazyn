@@ -257,10 +257,10 @@ dialog[open]{opacity:1;transform:none}
 .sldrh b{font-size:17px}
 .sldrh span{flex:1;font-size:12px}
 .sldrh button{padding:3px 9px}
-#slH{position:fixed;right:0;top:42%;z-index:54;padding:12px 6px;border-radius:10px 0 0 10px;border-right:0;background:#4a154b;color:#fff;border-color:#4a154b;box-shadow:-3px 2px 10px rgba(0,0,0,.25);transition:transform .2s,padding .2s}
-#slH:hover{padding-right:10px}
-#slH span{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:600;letter-spacing:.04em;font-size:13px}
-#slH b{position:absolute;top:-7px;left:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;line-height:18px;text-align:center}
+#slH{position:fixed;right:0;top:40%;z-index:54;padding:20px 11px;border-radius:10px 0 0 10px;border-right:0;background:#4a154b;color:#fff;border-color:#4a154b;box-shadow:-3px 2px 10px rgba(0,0,0,.25);transition:transform .2s,padding .2s}
+#slH:hover{padding-right:16px}
+#slH span{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:700;letter-spacing:.06em;font-size:17px}
+#slH b{position:absolute;top:-9px;left:-9px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;font-size:12px !important;line-height:22px !important;background:#e5484d;color:#fff;font-size:11px;line-height:18px;text-align:center}
 #slH.open{transform:translateX(100%)}
 .sl{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:8px}
 .sl.thr .slmain{display:none}
@@ -342,6 +342,14 @@ dialog[open]{opacity:1;transform:none}
 .brrow .st{font-weight:700;font-variant-numeric:tabular-nums;padding:2px 8px;border-radius:7px;min-width:64px;text-align:center}
 .brrow .st.ok{background:color-mix(in srgb,var(--in) 18%,transparent);color:var(--in)}
 .brrow .st.no{background:color-mix(in srgb,#e5484d 18%,transparent);color:#e5484d}
+.brstar{border:0;background:none;padding:0 6px 0 0;font-size:20px;line-height:1;vertical-align:-2px;color:var(--mu);cursor:pointer}
+.brstar.orange{color:#f39c12}.brstar.white{color:#fff;text-shadow:0 0 1px #000,0 0 1px #000,0 0 2px #000}
+.brpick .brstar[data-c=""],.brord .brstar:not(.orange):not(.white):not(.green):not(.blue):not(.red){opacity:.55}.brstar.green{color:#2ecc71}.brstar.blue{color:#2196f3}.brstar.red{color:#e74c3c}
+.brstar.pend{opacity:.45;animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.25}to{opacity:.8}}
+.brpick{position:fixed;z-index:70;display:flex;gap:4px;padding:6px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.brpick .brstar{font-size:24px;padding:2px 6px;border-radius:6px}
+.brpick .brstar:hover{background:color-mix(in srgb,var(--tx) 8%,transparent)}
 .brord{border:1px solid var(--bd);border-radius:10px;background:var(--card);padding:9px 12px;margin-bottom:8px;font-size:14px}
 .brord a.no{font-weight:700}
 .brord .cm{margin-top:3px;line-height:1.4}
@@ -3180,7 +3188,7 @@ function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
   setTimeout(stApply, 0); setTimeout(audApply, 0);
-  $('#slH').hidden = $('#slDr').hidden = $('#slHB').hidden = user !== 'delma'; $('#brTab').hidden = !canEdit(); $('#secB').hidden = user !== 'delma'; if (user !== 'delma') slWipe(); else slShow(false);
+  $('#slH').hidden = $('#slDr').hidden = $('#slHB').hidden = !slUser(); $('#brTab').hidden = !canEdit(); $('#secB').hidden = user !== 'delma'; if (!slUser()) slWipe(); else { slWipe(); slShow(false); }
   $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">' + esc(roleName()) + '</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 let auth = null;
@@ -3392,13 +3400,15 @@ $('#gmPad').addEventListener('pointerdown', e => { const b = e.target.closest('[
 })();
 
 // --- Slack (tylko konto delma): przez prywatnego pośrednika (Cloudflare Worker), nic nie trafia do bazy
+// Slack: delma i rudy, każdy ze swoim tokenem po stronie pośrednika
+const slUser = () => user === 'delma' || user === 'rudy';
 var SL = { url: '', convs: [], cur: null, me: '', msgs: [], thr: null, thrMsgs: [], timer: 0, n: 0, more: false, busy: false };
 try { SL.url = localStorage.getItem('w11-slack-url') || ''; } catch (e) {}
 const SL_EMO = { '+1': '👍', thumbsup: '👍', '-1': '👎', white_check_mark: '✅', heavy_check_mark: '✔️', eyes: '👀', pray: '🙏', joy: '😂', heart: '❤️', fire: '🔥', tada: '🎉', ok_hand: '👌', raised_hands: '🙌', smile: '😄', slightly_smiling_face: '🙂', thinking_face: '🤔', x: '❌', warning: '⚠️', rocket: '🚀', muscle: '💪', clap: '👏', 100: '💯', grinning: '😀', sweat_smile: '😅', wave: '👋', laughing: '😆', sob: '😭', rolling_on_the_floor_laughing: '🤣', heart_eyes: '😍', boar: '🐗', see_no_evil: '🙈', facepalm: '🤦', man_facepalming: '🤦‍♂️', woman_facepalming: '🤦‍♀️', star: '⭐', point_up: '☝️', wink: '😉', blush: '😊', cry: '😢', rage: '😡', sunglasses: '😎', hugging_face: '🤗', party_popper: '🎉', exclamation: '❗', question: '❓', moneybag: '💰', package: '📦', truck: '🚚' };
 const SL_QUICK = ['+1', 'white_check_mark', 'eyes', 'pray', 'joy', 'heart', 'fire', 'tada', 'ok_hand', 'raised_hands', 'thinking_face', 'x'];
 const slEmo = n => { const b = String(n).split('::')[0]; return SL_EMO[b] || ':' + b + ':'; };
 async function slApi(path, body) {
-  if (user !== 'delma' || !auth || !auth.currentUser) throw new Error('Tylko dla konta delma.');
+  if (!slUser() || !auth || !auth.currentUser) throw new Error('Slack tylko dla kont delma i rudy.');
   const tok = await auth.currentUser.getIdToken();
   const r = await fetch(SL.url.replace(/\/+$/, '') + path, body ? { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { headers: { Authorization: 'Bearer ' + tok } });
   const d = await r.json().catch(() => ({}));
@@ -3556,9 +3566,9 @@ async function slTick(full) {
 let slOpen = false;
 function slShow(on) {
   clearInterval(SL.timer); SL.timer = 0;
-  slOpen = !!on && user === 'delma';
+  slOpen = !!on && slUser();
   $('#slDr').classList.toggle('open', slOpen); $('#slH').classList.toggle('open', slOpen); $('#slH').setAttribute('aria-expanded', slOpen);
-  if (user !== 'delma') return;
+  if (!slUser()) return;
   const cfg = !SL.url; $('#slCfg').hidden = !cfg; $('#slBox').hidden = cfg;
   if (cfg) { if (slOpen) { $('#slUrlIn').value = ''; $('#slUrlIn').focus(); } return; }
   if (slOpen) { slTick(true); if (innerWidth > 760) $('#slTx').focus({ preventScroll: true }); } // na telefonie bez automatycznej klawiatury
@@ -3690,7 +3700,8 @@ $('#secPwOk').onclick = async () => {
 // strona (konto z prawem edycji) zapisuje ją w bazie (braki), a wszyscy widzą ją na żywo w zakładce „Braki”
 let BR = null;
 const BR_STALE = 10 * 60 * 1000;
-function brOrders() { return BR && BR.orders ? Object.values(BR.orders).filter(o => o && typeof o === 'object').map(o => ({ id: txt(o.id, 20), shop: txt(o.shop, 20), c: txt(o.c, 600) })) : []; }
+const BR_STARS = ['orange', 'white', 'green', 'blue', 'red'];
+function brOrders() { return BR && BR.orders ? Object.values(BR.orders).filter(o => o && typeof o === 'object').map(o => ({ id: txt(o.id, 20), shop: txt(o.shop, 20), c: txt(o.c, 600), star: BR_STARS.includes(o.star) ? o.star : '' })) : []; }
 function renderBraki() {
   const os = brOrders(), n = os.length;
   $('#brBadge').hidden = !n; $('#brBadge').textContent = n;
@@ -3710,25 +3721,76 @@ function renderBraki() {
     const have = x.z ? (x.p.sizes[x.z] || 0) : sum(x.p), ok = have >= x.n;
     return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need">${x.n} zam.</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
   }).join('')}</div>` : '';
-  $('#brList').innerHTML = per.map(({ o, hs }) => `<div class="brord"><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
+  $('#brList').innerHTML = per.map(({ o, hs }) => `<div class="brord"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
     <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${hs.length ? slStockHtml(o.c) : ''}</div>`).join('')
     || (at ? '<p class="mu">Nie ma teraz zamówień w tym statusie.</p>' : '');
 }
 $('#vBr').addEventListener('click', e => {
+  const st = e.target.closest('.brstar');
+  if (st) { const r = st.getBoundingClientRect(), p = $('#brPick'); p.dataset.id = st.dataset.id; p.hidden = false; p.style.left = Math.max(8, Math.min(innerWidth - 230, r.left)) + 'px'; p.style.top = (r.bottom + 6) + 'px'; return; }
   const ch = e.target.closest('.slck .chip, .brrow'); if (ch && ch.dataset.pid) slGoto(ch.dataset.pid);
 });
+// --- gwiazdki z W11 → BaseLinker: polecenie trafia do bazy (-brcmd), a laptop z rozszerzeniem je wykonuje w karcie BaseLinkera
+const brPend = {}; // zamówienie → kolor, na który czekamy
+document.body.insertAdjacentHTML('beforeend', '<div id="brPick" class="brpick" hidden>' + ['', ...BR_STARS].map(c => `<button type="button" data-c="${c}" class="brstar ${c}" title="${c ? c : 'bez gwiazdki'}">${c ? '★' : '☆'}</button>`).join('') + '</div>');
+$('#brPick').onclick = async e => {
+  const b = e.target.closest('[data-c]'); const p = $('#brPick'); p.hidden = true; if (!b || !canEdit()) return;
+  const id = p.dataset.id, star = b.dataset.c;
+  brPend[id] = star; renderBraki();
+  try {
+    const ref = db.ref(ROOT + '-brcmd').push();
+    await ref.set({ id, star, by: user, at: firebase.database.ServerValue.TIMESTAMP });
+    const to = setTimeout(() => { ref.off(); delete brPend[id]; renderBraki(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 45000);
+    ref.child('res').on('value', s => {
+      const r = s.val(); if (!r) return;
+      clearTimeout(to); ref.child('res').off(); delete brPend[id];
+      if (r.ok) { toast(star === 'green' ? 'Oznaczono na zielono – zamówienie zniknie z braków.' : 'Gwiazdka ustawiona w BaseLinkerze.'); SFX.play('tick'); }
+      else say('Nie udało się ustawić gwiazdki: ' + (r.msg || 'błąd'));
+      renderBraki();
+    });
+  } catch (x) { delete brPend[id]; renderBraki(); say('Nie udało się wysłać: ' + (x.message || x)); }
+};
+document.addEventListener('pointerdown', e => { if (!$('#brPick').hidden && !e.target.closest('#brPick, .brstar')) $('#brPick').hidden = true; });
+// wykonawca: tylko strona na komputerze z rozszerzeniem (konto z prawem edycji); kolejka po jednym poleceniu
+let brQ = [], brBusy = false, brWatch = false;
+function brWatchCmds() {
+  if (brWatch || !canEdit() || document.documentElement.dataset.w11ext !== '1') return;
+  brWatch = true;
+  db.ref(ROOT + '-brcmd').on('child_added', s => {
+    const c = s.val(); if (!c || c.res) return;
+    if (Date.now() - (Number(c.at) || 0) > 2 * 60 * 1000) { s.ref.remove().catch(() => {}); return; }
+    brQ.push({ key: s.key, id: String(c.id || ''), star: BR_STARS.includes(c.star) ? c.star : '' }); brNext();
+  });
+}
+function brNext() {
+  if (brBusy || !brQ.length) return;
+  brBusy = true; const c = brQ.shift();
+  window.postMessage({ w11cmd: c }, location.origin);
+  brBusy = c.key;
+  setTimeout(() => { if (brBusy === c.key) { brBusy = false; db.ref(ROOT + '-brcmd/' + c.key + '/res').set({ ok: false, msg: 'brak odpowiedzi z karty BaseLinkera' }).catch(() => {}); brNext(); } }, 30000);
+}
+window.addEventListener('message', e => {
+  if (e.source !== window || !e.data || !e.data.w11cmdres) return;
+  const r = e.data.w11cmdres; if (!r.key || r.key !== brBusy) return;
+  brBusy = false;
+  const ref = db.ref(ROOT + '-brcmd/' + r.key);
+  ref.child('res').set({ ok: !!r.ok, msg: String(r.msg || '').slice(0, 200) }).catch(() => {});
+  setTimeout(() => ref.remove().catch(() => {}), 15000);
+  brNext();
+});
+setInterval(brWatchCmds, 5000);
 setInterval(() => { if (view === 'br') renderBraki(); }, 60000);
 // odbiór od rozszerzenia (tylko na koncie z prawem edycji; zapis, gdy coś się zmieniło)
 let brLastSig = '';
 window.addEventListener('message', e => {
   if (e.source !== window || !e.data || typeof e.data !== 'object' || !e.data.w11braki) return;
   const d = e.data.w11braki; if (!R || !user || !canEdit() || !d || !Array.isArray(d.orders)) return;
-  const orders = d.orders.slice(0, 500).map(o => ({ id: String(o.id || '').replace(/\D/g, '').slice(0, 15), shop: String(o.shop || '').replace(/\D/g, '').slice(0, 15), c: String(o.c || '').slice(0, 600) })).filter(o => o.id);
+  const orders = d.orders.slice(0, 500).map(o => ({ id: String(o.id || '').replace(/\D/g, '').slice(0, 15), shop: String(o.shop || '').replace(/\D/g, '').slice(0, 15), c: String(o.c || '').slice(0, 600), star: BR_STARS.includes(o.star) ? o.star : '' })).filter(o => o.id);
   const at = Math.min(Number(d.at) || 0, Date.now());
   const sig = JSON.stringify(orders);
   const prevAt = BR && Number(BR.at) || 0;
   if (sig === brLastSig && at - prevAt < 5 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 5 min
-  if (at <= prevAt && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c })))) return;
+  if (at <= prevAt && sig === JSON.stringify(brOrders().map(o => ({ id: o.id, shop: o.shop, c: o.c, star: o.star })))) return;
   brLastSig = sig;
   db.ref(ROOT + '-braki').set({ at, by: user, orders }).catch(() => {});
 });
