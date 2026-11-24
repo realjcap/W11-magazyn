@@ -338,7 +338,12 @@ dialog[open]{opacity:1;transform:none}
 .brhead span.old{color:#e5484d;font-weight:600}
 .brsum{border:1px solid var(--bd);border-radius:10px;background:var(--card);margin-bottom:12px;overflow:hidden}
 .brsum h3{margin:0;padding:9px 12px;font-size:14px;border-bottom:1px solid var(--bd)}
-.brrow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--bd);font-size:14px;cursor:pointer}
+.brgo{padding:4px 10px;font-size:12px;border-radius:7px;white-space:nowrap}
+.brgo.on{border-color:var(--ac);color:var(--ac)}
+.brflt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;border:1px dashed var(--ac);border-radius:10px;font-size:14px}
+.brflt span{margin-right:auto}
+.brflt button{padding:5px 10px;font-size:12px}
+.brrow{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--bd);font-size:14px;cursor:pointer}
 .brrow:last-child{border-bottom:0}
 .brrow:hover{background:color-mix(in srgb,var(--tx) 4%,transparent)}
 .brrow small{color:var(--mu)}
@@ -615,6 +620,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="brhead"><b>BRAK – do weryfikacji</b><span id="brAt" class="mu"></span><label class="brgr" title="Zamówienia, które w BaseLinkerze mają już zieloną gwiazdkę"><input type="checkbox" id="brGreen"> pokaż też z zieloną ★</label></div>
   <div id="brSum"></div>
   <div id="brBar" class="brbar" hidden><span id="brBarN"></span><button type="button" id="brAll" class="e">Zaznacz wszystkie</button><button type="button" id="brNone" class="e">Odznacz</button><button type="button" id="brMove" class="p">Przenieś do „BOK - brak towaru”</button></div>
+  <div id="brFlt" class="brflt" hidden></div>
   <div id="brList"></div>
 </section>
 
@@ -3793,23 +3799,30 @@ function renderBraki() {
   const per = os.map(o => {
     const { hs, src, unsure } = brHits(o);
     if (o.star !== 'green') hs.forEach(h => { const zs = h.sizes.size ? [...h.sizes] : ['']; zs.forEach(z => { const k = h.p.id + '|' + z; const x = need.get(k) || { p: h.p, z, n: 0, u: 0 }; unsure ? x.u++ : x.n++; need.set(k, x); }); });
-    return { o, hs, src, unsure };
+    const keys = new Set(); hs.forEach(h => (h.sizes.size ? [...h.sizes] : ['']).forEach(z => keys.add(h.p.id + '|' + z)));
+    return { o, hs, src, unsure, keys };
   });
   const rows = [...need.values()].sort((a, b) => b.n - a.n || b.u - a.u || a.p.name.localeCompare(b.p.name, 'pl'));
   $('#brSum').innerHTML = rows.length ? `<div class="brsum"><h3>Potrzebne modele (${rows.length})</h3>${rows.map(x => {
     const have = x.z ? (x.p.sizes[x.z] || 0) : sum(x.p), ok = have >= x.n;
-    return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need"${x.u ? ' title="? = zamówienia bez uwag z kilkoma modelami – nie wiadomo, którego brakuje"' : ''}>${x.n ? x.n + ' zam.' : ''}${x.u ? (x.n ? ' + ' : '') + x.u + ' ?' : ''}</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
+    return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need"${x.u ? ' title="? = zamówienia bez uwag z kilkoma modelami – nie wiadomo, którego brakuje"' : ''}>${x.n ? x.n + ' zam.' : ''}${x.u ? (x.n ? ' + ' : '') + x.u + ' ?' : ''}</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span><button type="button" class="brgo${brFlt === x.p.id + '|' + x.z ? ' on' : ''}" data-k="${esc(x.p.id + '|' + x.z)}" title="Pokaż zamówienia z tym modelem">Zamówienia ↓</button></div>`;
   }).join('')}</div>` : '';
   [...brSel].forEach(id => { if (!os.some(o => o.id === id)) brSel.delete(id); });
   [...brMoving].forEach(id => { if (!brOrders(true).some(o => o.id === id)) brMoving.delete(id); });
   brBarRender();
-  $('#brList').innerHTML = per.map(({ o, hs, src, unsure }) => `<div class="brord${o.star === 'green' ? ' gr' : ''}${brSel.has(o.id) ? ' brsl' : ''}${brMoving.has(o.id) ? ' brmv' : ''}"><input type="checkbox" class="brsel" data-id="${esc(o.id)}"${brSel.has(o.id) ? ' checked' : ''}${brMoving.has(o.id) ? ' disabled' : ''} title="Zaznacz do przeniesienia"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}${brMoving.has(o.id) ? ' <small class="mu">⏳ przenoszenie do BOK…</small>' : ''}
+  const fx = brFlt && need.get(brFlt) || (brFlt && per.some(r => r.keys.has(brFlt)) ? { p: P[brFlt.split('|')[0]], z: brFlt.split('|')[1] } : null);
+  if (brFlt && !fx) brFlt = '';
+  const shown = brFlt ? per.filter(r => r.keys.has(brFlt)) : per;
+  $('#brFlt').hidden = !brFlt;
+  if (brFlt) $('#brFlt').innerHTML = `<span>Zamówienia z modelem: <b>${esc(fx.p ? fx.p.name : '?')}${fx.z ? ' ' + esc(fx.z) : ''}</b> (${shown.length})</span><button type="button" id="brFltX" class="e">✕ Pokaż wszystkie</button>`;
+  $('#brList').innerHTML = shown.map(({ o, hs, src, unsure }) => `<div class="brord${o.star === 'green' ? ' gr' : ''}${brSel.has(o.id) ? ' brsl' : ''}${brMoving.has(o.id) ? ' brmv' : ''}"><input type="checkbox" class="brsel" data-id="${esc(o.id)}"${brSel.has(o.id) ? ' checked' : ''}${brMoving.has(o.id) ? ' disabled' : ''} title="Zaznacz do przeniesienia"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}${brMoving.has(o.id) ? ' <small class="mu">⏳ przenoszenie do BOK…</small>' : ''}
     <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${o.p && src === o.p && hs.length ? `<div class="pr">${unsure ? '⚠ Brak uwag – nie wiadomo, którego modelu brakuje. ' : 'Brak uwag – model wzięty z zamówienia. '}W zamówieniu: ${hs.map(h => esc(h.p.name) + (h.sizes.size ? ' <b>' + esc([...h.sizes].join(', ')) + '</b>' : '')).join(' · ')}</div>` : ''}${hs.length ? brStockHtml(hs) : ''}</div>`).join('')
     || (at ? '<p class="mu">Nie ma teraz zamówień w tym statusie.</p>' : '');
 }
 $('#brGreen').onchange = e => { brShowGreen = e.target.checked; try { localStorage.setItem('w11-br-green', brShowGreen ? '1' : '0'); } catch (x) {} renderBraki(); };
 // --- przenoszenie zaznaczonych zamówień do statusu „BOK - brak towaru” (tylko ten jeden status; ID wpisane na sztywno w rozszerzeniu)
 const brSel = new Set(), brMoving = new Set();
+let brFlt = ''; // filtr listy zamówień: „model|rozmiar” z zestawienia potrzebnych modeli
 function brBarRender() {
   const n = brSel.size; $('#brBar').hidden = !n;
   $('#brBarN').textContent = 'Zaznaczono: ' + n;
@@ -3839,6 +3852,9 @@ $('#brMove').onclick = async () => {
   } catch (x) { ids.forEach(id => brMoving.delete(id)); renderBraki(); say('Nie udało się wysłać: ' + (x.message || x)); }
 };
 $('#vBr').addEventListener('click', e => {
+  const go = e.target.closest('.brgo');
+  if (go) { brFlt = brFlt === go.dataset.k ? '' : go.dataset.k; renderBraki(); if (brFlt) ($('#brFlt').hidden ? $('#brList') : $('#brFlt')).scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (e.target.closest('#brFltX')) { brFlt = ''; renderBraki(); return; }
   const st = e.target.closest('.brstar');
   if (st) { const r = st.getBoundingClientRect(), p = $('#brPick'); p.dataset.id = st.dataset.id; p.hidden = false; p.style.left = Math.max(8, Math.min(innerWidth - 230, r.left)) + 'px'; p.style.top = (r.bottom + 6) + 'px'; return; }
   const ch = e.target.closest('.slck .chip, .brrow'); if (ch && ch.dataset.pid) slGoto(ch.dataset.pid);
