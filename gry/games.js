@@ -469,7 +469,7 @@ const SL3 = (() => {
     const hum = ac.createGain(); hum.gain.value = .025; hum.connect(master); { const o = ac.createOscillator(); o.frequency.value = 100; o.type = 'sine'; o.connect(hum); o.start(); } // brzęczenie lamp
     // kroki: wspólny bufor szumu + echo hali (w magazynie)
     const sb = ac.createBuffer(1, ac.sampleRate * .25, ac.sampleRate), sd = sb.getChannelData(0); for (let i = 0; i < sd.length; i++) sd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / sd.length, 3);
-    const echo = ac.createDelay(1), fb = ac.createGain(), wet = ac.createGain(); echo.delayTime.value = .11; fb.gain.value = .32; wet.gain.value = .35;
+    const echo = ac.createDelay(1), fb = ac.createGain(), wet = ac.createGain(); echo.delayTime.value = .11; fb.gain.value = .25; wet.gain.value = .22;
     echo.connect(fb).connect(echo); echo.connect(wet).connect(master);
     audio = { ac, master, ng, drone, hum, sb, echo };
   }
@@ -479,10 +479,10 @@ const SL3 = (() => {
     if (!audio || G.mute) return; const { ac, master, sb, echo } = audio, t = ac.currentTime, inWH = G.z > -15.4;
     const src = ac.createBufferSource(), flt = ac.createBiquadFilter(), g = ac.createGain();
     src.buffer = sb; src.playbackRate.value = (inWH ? .9 : 1.3) + Math.random() * .2;
-    flt.type = inWH ? 'lowpass' : 'bandpass'; flt.frequency.value = inWH ? 900 + Math.random() * 300 : 2600 + Math.random() * 800; flt.Q.value = inWH ? .8 : .7;
-    const v = (run ? .55 : .38) * (inWH ? 1 : .7); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + (inWH ? .16 : .22));
+    flt.type = 'lowpass'; flt.frequency.value = inWH ? 420 + Math.random() * 120 : 900 + Math.random() * 300; flt.Q.value = .5; // miękko, bez wysokich tonów
+    const v = (run ? .32 : .22) * (inWH ? 1 : .75); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .012); g.gain.exponentialRampToValueAtTime(.001, t + (inWH ? .2 : .26));
     src.connect(flt).connect(g).connect(master); if (inWH) g.connect(echo);
-    if (inWH) { const o = ac.createOscillator(), og = ac.createGain(); o.frequency.setValueAtTime(110 + Math.random() * 20, t); o.frequency.exponentialRampToValueAtTime(55, t + .07); og.gain.setValueAtTime(v * .6, t); og.gain.exponentialRampToValueAtTime(.001, t + .09); o.connect(og).connect(master); o.start(t); o.stop(t + .1); } // „tup” obcasa
+    if (inWH) { const o = ac.createOscillator(), og = ac.createGain(); o.frequency.setValueAtTime(75 + Math.random() * 10, t); o.frequency.exponentialRampToValueAtTime(45, t + .08); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(v * .45, t + .015); og.gain.exponentialRampToValueAtTime(.001, t + .11); o.connect(og).connect(master); o.start(t); o.stop(t + .1); } // „tup” obcasa
     src.start(t); src.stop(t + .25);
   }
   function chime() { if (!audio || G.mute) return; const { ac, master } = audio; [660, 880].forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f; const t = ac.currentTime + i * .09; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18, t + .02); g.gain.exponentialRampToValueAtTime(.001, t + .5); o.connect(g).connect(master); o.start(t); o.stop(t + .55); }); }
@@ -563,7 +563,8 @@ const SL3 = (() => {
     if (!blocked(G.x + vx, G.z, .35)) G.x += vx; if (!blocked(G.x, G.z + vz, .35)) G.z += vz;
     const pb = G.bob || 0;
     G.bob = (f || s) ? pb + dt * (sprint ? 13 : 8) : 0;
-    if (G.bob && Math.floor(G.bob / Math.PI) !== Math.floor(pb / Math.PI)) footstep(sprint); // krok co pół cyklu kołysania
+    // kroki: ok. 1,7 na sekundę przy chodzie, 2,6 przy sprincie
+    if (f || s) { const ps = G.stepPh || 0; G.stepPh = ps + dt * (sprint ? 2.6 : 1.7); if (Math.floor(G.stepPh) !== Math.floor(ps)) footstep(sprint); } else G.stepPh = .6;
     G.yaw -= G.mx; G.pitch = Math.max(-1.2, Math.min(1.2, G.pitch - G.my)); G.mx = G.my = 0;
     cam.position.set(G.x, 1.65 + Math.sin(G.bob) * .04, G.z); cam.rotation.set(G.pitch, G.yaw, 0);
     flash.intensity = G.flashOn ? 55 : 0;
