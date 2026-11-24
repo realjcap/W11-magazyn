@@ -1000,7 +1000,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <dialog id="w3">
   <div class="gh"><h2>Owca WK 3D</h2><span class="mu w3h">Spacja – rzut batonem · E – drzwi</span><button type="button" id="w3Snd" class="e" title="Muzyka">🔊</button></div>
   <div id="w3Wrap" tabindex="-1"><canvas id="w3C"></canvas><div id="w3X0" aria-hidden="true"></div><div id="w3Lb" aria-hidden="true"><span style="left:1.25%;width:11.25%">POZIOM</span><span style="left:13.75%;width:20%">WYNIK</span><span style="left:35%;width:12.5%">ŻYCIA</span><span style="left:57.5%;width:16.25%">ZDROWIE</span><span style="left:75%;width:23.75%">BROŃ</span></div><div id="w3Msg" aria-live="polite"></div><div id="w3Ov"></div></div>
-  <audio id="w3Mus" src="JEDZIEMY.mp3" loop preload="none"></audio>
+  <audio id="w3Mus" src="gry/JEDZIEMY.mp3" loop preload="none"></audio>
   <div id="w3Pad"><button type="button" data-k="l" aria-label="Obrót w lewo">⟲</button><button type="button" data-k="f" aria-label="Naprzód">▲</button><button type="button" data-k="r" aria-label="Obrót w prawo">⟳</button><button type="button" data-k="use" aria-label="Otwórz">E</button><button type="button" data-k="b" aria-label="Wstecz">▼</button><button type="button" data-k="fire" class="fire" aria-label="Atak">🍫</button></div>
   <div class="gbt"><button type="button" id="w3Hub" class="e">← Game Hub</button><span class="mu">W/S ruch · A/D bok · ←→ obrót</span><button type="button" id="w3X">Zamknij</button></div>
 </dialog>
@@ -3468,11 +3468,11 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '3d9bcdf85c'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '25dba073f4'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
-    const s = document.createElement('script'); s.src = 'games.js?v=' + GAMES_V;
+    const s = document.createElement('script'); s.src = 'gry/games.js?v=' + GAMES_V;
     s.onload = ok; s.onerror = () => { gamesP = null; s.remove(); no(new Error('games.js')); };
     document.head.appendChild(s);
   }));
