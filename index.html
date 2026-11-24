@@ -4658,6 +4658,54 @@ const W3 = (() => {
     '########################'];
   const transpose = m => m[0].split('').map((_, x) => m.map(r => r[x]).join(''));
   const MAPS = [MAP1, transpose(MAP1)];
+  // ---------- losowa mapa: siatka pokoi połączonych drzwiami (losowe drzewo przejść + dodatkowe drzwi, część ścian zburzona) ----------
+  function genMap(lvl) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const CW = [4, 5, 6], cols = [], rows = []; let w = 1, h = 1;
+      while (w < 26) { const c = CW[Math.random() * 3 | 0]; if (w + c + 1 > 30) break; cols.push(c); w += c + 1; }
+      while (h < 26) { const c = CW[Math.random() * 3 | 0]; if (h + c + 1 > 30) break; rows.push(c); h += c + 1; }
+      const NX = cols.length, NY = rows.length, m = Array.from({ length: h }, () => Array(w).fill('#'));
+      const cx0 = [], cy0 = []; let a = 1; cols.forEach(c => { cx0.push(a); a += c + 1; }); a = 1; rows.forEach(c => { cy0.push(a); a += c + 1; });
+      for (let ry = 0; ry < NY; ry++) for (let rx = 0; rx < NX; rx++) for (let y = 0; y < rows[ry]; y++) for (let x = 0; x < cols[rx]; x++) m[cy0[ry] + y][cx0[rx] + x] = '.';
+      // przejścia między pokojami: drzwi w losowym miejscu wspólnej ściany albo cała ściana zburzona
+      const link = (rx, ry, dir) => {
+        // ściana już zburzona – nie wstawiamy samotnych drzwi na środku pokoju
+        if (dir === 'E' ? m[cy0[ry]][cx0[rx] + cols[rx]] === '.' : m[cy0[ry] + rows[ry]][cx0[rx]] === '.') return;
+        const wall = dir === 'E' ? rows[ry] && Array.from({ length: rows[ry] }, (_, i) => m[cy0[ry] + i][cx0[rx] + cols[rx]]) : Array.from({ length: cols[rx] }, (_, i) => m[cy0[ry] + rows[ry]][cx0[rx] + i]);
+        if (wall.includes('D')) return; // jedne drzwi na ścianę
+        if (dir === 'E') { const x = cx0[rx] + cols[rx]; if (Math.random() < .14) { for (let y = 0; y < rows[ry]; y++) m[cy0[ry] + y][x] = '.'; } else m[cy0[ry] + 1 + (Math.random() * (rows[ry] - 2) | 0)][x] = 'D'; }
+        else { const y = cy0[ry] + rows[ry]; if (Math.random() < .14) { for (let x = 0; x < cols[rx]; x++) m[y][cx0[rx] + x] = '.'; } else m[y][cx0[rx] + 1 + (Math.random() * (cols[rx] - 2) | 0)] = 'D'; }
+      };
+      const seen = new Set(), st = [[Math.random() * NX | 0, Math.random() * NY | 0]]; seen.add(st[0] + '');
+      while (st.length) { // losowy DFS = każdy pokój osiągalny
+        const [rx, ry] = st[st.length - 1], nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [rx + dx, ry + dy, dx, dy]).filter(([x, y]) => x >= 0 && y >= 0 && x < NX && y < NY && !seen.has(x + ',' + y));
+        if (!nb.length) { st.pop(); continue; }
+        const [x, y, dx, dy] = nb[Math.random() * nb.length | 0]; seen.add(x + ',' + y); st.push([x, y]);
+        if (dx) link(Math.min(rx, x), ry, 'E'); else link(rx, Math.min(ry, y), 'S');
+      }
+      for (let ry = 0; ry < NY; ry++) for (let rx = 0; rx < NX; rx++) { if (rx < NX - 1 && Math.random() < .22) link(rx, ry, 'E'); if (ry < NY - 1 && Math.random() < .22) link(rx, ry, 'S'); }
+      // kolumny w większych pokojach
+      for (let ry = 0; ry < NY; ry++) for (let rx = 0; rx < NX; rx++) if (cols[rx] >= 6 && rows[ry] >= 6 && Math.random() < .5) { m[cy0[ry] + 2][cx0[rx] + 2] = '#'; m[cy0[ry] + rows[ry] - 3][cx0[rx] + cols[rx] - 3] = '#'; }
+      // start w losowym pokoju, wyjście na zewnętrznej ścianie najdalszego miejsca
+      const srx = Math.random() * NX | 0, sry = Math.random() * NY | 0, sx = cx0[srx] + (cols[srx] >> 1), sy = cy0[sry] + (rows[sry] >> 1);
+      if (m[sy][sx] !== '.') continue;
+      const dist = Array.from({ length: h }, () => Array(w).fill(-1)), q = [[sx, sy]]; dist[sy][sx] = 0;
+      while (q.length) { const [x, y] = q.shift(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const X = x + dx, Y = y + dy; if (m[Y] && (m[Y][X] === '.' || m[Y][X] === 'D') && dist[Y][X] < 0) { dist[Y][X] = dist[y][x] + 1; q.push([X, Y]); } } }
+      let best = null;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (m[y][x] === '.' && dist[y][x] > 0) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const X = x + dx, Y = y + dy; if ((X === 0 || Y === 0 || X === w - 1 || Y === h - 1) && (!best || dist[y][x] > best.d)) best = { x: X, y: Y, d: dist[y][x] }; }
+      if (!best || best.d < 12) continue;
+      m[best.y][best.x] = 'E';
+      const floor = []; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (m[y][x] === '.' && dist[y][x] > 0) floor.push([x, y]);
+      if (floor.length < 60) continue;
+      const take = (n, ch, minD) => { for (let i = 0, t = 0; i < n && t < 500; t++) { const [x, y] = floor[Math.random() * floor.length | 0]; if (m[y][x] === '.' && dist[y][x] >= minD && !(x === best.x && y === best.y)) { m[y][x] = ch; i++; } } };
+      m[sy][sx] = 'S';
+      take(Math.min(18, 7 + Math.round(lvl * 1.5)), 'g', 5); take(3, 'h', 2); take(2, 'c', 4); take(4, 't', 3); take(1, 'k', 8);
+      // plakaty DZIK WK na ścianach przy podłodze
+      for (let i = 0, t = 0; i < 6 && t < 400; t++) { const x = 1 + Math.random() * (w - 2) | 0, y = 1 + Math.random() * (h - 2) | 0; if (m[y][x] === '#' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m[y + dy] && m[y + dy][x + dx] === '.')) { m[y][x] = 'P'; i++; } }
+      return m.map(r => r.join(''));
+    }
+    return MAPS[lvl % MAPS.length]; // awaryjnie mapa stała
+  }
 
   // ---------- stan gry ----------
   const LB = LBX('w3', '#w3Ov');
@@ -4671,9 +4719,10 @@ const W3 = (() => {
   function los(ax, ay, bx, by) { const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / .1); for (let i = 1; i < n; i++) { const t = i / n; if (solid(ax + (bx - ax) * t, ay + (by - ay) * t)) return false; } return true; }
 
   function loadLevel(keepHp) {
-    const m = MAPS[G.lvl % MAPS.length]; map = m.map(r => r.split('')); MH = map.length; MW = map[0].length;
+    if (!G.curMap || G.newMap) { G.curMap = genMap(G.lvl); G.newMap = false; } // ten sam układ przy powtórce poziomu, nowy przy następnym
+    const m = G.curMap; map = m.map(r => r.split('')); MH = map.length; MW = map[0].length;
     doors = new Float32Array(MW * MH); ents = [];
-    const hard = 1 + Math.floor(G.lvl / MAPS.length) * .35 + (G.lvl % MAPS.length) * .15;
+    const hard = 1 + G.lvl * .18;
     for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
       const c = map[y][x], px = x + .5, py = y + .5;
       if (c === 'S') { G.x = px; G.y = py; G.a = 0; }
@@ -4866,9 +4915,9 @@ const W3 = (() => {
   const ov = h => { const o = $('#w3Ov'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function musPlay() { const m = $('#w3Mus'); if (G.mute || !G.open) return; m.volume = .35; const p = m.play(); if (p && p.catch) p.catch(() => {}); }
   function start(kind) {
-    if (kind === 'new') { G.lvl = 0; G.score = 0; G.lives = 3; loadLevel(); }
+    if (kind === 'new') { G.lvl = 0; G.score = 0; G.lives = 3; G.newMap = true; loadLevel(); }
     else if (kind === 'retry') loadLevel();
-    else if (kind === 'next') { G.lvl++; loadLevel(true); }
+    else if (kind === 'next') { G.lvl++; G.newMap = true; loadLevel(true); }
     ov(''); G.run = true; G.last = performance.now(); musPlay(); try { $('#w3Wrap').focus({ preventScroll: true }); } catch (e) {}
   }
   function init() {
@@ -4919,7 +4968,7 @@ const W3 = (() => {
     $('#w3Hub').onclick = () => { $('#w3').close(); hubOpen(); };
   }
   function open() {
-    init(); G.lvl = 0; G.score = 0; G.lives = 3; loadLevel(); G.run = false; G.open = true;
+    init(); G.lvl = 0; G.score = 0; G.lives = 3; G.newMap = true; loadLevel(); G.run = false; G.open = true;
     ov(`<b>OWCA WK 3D</b><span>Przejdź przez magazyn, pokonaj leniwców rzucając batonami kokosowymi i znajdź wyjście (EXIT).</span><span class="w3k">W/S lub ↑↓ – ruch · A/D – krok w bok · ←→ – obrót<br>Spacja / klik – rzut batonem · E – otwórz drzwi / wyjście</span><button type="button" class="p" data-go="go">Start</button>${LB.html()}`);
     $('#w3').showModal(); LB.open(); if (!G.raf) G.raf = requestAnimationFrame(t => { G.last = t; loop(t); });
   }
