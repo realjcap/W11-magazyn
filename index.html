@@ -419,6 +419,14 @@ dialog[open]{opacity:1;transform:none}
 #w3 .gh h2{margin:0;font-size:18px}
 #w3Wrap{position:relative;width:100%;aspect-ratio:320/200;background:#000;border-radius:6px;overflow:hidden;outline:0;touch-action:none}
 #w3C{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair}
+#w3X0{position:absolute;left:50%;top:40%;width:14px;height:14px;margin:-7px 0 0 -7px;pointer-events:none;opacity:.85}
+#w3X0::before,#w3X0::after{content:'';position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+#w3X0::before{left:6px;top:0;width:2px;height:14px}
+#w3X0::after{top:6px;left:0;height:2px;width:14px}
+#w3Lb span{position:absolute;top:81.6%;text-align:center;color:#9fd0ff;font:700 clamp(7px,1.15vw,11px)/1 ui-monospace,Consolas,monospace;letter-spacing:.06em;pointer-events:none}
+#w3Msg{position:absolute;left:50%;top:4%;transform:translateX(-50%);padding:3px 10px;border-radius:6px;background:rgba(0,0,0,.55);color:#ffe14d;font:800 clamp(13px,2.2vw,18px)/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em;pointer-events:none;opacity:0;transition:opacity .2s}
+#w3Msg.on{opacity:1}
+#w3 .gh #w3Snd{padding:4px 10px;min-height:0}
 #w3Ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.72);color:#fff;font-size:15px;padding:16px;font-family:ui-monospace,Consolas,monospace}
 #w3Ov[hidden]{display:none}
 #w3Ov b{font-size:clamp(20px,4vw,34px);letter-spacing:.06em;color:#ffe14d;text-shadow:3px 3px 0 #a33}
@@ -864,8 +872,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
 </dialog>
 <dialog id="w3">
-  <div class="gh"><h2>Owca WK 3D</h2><span class="mu w3h">Spacja – rzut batonem · E – drzwi</span></div>
-  <div id="w3Wrap" tabindex="-1"><canvas id="w3C"></canvas><div id="w3Ov"></div></div>
+  <div class="gh"><h2>Owca WK 3D</h2><span class="mu w3h">Spacja – rzut batonem · E – drzwi</span><button type="button" id="w3Snd" class="e" title="Muzyka">🔊</button></div>
+  <div id="w3Wrap" tabindex="-1"><canvas id="w3C"></canvas><div id="w3X0" aria-hidden="true"></div><div id="w3Lb" aria-hidden="true"><span style="left:1.25%;width:11.25%">POZIOM</span><span style="left:13.75%;width:20%">WYNIK</span><span style="left:35%;width:12.5%">ŻYCIA</span><span style="left:57.5%;width:16.25%">ZDROWIE</span><span style="left:75%;width:23.75%">BROŃ</span></div><div id="w3Msg" aria-live="polite"></div><div id="w3Ov"></div></div>
+  <audio id="w3Mus" src="jedziemy.mp3" loop preload="none"></audio>
   <div id="w3Pad"><button type="button" data-k="l" aria-label="Obrót w lewo">⟲</button><button type="button" data-k="f" aria-label="Naprzód">▲</button><button type="button" data-k="r" aria-label="Obrót w prawo">⟳</button><button type="button" data-k="use" aria-label="Otwórz">E</button><button type="button" data-k="b" aria-label="Wstecz">▼</button><button type="button" data-k="fire" class="fire" aria-label="Atak">🍫</button></div>
   <div class="gbt"><button type="button" id="w3Hub" class="e">← Game Hub</button><span class="mu">W/S ruch · A/D bok · ←→ obrót</span><button type="button" id="w3X">Zamknij</button></div>
 </dialog>
@@ -3745,7 +3754,8 @@ const W3 = (() => {
     drawWeapon();
     if (G.flash > 0) { cx.fillStyle = `rgba(255,0,0,${Math.min(.45, G.flash)})`; cx.fillRect(0, 0, VW, VH); }
     if (G.gflash > 0) { cx.fillStyle = `rgba(255,220,60,${Math.min(.35, G.gflash)})`; cx.fillRect(0, 0, VW, VH); }
-    if (G.msgT > 0) { const w = textW(G.msg); cx.fillStyle = 'rgba(0,0,0,.55)'; cx.fillRect(VW / 2 - w / 2 - 3, 4, w + 6, 9); text(cx, G.msg, VW / 2 - w / 2, 6, '#ffe14d'); }
+    const mEl = $('#w3Msg'), mOn = G.msgT > 0 && G.run; if (mOn && mEl.textContent !== G.msg) mEl.textContent = G.msg; mEl.classList.toggle('on', mOn);
+    $('#w3X0').hidden = !G.run;
     drawHud();
   }
   // broń: pikselowy baton w dłoni, zamach po ataku
@@ -3778,7 +3788,7 @@ const W3 = (() => {
   function makeHud() {
     const c = document.createElement('canvas'); c.width = VW; c.height = HUDH; const x = c.getContext('2d');
     x.fillStyle = '#004070'; x.fillRect(0, 0, VW, HUDH); x.fillStyle = '#002a4c'; x.fillRect(0, 0, VW, 1);
-    const box = (X, W, label) => { x.fillStyle = '#00213d'; x.fillRect(X, 3, W, 34); x.fillStyle = '#0a5c9c'; x.fillRect(X, 36, W, 1); x.fillRect(X + W - 1, 3, 1, 34); if (label) text(x, label, X + W / 2 - textW(label) / 2, 6, '#9fd0ff'); };
+    const box = (X, W, label) => { x.fillStyle = '#00213d'; x.fillRect(X, 3, W, 34); x.fillStyle = '#0a5c9c'; x.fillRect(X, 36, W, 1); x.fillRect(X + W - 1, 3, 1, 34); };
     box(4, 36, 'POZIOM'); box(44, 64, 'WYNIK'); box(112, 40, 'ZYCIA'); box(152, 28, ''); box(184, 52, 'ZDROWIE'); box(240, 76, 'BRON');
     return c;
   }
@@ -3869,11 +3879,12 @@ const W3 = (() => {
 
   // ---------- UI ----------
   const ov = h => { const o = $('#w3Ov'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
+  function musPlay() { const m = $('#w3Mus'); if (G.mute || !G.open) return; m.volume = .18; const p = m.play(); if (p && p.catch) p.catch(() => {}); }
   function start(kind) {
     if (kind === 'new') { G.lvl = 0; G.score = 0; G.lives = 3; loadLevel(); }
     else if (kind === 'retry') loadLevel();
     else if (kind === 'next') { G.lvl++; loadLevel(true); }
-    ov(''); G.run = true; G.last = performance.now(); try { $('#w3Wrap').focus({ preventScroll: true }); } catch (e) {}
+    ov(''); G.run = true; G.last = performance.now(); musPlay(); try { $('#w3Wrap').focus({ preventScroll: true }); } catch (e) {}
   }
   function init() {
     if (T) return;
@@ -3913,6 +3924,13 @@ const W3 = (() => {
     $('#w3Pad').addEventListener('pointerup', stopT); $('#w3Pad').addEventListener('pointercancel', stopT); $('#w3Pad').addEventListener('pointerleave', () => { G.touch.f = 0; G.touch.t = 0; });
     $('#w3').addEventListener('close', () => { G.open = false; G.run = false; G.keys = {}; G.touch = {}; if (document.pointerLockElement) document.exitPointerLock(); });
     $('#w3X').onclick = () => $('#w3').close();
+    // cicha muzyka w tle (plik jedziemy.mp3 obok index.html); wyciszenie zapamiętane
+    const mus = $('#w3Mus'); mus.volume = .18;
+    try { G.mute = localStorage.getItem('w11-w3-mute') === '1'; } catch (e) {}
+    const sndBtn = () => { $('#w3Snd').textContent = G.mute ? '🔇' : '🔊'; };
+    sndBtn();
+    $('#w3Snd').onclick = () => { G.mute = !G.mute; try { localStorage.setItem('w11-w3-mute', G.mute ? '1' : '0'); } catch (e) {} sndBtn(); G.mute ? mus.pause() : musPlay(); };
+    $('#w3').addEventListener('close', () => mus.pause());
     $('#w3Hub').onclick = () => { $('#w3').close(); hubOpen(); };
   }
   function open() {
