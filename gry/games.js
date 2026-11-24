@@ -880,10 +880,10 @@ const FN = (() => {
       + `<i class="you" style="left:${U(17.3)};top:${V(6.9)}"></i>`
       + cams.map(([x, z], i) => `<button type="button" data-c="${i}" style="left:${U(x)};top:${V(z)}">${i + 1}</button>`).join('');
   }
-  // ---------- przeciwnicy: pracownicy po przeterminowanym Tropicu ----------
+  // ---------- przeciwnicy: agencja (agenciaki) po przeterminowanym Tropicu ----------
   // 3 losowych przy zgrzewkach (stoły po lewej), 2 przy mixach (stół przy górnej ścianie); modele ładowane dopiero przy starcie zmiany
   const EN_V = '7c67bdc51c', EN_POOL = ['oryginal', 'magazynier', 'skorzana', 'flanela', 'robocza', 'granat', 'zombie'];
-  const EN_NAME = { oryginal: 'Szary', magazynier: 'Odblaskowy', skorzana: 'Skórzany', flanela: 'Flanela', robocza: 'Kraciasty', granat: 'Granatowy', zombie: 'Zgniły', dzik: 'Szef zmiany' };
+  const EN_NAME = { oryginal: 'Agenciak w szarej kurtce', magazynier: 'Agenciak w odblasku', skorzana: 'Agenciak w skórze', flanela: 'Agenciak we flaneli', robocza: 'Agenciak w kracie', granat: 'Agenciak w granacie', zombie: 'Zgniły agenciak', dzik: 'Grzechu' };
   const ENC = {};
   async function enLoad(names) {
     const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'); const L = new GLTFLoader();
@@ -1105,7 +1105,7 @@ const FN = (() => {
     } else if (!S2.blk) { S2.blk = true; if (e.g) { e.g.visible = false; ['usta_krzyk', 'oczy_szeroko', 'wykrzywienie'].forEach(k => face(e, k, 0)); } if (G.redL) G.redL.intensity = 0; ov('<div class="fnBig fnDead"></div>'); }
     if (t > 2.1 && !S2.done) {
       S2.done = true; if (document.pointerLockElement) document.exitPointerLock(); const h = Math.floor(G.t / HOUR);
-      ov(`<div class="fnBig fnDead">ZWOLNIONY</div><span>${esc(e.name || 'Ktoś')} dorwał cię o ${h === 0 ? 12 : h}:00 AM (noc ${G.night}).</span><button type="button" data-a="retry">Spróbuj jeszcze raz</button><button type="button" data-a="menu">Menu główne</button>`);
+      ov(`<div class="fnBig fnDead">ZWOLNIONY</div><span>${e.k === 'dzik' || e.none ? 'Grzechu zabił cię za wyjebane korki' : esc(e.name || 'Agenciak') + ' dorwał cię'} o ${h === 0 ? 12 : h}:00 AM (noc ${G.night}).</span><button type="button" data-a="retry">Spróbuj jeszcze raz</button><button type="button" data-a="menu">Menu główne</button>`);
     }
   }
   async function load() { if (T) return; for (const u of URLS) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
@@ -1267,14 +1267,14 @@ const FN = (() => {
   const CALL1 = [
     ['Lukas Frozen', 'Halo? Halo, słychać mnie? Tu Lukas Frozen.'],
     ['Lukas Frozen', 'Słuchaj… dzisiaj jest mocno pojebana zmiana.'],
-    ['Lukas Frozen', 'Wszyscy na hali wypili przeterminowanego Tropica…'],
-    ['Lukas Frozen', '…i zajedli to zgniłym batonem kokosowym.'],
+    ['Lukas Frozen', 'Cała agencja na hali wypiła przeterminowanego Tropica…'],
+    ['Lukas Frozen', '…i zajadła to zgniłym batonem kokosowym.'],
     ['Lukas Frozen', 'Nie pytaj, skąd to wzięli. Teraz są… dziwni.'],
-    ['Lukas Frozen', 'Ci przy zgrzewkach, po lewej stronie hali, czasem rzucają robotę i łażą po magazynie.'],
+    ['Lukas Frozen', 'Agencja przy zgrzewkach, po lewej stronie hali, czasem rzuca robotę i łazi po magazynie.'],
     ['Lukas Frozen', 'Jak któryś stanie pod drzwiami kanciapy, zamknij drzwi. Czerwony przycisk przy drzwiach albo E.'],
     ['Lukas Frozen', 'Biały przycisk to lampa przed kanciapą, F. Za oknem jest ciemno, więc świeć i sprawdzaj, czy ktoś tam nie stoi.'],
     ['Lukas Frozen', 'Tylko oszczędzaj prąd. Drzwi, lampa i kamery ciągną z agregatu. Jak prąd siądzie… to siądzie.'],
-    ['Lukas Frozen', 'I ci dwaj na mixach, przy górnej ścianie. Zaglądaj do nich na kamerach. Jak nikt na nich nie patrzy, robią się nerwowi.'],
+    ['Lukas Frozen', 'I ci dwaj agenciaki na mixach, przy górnej ścianie. Zaglądaj do nich na kamerach. Jak nikt na nich nie patrzy, robią się nerwowi.'],
     ['Lukas Frozen', 'Aha, i ta drukarka za tobą. Ukrainka. Co pół minuty trzeba się odwrócić i jej przywalić, bo się zacina i piszczy na cały magazyn. R albo przycisk w rogu.'],
     ['Lukas Frozen', 'Dobra, muszę kończyć. Do szóstej rano. Powodzenia.'],
     ['', '*klik*']
@@ -1282,7 +1282,7 @@ const FN = (() => {
   const CALLS = [null, CALL1,
     [['Lukas Frozen', 'Halo? To znowu ja. Przeżyłeś wczoraj, więc dzisiaj też dasz radę.'], ['Lukas Frozen', 'Mixy są dzisiaj nerwowe. Jak któryś zniknie ze stołu, od razu zamykaj drzwi, bo oni biegną.'], ['Lukas Frozen', 'Jak walną w drzwi, zjedzą ci trochę prądu. Ale lepsze to niż… no.'], ['Lukas Frozen', 'Tylko nie wychodź z kanciapy. Serio.'], ['', '*klik*']],
     [['Lukas Frozen', 'Hej… dzisiaj krótko. Słyszałem, że po trzeciej robią się szybsi.'], ['Lukas Frozen', 'Patrz przez okno. Jak ktoś stoi przy szybie, to zaraz będzie przy drzwiach.'], ['', '*klik*']],
-    [['Lukas Frozen', 'Halo… *kaszel* … chyba też się napiłem tego Tropica…'], ['Lukas Frozen', 'Jak zgaśnie prąd i usłyszysz muzykę… to nie jest radio.'], ['Lukas Frozen', '…*szuranie*… kto tam…'], ['', '*klik*']],
+    [['Lukas Frozen', 'Halo… *kaszel* … chyba też się napiłem tego Tropica…'], ['Lukas Frozen', 'Jak wywalisz korki i usłyszysz muzykę… to Grzechu. Nie lubi, jak ktoś wywala korki.'], ['Lukas Frozen', '…*szuranie*… kto tam…'], ['', '*klik*']],
     [['???', 'Zzzzz… *trzaski*… ZGRZEWKI… MIXY… KARTONY…'], ['???', 'KTO ZAMKNĄŁ DRZWI'], ['', '*klik*']]];
   function answer() {
     if (G.st !== 'ring') return; G.st = 'call'; click();
@@ -1342,7 +1342,7 @@ const FN = (() => {
     G.prn = PRN_T; sting(); for (let i = 0; i < 6; i++) setTimeout(() => { if (audio) noiseHit(audio.ac.currentTime, .3, .12, 3000, 2); }, i * 120);
     G.pow = Math.max(0, G.pow - 3);
     for (const e of G.en) { if (e.kind === 'zg') { if (!G.inside && e.node !== 'drzwi' && (e.node !== 'home' || Math.random() < .6)) enMove(e); } else if (!e.run && e.stage < 3) { e.stage++; if (e.stage === 3) e.runIn = 15 + Math.random() * 6; enPlace(e); } }
-    const h = $('#fnHint'); h.textContent = '🖨️ Ukrainka się zacięła! Wszyscy to słyszeli…'; h.classList.add('on'); clearTimeout(G.hintT); G.hintT = setTimeout(() => h.classList.remove('on'), 2600);
+    const h = $('#fnHint'); h.textContent = '🖨️ Ukrainka się zacięła! Cała agencja to słyszała…'; h.classList.add('on'); clearTimeout(G.hintT); G.hintT = setTimeout(() => h.classList.remove('on'), 2600);
   }
   // ---------- pętla ----------
   function update(dt) {
@@ -1407,7 +1407,7 @@ const FN = (() => {
   function menu() {
     camClose(); G.st = 'menu'; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnPrnBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
-    ov(`<div class="fnTitle">FIVE NIGHTS<br>AT <span>DZIK</span></div>
+    ov(`<div class="fnTitle">5 NOCEK<br>W <span>KANCIAPIE</span></div>
       <nav class="fnMenu">
         <button type="button" data-a="new">Nowa zmiana</button>
         <button type="button" data-a="cont"${d ? '' : ' disabled title="Najpierw przetrwaj pierwszą noc"'}>Wróć z przerwy${d ? ` <small>noc ${Math.min(5, d + 1)}</small>` : ''}</button>
@@ -1431,7 +1431,7 @@ const FN = (() => {
   async function startNight(n) {
     if (G.loading) return; audioInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
     const pick = shuf(EN_POOL.slice()).slice(0, 5);
-    if (pick.some(k => !ENC[k])) { G.loading = true; G.st = 'menu'; ov('<div class="fnH">Ładowanie…</div><span>Pracownicy wracają na halę</span>'); try { await enLoad(pick); } catch (e) { console.warn(e); } G.loading = false; if (!G.open) return; }
+    if (pick.some(k => !ENC[k])) { G.loading = true; G.st = 'menu'; ov('<div class="fnH">Ładowanie…</div><span>Agencja wraca na halę</span>'); try { await enLoad(pick); } catch (e) { console.warn(e); } G.loading = false; if (!G.open) return; }
     enLoad(['dzik']).catch(() => {}); // szef zmiany – potrzebny dopiero, gdy zabraknie prądu
     G.night = n; G.t = 0; G.yaw = 0; G.st = 'ring'; G.ringFor = 0; ringT = .8; ov('');
     // reset stanu nocy

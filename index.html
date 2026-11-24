@@ -1010,7 +1010,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
-    <button type="button" class="hubt" data-g="fn" id="hubFn" hidden><span class="hubi fnic">5</span><b>Five Nights at DZIK</b><small>Nocna zmiana w kanciapie</small><small class="hubs">tylko dla Ciebie (wersja testowa)</small></button>
+    <button type="button" class="hubt" data-g="fn" id="hubFn" hidden><span class="hubi fnic">5</span><b>5 nocek w kanciapie</b><small>Nocna zmiana w kanciapie</small><small class="hubs">tylko dla Ciebie (wersja testowa)</small></button>
   </div>
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
 </dialog>
@@ -3459,7 +3459,7 @@ async function presLoadUsers() { // lista kont z datą ostatniego logowania – 
   try { presUsers = (await slApi('/users')).users || []; presRender(); } catch (e) { presUsers = null; clearTimeout(presLoadUsers.r); presLoadUsers.r = setTimeout(presLoadUsers, 20000); }
 }
 function presWhere() {
-  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: Five Nights at DZIK', hub: 'Game Hub' };
+  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: 5 nocek w kanciapie', hub: 'Game Hub' };
   for (const [id, n] of Object.entries(games)) { const d = document.getElementById(id); if (d && d.open) return n; }
   const dl = { log: 'Historia', op: 'Dostawa / wysyłka / event', pd: 'Dodawanie / edycja modelu', scanD: 'Skaner kodów', exm: 'Eksport', prd: 'Druk etykiet', led: 'Edycja historii' };
   const base = { wh: 'Magazyn', st: 'Statystyki', br: 'Braki', map: 'Mapa' }[view] || 'Magazyn';
@@ -3570,7 +3570,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '1af90b2d76'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '9d8b5d7fb4'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
