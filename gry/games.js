@@ -409,7 +409,7 @@ const SL3 = (() => {
     const PROD = [['gry/img/tropic.webp', .62, -18.9, .31, -12], ['gry/img/classic.webp', .62, 16.5, .81 + .31, 11.3], ['gry/img/limitless.webp', .42, -11, .21, 3.6], ['gry/img/kreatyna.webp', .52, 11, .26, -6.4]]; // [obrazek (pełna rozdzielczość), wysokość, x, y, z]
     PROD.forEach(([src, h, x, y, z]) => {
       const tex = TL.load(src + '?v=' + ASSET_V, t => { m.scale.set(h * t.image.width / t.image.height, h, 1); }); tex.colorSpace = T.SRGBColorSpace;
-      const m = new T.Sprite(new T.SpriteMaterial({ map: tex })); m.scale.set(h * .5, h, 1); m.position.set(x, y, z); scene.add(m); items.push({ m, x, y, z, got: false, by: y });
+      const m = new T.Sprite(new T.SpriteMaterial({ map: tex })); m.scale.set(h * .5, h, 1); m.position.set(x, y, z); scene.add(m); items.push({ m, x, y, z, got: false, by: y, h, wh: true });
     });
     const rTex = TL.load('gry/img/raben.png?v=' + ASSET_V); rTex.colorSpace = T.SRGBColorSpace; rTex.anisotropy = R.capabilities.getMaxAnisotropy(); // ostra etykieta pod kątem
     const rM = new T.MeshLambertMaterial({ map: rTex, color: 0xb0b0b0, emissive: 0x0c0c0c, side: T.DoubleSide });
@@ -534,10 +534,45 @@ const SL3 = (() => {
     if (seen && !G.sl.vis) boom(.9, .35, 45); // „uderzenie” przy pierwszym zobaczeniu
     G.sl.vis = seen;
   }
+  // jumpscare: Długi staje tuż przed graczem, kamera szarpie w górę na jego twarz, zoom, trzęsienie, szum, krzyk, potem czarny ekran
+  let jsLight = null;
   function caught() {
-    G.run = false; G.st = 'dead'; if (document.pointerLockElement) document.exitPointerLock();
-    const js = $('#slJs'); js.hidden = false; boom(1.4, .9, 40); if (audio && !G.mute) audio.ng.gain.value = .9;
-    setTimeout(() => { js.hidden = true; if (audio) audio.ng.gain.value = 0; ov(`<b>ZŁAPAŁ CIĘ</b><span>Zebrane przedmioty: ${G.got}/${G.total}</span><button type="button" class="p" data-go="new">Jeszcze raz</button>`); }, 1500);
+    G.run = false; G.st = 'jump'; G.jT = 0; G.keys = {}; if (document.pointerLockElement) document.exitPointerLock();
+    const fx = -Math.sin(G.yaw), fz = -Math.cos(G.yaw);
+    // twarz na wysokości oczu gracza: model obniżony (jest wysoki na 3,9 m), stoi tuż przed kamerą
+    G.sl.x = G.x + fx * 1.0; G.sl.z = G.z + fz * 1.0; slender.position.set(G.sl.x, 1.65 - 3.5, G.sl.z); slender.rotation.y = Math.atan2(-fx, -fz);
+    slAnim('idle', 3);
+    if (!jsLight) { jsLight = new T.PointLight(0xff3030, 0, 6, 1.2); scene.add(jsLight); }
+    jsLight.position.set(G.x + fx * .35, 1.9, G.z + fz * .35); jsLight.intensity = 14;
+    G.flashOn = true; G.jP0 = G.pitch; G.jY0 = G.yaw;
+    scream();
+  }
+  function jumpUpdate(dt) {
+    const t = G.jT += dt, k = Math.min(1, t / .18); // szarpnięcie kamery w .18 s
+    const look = .02; // twarz jest na wysokości oczu
+    const sh = (t < 1.3 ? .05 : .02) * (1 - Math.min(1, t / 1.6));
+    G.pitch = G.jP0 + (look - G.jP0) * (1 - Math.pow(1 - k, 3)) + (Math.random() - .5) * sh * 2;
+    const yaw = G.jY0 + (Math.random() - .5) * sh * 2;
+    cam.position.set(G.x + (Math.random() - .5) * sh, 1.65 + (Math.random() - .5) * sh, G.z); cam.rotation.set(G.pitch, yaw, (Math.random() - .5) * sh * 3);
+    cam.fov = 70 - 30 * Math.min(1, t / .45); cam.updateProjectionMatrix(); // zoom na twarz
+    if (jsLight) jsLight.intensity = Math.random() < .35 ? 0 : 10 + Math.random() * 14; // migające czerwone światło
+    $('#slNs').style.opacity = (.35 + Math.random() * .45).toFixed(2);
+    const js = $('#slJs'); js.hidden = !(t > 1.45);           // czarny ekran na koniec
+    if (t > 1.45 && audio) audio.ng.gain.value = 0;
+    if (t > 2.1 && G.st === 'jump') {
+      G.st = 'dead'; cam.fov = 70; cam.updateProjectionMatrix(); if (jsLight) jsLight.intensity = 0; js.hidden = true; $('#slNs').style.opacity = 0;
+      ov(`<b>ZŁAPAŁ CIĘ</b><span>Zebrane przedmioty: ${G.got}/${G.total}</span><button type="button" class="p" data-go="new">Jeszcze raz</button>`);
+    }
+  }
+  function scream() { // zniekształcony krzyk: szum przez przesuwany filtr + rozstrojone piły + uderzenie basu
+    boom(1.2, .8, 38);
+    if (!audio || G.mute) return; const { ac, master, sb } = audio, t = ac.currentTime, out = ac.createGain();
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(.7, t + .03); out.gain.setValueAtTime(.7, t + 1.1); out.gain.exponentialRampToValueAtTime(.001, t + 1.5); out.connect(master);
+    const ws = ac.createWaveShaper(), cv2 = new Float32Array(512); for (let i = 0; i < 512; i++) { const x = i / 256 - 1; cv2[i] = Math.tanh(x * 6); } ws.curve = cv2; ws.connect(out);
+    for (const [f0, f1] of [[180, 95], [187, 90], [360, 170]]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + 1.4); const g = ac.createGain(); g.gain.value = .22; o.connect(g).connect(ws); o.start(t); o.stop(t + 1.5); }
+    const nb = ac.createBuffer(1, ac.sampleRate * 1.5, ac.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const n = ac.createBufferSource(); n.buffer = nb; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 3; bp.frequency.setValueAtTime(600, t); bp.frequency.exponentialRampToValueAtTime(2600, t + .35); bp.frequency.exponentialRampToValueAtTime(900, t + 1.4);
+    const ng2 = ac.createGain(); ng2.gain.value = .9; n.connect(bp).connect(ng2).connect(ws); n.start(t); n.stop(t + 1.5);
   }
 
   // ---------- zgaszenie świateł + brama ----------
@@ -549,6 +584,7 @@ const SL3 = (() => {
     scene.fog = new T.FogExp2(0x050607, .045); scene.background.set(0x030304);
     G.flashOn = true; if (audio) { audio.hum.gain.value = 0; }
     slender.position.y = -50; quest();
+    $('#slList').classList.add('gone'); setTimeout(() => { $('#slList').hidden = true; $('#slList').classList.remove('gone'); }, 900); // lista znika po zebraniu wszystkiego z magazynu
     say('Światła zgasły… brama się otwiera');
   }
 
@@ -596,6 +632,26 @@ const SL3 = (() => {
     $('#slNs').style.opacity = Math.min(.45, G.stat * .5).toFixed(2);
     G.msgT -= dt; $('#slMsg').classList.toggle('on', G.msgT > 0);
   }
+  // losowe rozłożenie przedmiotów z listy po magazynie: alejki między regałami, alejka główna, biurka, kąty hali
+  function whScatter() {
+    const DESKS = [[13, 11], [16.5, 11], [13, 13.6], [16.5, 13.6]], used = [];
+    const spot = () => {
+      const r = Math.random();
+      if (r < .2) { const [x, z] = DESKS[Math.random() * 4 | 0]; return { x: x + (Math.random() - .5) * 1.6, z: z + .25, top: .76 }; } // na biurku
+      if (r < .75) { const zs = [-11.5, -6.5, -1.5, 3.5, 8.5], side = Math.random() < .5 ? -1 : 1; return { x: side * (5.5 + Math.random() * 11), z: zs[Math.random() * zs.length | 0] + (Math.random() - .5) * 1.2, top: 0 }; } // alejki przy regałach
+      if (r < .9) return { x: (Math.random() - .5) * 5, z: -13 + Math.random() * 22, top: 0 }; // alejka główna
+      return { x: (Math.random() < .5 ? -1 : 1) * (18.6 + Math.random() * .6), z: -13.5 + Math.random() * 27, top: 0 }; // pod ścianami
+    };
+    items.filter(it => it.wh).forEach(it => {
+      for (let i = 0; i < 80; i++) {
+        const p = spot();
+        if (Math.hypot(p.x - 0, p.z - 12) < 6 || Math.hypot(p.x - NPC.x, p.z - NPC.z) < 2.5) continue; // nie przy starcie i nie przy Długim
+        if (used.some(u => Math.hypot(u.x - p.x, u.z - p.z) < 5)) continue;
+        if (!p.top && blocked(p.x, p.z, .35)) continue;
+        used.push(p); it.x = p.x; it.z = p.z; it.by = p.top + it.h / 2; it.m.position.set(p.x, it.by, p.z); return;
+      }
+    });
+  }
   function takeList() {
     G.q = 'collect'; chime(); say('Długi: „Masz tu listę. Zbierz to wszystko.”'); $('#slPr').classList.remove('on');
     $('#slList').hidden = false; listRender(); quest();
@@ -615,7 +671,7 @@ const SL3 = (() => {
   function loop() {
     if (!G.open) { G.raf = 0; return; }
     const dt = Math.min(.05, clock.getDelta());
-    if (G.run) update(dt);
+    if (G.run) update(dt); else if (G.st === 'jump') jumpUpdate(dt);
     if (mixer) mixer.update(dt);
     resize(); R.render(scene, cam);
     if ((noiseT += dt) > .06 && G.stat > .02) { noiseT = 0; drawNoise(); }
@@ -637,6 +693,7 @@ const SL3 = (() => {
     G.x = 0; G.z = 12; G.yaw = 0; G.pitch = 0; G.got = 0; G.stam = 1; G.stat = 0; G.lightsOut = false; G.gateY = 0; G.flashOn = false; G.slT = 6; G.forest = false; G.slFirst = false; G.q = 'list';
     slender.position.set(NPC.x, 0, NPC.z); slender.rotation.y = NPC.face; slAnim('idle'); $('#slList').hidden = true; $('#slPr').classList.remove('on');
     items.forEach(it => { it.got = false; if (!it.m.parent) scene.add(it.m); });
+    whScatter(); if (cam) { cam.fov = 70; cam.updateProjectionMatrix(); } if (jsLight) jsLight.intensity = 0; $('#slJs').hidden = true;
     whLights.forEach(l => l.intensity = 38); lamps.mat.color.set(0xfff6d8); hemi.intensity = 1.1; amb.intensity = .35; emerg.intensity = 0; emerg.userData.m.material.color.set(0x551111);
     monitors.forEach(m => m.material.color.set(0xffffff));
     scene.fog = null; scene.background.set(0x0b0c0e); gateMesh.position.y = GATE.h / 2; G.sl.x = 0; G.sl.z = -100; quest();
@@ -697,7 +754,7 @@ const SL3 = (() => {
     if (audio) audio.ac.resume();
     if (!G.raf) { clock.getDelta(); G.raf = requestAnimationFrame(loop); }
   }
-  return { open, G, _dbg: () => ({ scene, cam, items, slender, boxes, step: (dt = .016, nr) => { if (G.run) update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
+  return { open, G, _dbg: () => ({ scene, cam, items, slender, boxes, step: (dt = .016, nr) => { if (G.run) update(dt); else if (G.st === 'jump') jumpUpdate(dt); if (mixer) mixer.update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
 })();
 
 // ===== FN – kanciapa brygadzistów (Three.js, ten sam silnik co Slender) =====
