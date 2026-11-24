@@ -467,9 +467,24 @@ const SL3 = (() => {
     const drone = ac.createGain(); drone.gain.value = 0; drone.connect(master);
     for (const f of [41, 43.5, 82]) { const o = ac.createOscillator(); o.type = f > 80 ? 'triangle' : 'sawtooth'; o.frequency.value = f; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160; o.connect(lp).connect(drone); o.start(); }
     const hum = ac.createGain(); hum.gain.value = .025; hum.connect(master); { const o = ac.createOscillator(); o.frequency.value = 100; o.type = 'sine'; o.connect(hum); o.start(); } // brzęczenie lamp
-    audio = { ac, master, ng, drone, hum };
+    // kroki: wspólny bufor szumu + echo hali (w magazynie)
+    const sb = ac.createBuffer(1, ac.sampleRate * .25, ac.sampleRate), sd = sb.getChannelData(0); for (let i = 0; i < sd.length; i++) sd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / sd.length, 3);
+    const echo = ac.createDelay(1), fb = ac.createGain(), wet = ac.createGain(); echo.delayTime.value = .11; fb.gain.value = .32; wet.gain.value = .35;
+    echo.connect(fb).connect(echo); echo.connect(wet).connect(master);
+    audio = { ac, master, ng, drone, hum, sb, echo };
   }
   function boom(len = .6, vol = .6, f = 70) { if (!audio || G.mute) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(f * 2, ac.currentTime); o.frequency.exponentialRampToValueAtTime(f / 2, ac.currentTime + len); g.gain.setValueAtTime(vol, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + len); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + len); }
+  // odgłos kroku: beton w magazynie (twardy, z echem hali), w lesie miękki szelest
+  function footstep(run) {
+    if (!audio || G.mute) return; const { ac, master, sb, echo } = audio, t = ac.currentTime, inWH = G.z > -15.4;
+    const src = ac.createBufferSource(), flt = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = sb; src.playbackRate.value = (inWH ? .9 : 1.3) + Math.random() * .2;
+    flt.type = inWH ? 'lowpass' : 'bandpass'; flt.frequency.value = inWH ? 900 + Math.random() * 300 : 2600 + Math.random() * 800; flt.Q.value = inWH ? .8 : .7;
+    const v = (run ? .55 : .38) * (inWH ? 1 : .7); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + (inWH ? .16 : .22));
+    src.connect(flt).connect(g).connect(master); if (inWH) g.connect(echo);
+    if (inWH) { const o = ac.createOscillator(), og = ac.createGain(); o.frequency.setValueAtTime(110 + Math.random() * 20, t); o.frequency.exponentialRampToValueAtTime(55, t + .07); og.gain.setValueAtTime(v * .6, t); og.gain.exponentialRampToValueAtTime(.001, t + .09); o.connect(og).connect(master); o.start(t); o.stop(t + .1); } // „tup” obcasa
+    src.start(t); src.stop(t + .25);
+  }
   function chime() { if (!audio || G.mute) return; const { ac, master } = audio; [660, 880].forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f; const t = ac.currentTime + i * .09; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18, t + .02); g.gain.exponentialRampToValueAtTime(.001, t + .5); o.connect(g).connect(master); o.start(t); o.stop(t + .55); }); }
 
   // ---------- Slender ----------
@@ -546,7 +561,9 @@ const SL3 = (() => {
     const sp = (sprint ? 5.2 : 2.9) * dt, len = Math.hypot(f, s) || 1;
     const vx = (-Math.sin(G.yaw) * f + Math.cos(G.yaw) * s) / len * sp, vz = (-Math.cos(G.yaw) * f - Math.sin(G.yaw) * s) / len * sp;
     if (!blocked(G.x + vx, G.z, .35)) G.x += vx; if (!blocked(G.x, G.z + vz, .35)) G.z += vz;
-    G.bob = (f || s) ? (G.bob || 0) + dt * (sprint ? 13 : 8) : 0;
+    const pb = G.bob || 0;
+    G.bob = (f || s) ? pb + dt * (sprint ? 13 : 8) : 0;
+    if (G.bob && Math.floor(G.bob / Math.PI) !== Math.floor(pb / Math.PI)) footstep(sprint); // krok co pół cyklu kołysania
     G.yaw -= G.mx; G.pitch = Math.max(-1.2, Math.min(1.2, G.pitch - G.my)); G.mx = G.my = 0;
     cam.position.set(G.x, 1.65 + Math.sin(G.bob) * .04, G.z); cam.rotation.set(G.pitch, G.yaw, 0);
     flash.intensity = G.flashOn ? 55 : 0;
