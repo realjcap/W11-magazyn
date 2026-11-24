@@ -423,6 +423,27 @@ dialog[open]{opacity:1;transform:none}
 #fn{width:min(1200px,calc(100vw - 12px));max-width:none;padding:0;background:#000;border-color:#222;overflow:hidden}
 #fnWrap{position:relative;width:min(100%,calc((100dvh - 14px) * 16 / 9));aspect-ratio:16/9;margin:0 auto;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #fnC{display:block;width:100%;height:100%}
+#fnWrap.cam #fnC{filter:grayscale(.55) sepia(.25) hue-rotate(60deg) contrast(1.25) brightness(1.35)}
+#fnCam{position:absolute;inset:0;pointer-events:none;font-family:'Courier New',monospace;color:#d8ffe0}
+#fnCam[hidden]{display:none}
+#fnCamS{position:absolute;inset:0;width:100%;height:100%;opacity:.16;mix-blend-mode:screen;image-rendering:pixelated}
+#fnCamS.burst{animation:fnBurst .35s ease-out}
+@keyframes fnBurst{0%{opacity:.95}100%{opacity:.16}}
+#fnCam .scan{position:absolute;inset:0;background:repeating-linear-gradient(rgba(0,0,0,.18) 0 1px,transparent 1px 3px);pointer-events:none}
+#fnCamN{position:absolute;left:14px;top:12px;font:700 clamp(14px,2.2vw,22px)/1 'Courier New',monospace;text-shadow:0 0 4px #000}
+#fnCam .rec{position:absolute;left:14px;top:40px;font:700 13px/1 'Courier New',monospace;color:#ff4040;animation:fnBlink 1s steps(2) infinite}
+#fnCam .rec span{color:#d8ffe0}
+#fnMap{position:absolute;right:14px;bottom:14px;width:clamp(150px,24%,260px);aspect-ratio:1.15;border:2px solid rgba(216,255,224,.6);background:rgba(0,20,8,.55);pointer-events:auto}
+#fnMap .z{position:absolute;font-size:10px;color:rgba(216,255,224,.6);border:1px dashed rgba(216,255,224,.4);display:flex;align-items:center;justify-content:center}
+#fnMap .kan{left:38%;bottom:0;width:24%;height:16%}
+#fnMap .ram{left:0;top:0;width:100%;height:12%;border-left:0;border-right:0;border-top:0}
+#fnMap .pak{left:0;bottom:0;width:30%;height:14%}
+#fnMap button{position:absolute;width:15%;height:13%;min-height:0;padding:0;font:700 12px/1 'Courier New',monospace;background:#0d2a14;color:#d8ffe0;border:1px solid #d8ffe0;border-radius:2px;cursor:pointer}
+#fnMap button::before{content:'CAM';display:block;font-size:7px}
+#fnMap button.on{background:#d8ffe0;color:#0d2a14}
+#fnCamX,#fnCamBtn{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:6px 22px;min-height:0;background:rgba(0,0,0,.55);color:#d8ffe0;border:1px solid rgba(216,255,224,.6);font:700 13px 'Courier New',monospace;cursor:pointer;pointer-events:auto}
+#fnCamBtn[hidden]{display:none}
+#fnWrap.cam #fnCamBtn{display:none}
 #fnClk{position:absolute;top:12px;right:16px;text-align:right;color:#fff;font:800 clamp(18px,3vw,30px)/1 'Courier New',monospace;text-shadow:0 0 6px #000;pointer-events:none}
 #fnClk small{display:block;font-size:.5em;opacity:.8;margin-top:4px}
 #fnHint{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:6px 12px;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;font:600 14px system-ui,sans-serif;opacity:0;transition:opacity .3s;pointer-events:none;animation:fnBlink 1s steps(2) infinite}
@@ -956,7 +977,13 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
 </dialog>
 <dialog id="fn">
-  <div id="fnWrap"><canvas id="fnC"></canvas><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnOv"></div></div>
+  <div id="fnWrap"><canvas id="fnC"></canvas>
+    <div id="fnCam" hidden><canvas id="fnCamS"></canvas><div class="scan"></div><div id="fnCamN">CAM 1</div><div class="rec">● REC <span id="fnCamT"></span></div>
+      <div id="fnMap"><div class="z kan">KANCIAPA</div><div class="z ram">RAMPA</div><div class="z pak">PAK.</div>
+        <button type="button" data-c="0" style="left:44%;top:6%">1</button><button type="button" data-c="1" style="left:6%;top:30%">2</button><button type="button" data-c="2" style="left:82%;top:30%">3</button>
+        <button type="button" data-c="3" style="left:82%;top:4%">4</button><button type="button" data-c="4" style="left:4%;top:72%">5</button><button type="button" data-c="5" style="left:64%;top:66%">6</button></div>
+      <button type="button" id="fnCamX">▼ Zamknij kamery</button></div>
+    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnOv"></div></div>
 </dialog>
 <dialog id="sl">
   <div class="gh"><h2>Slender: Magazyn</h2><span class="mu slh">Shift – sprint · F – latarka · E – podnieś</span><button type="button" id="slSnd" class="e" title="Dźwięk">🔊</button></div>
@@ -4055,7 +4082,7 @@ const FN = (() => {
   let T, R, scene, cam, clock, cv, built = false, ray, phone = {}, audio, ringT = 0;
   const S = { vol: .8, sens: 1, subs: true };
   try { Object.assign(S, JSON.parse(localStorage.getItem('w11-fn-set') || '{}')); } catch (e) {}
-  const G = { open: false, st: 'menu', night: 1, t: 0, yaw: 0, look: 0, mx: .5, my: .5, call: null, lines: [], li: 0, lt: 0 };
+  const G = { cam: -1, open: false, st: 'menu', night: 1, t: 0, yaw: 0, look: 0, mx: .5, my: .5, call: null, lines: [], li: 0, lt: 0 };
   const done = () => { try { return +localStorage.getItem('w11-fn-night') || 0; } catch (e) { return 0; } };
 
   async function load() { if (T) return; for (const u of URLS) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
@@ -4108,12 +4135,19 @@ const FN = (() => {
       for (let i = 0; i < 6; i++) { const y = 46 + i * 41; g.fillStyle = '#171b24'; g.fillRect(10, y, w - 20, 35); g.fillStyle = '#dfe6f3'; g.font = '13px sans-serif'; g.fillText(['CORE T-SHIRT SLIM BLACK', 'PRO LIFT GRIP REGULAR', 'CORE HOODIE NAVY', 'CORE JOGGERS BLACK', 'LIMITLESS SOUR APPLE', 'DZIK ENERGY TROPIC'][i], 18, y + 15); g.fillStyle = '#7c8799'; g.font = '11px sans-serif'; g.fillText('SKU DM' + (1000 + i * 137) + '-99X', 18, y + 29);
         ['S', 'M', 'L', 'XL'].forEach((z, k) => { g.fillStyle = (i + k) % 5 ? '#1f3d2a' : '#4a3a12'; g.fillRect(w - 200 + k * 46, y + 7, 40, 21); g.fillStyle = '#9fe3b4'; g.font = 'bold 12px sans-serif'; g.fillText(z + ' ' + ((i * 7 + k * 13) % 40), w - 196 + k * 46, y + 22); }); }
     }) }), 0, 1.12, -.603);
-    // laptop (po lewej) – arkusz
-    B(.4, .015, .27, M({ color: 0x8c9196 }), -.72, .765, -.42);
-    const lid = new T.Group(); lid.position.set(-.72, .77, -.555); lid.rotation.x = -.25; scene.add(lid);
-    const lb = new T.Mesh(new T.BoxGeometry(.4, .26, .012), M({ color: 0x8c9196 })); lb.position.set(0, .13, 0); lid.add(lb);
-    const ls = new T.Mesh(new T.PlaneGeometry(.37, .23), new T.MeshBasicMaterial({ map: ctex(256, 160, (g, w, h) => { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.fillStyle = '#1e7a3c'; g.fillRect(0, 0, w, 16); g.strokeStyle = '#d6d6d6'; for (let x = 0; x < w; x += 42) { g.beginPath(); g.moveTo(x, 16); g.lineTo(x, h); g.stroke(); } for (let y = 16; y < h; y += 12) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } g.fillStyle = '#333'; g.font = '8px sans-serif'; for (let y = 26; y < h; y += 12) for (let x = 4; x < w; x += 42) if (Math.random() > .3) g.fillText(String(Math.random() * 999 | 0), x, y); }) }));
-    ls.position.set(0, .13, .007); lid.add(ls);
+    // laptop (po lewej): podstawa z klawiaturą i touchpadem, otwarta klapa z ramką – klik = system kamer
+    const lapG = new T.Group(); lapG.position.set(-.72, .776, -.36); lapG.rotation.y = .28; scene.add(lapG);
+    const alu = M({ color: 0x9ba1a7 });
+    const lbase = new T.Mesh(new T.BoxGeometry(.36, .018, .25), alu); lbase.position.y = .009; lapG.add(lbase);
+    const lkb = new T.Mesh(new T.PlaneGeometry(.31, .12), M({ map: ctex(128, 50, (g, w, h) => { g.fillStyle = '#2a2d31'; g.fillRect(0, 0, w, h); g.fillStyle = '#4a4f56'; for (let y = 3; y < h - 5; y += 9) for (let x = 3; x < w - 5; x += 9) g.fillRect(x, y, 7, 7); g.fillRect(34, h - 10, 60, 7); }) }));
+    lkb.rotation.x = -Math.PI / 2; lkb.position.set(0, .0185, -.04); lapG.add(lkb);
+    const ltp = new T.Mesh(new T.PlaneGeometry(.1, .06), M({ color: 0x80868c })); ltp.rotation.x = -Math.PI / 2; ltp.position.set(0, .0186, .07); lapG.add(ltp);
+    const lid = new T.Group(); lid.position.set(0, .018, -.125); lid.rotation.x = -.32; lapG.add(lid);
+    const lb = new T.Mesh(new T.BoxGeometry(.36, .235, .01), alu); lb.position.set(0, .1175, -.005); lid.add(lb);
+    const lbz = new T.Mesh(new T.PlaneGeometry(.345, .222), new T.MeshBasicMaterial({ color: 0x111111 })); lbz.position.set(0, .1175, .0005); lid.add(lbz);
+    const ls = new T.Mesh(new T.PlaneGeometry(.32, .195), new T.MeshBasicMaterial({ map: ctex(256, 156, (g, w, h) => { g.fillStyle = '#0b0f0c'; g.fillRect(0, 0, w, h); g.fillStyle = '#1c2a1f'; for (let i = 0; i < 6; i++) g.fillRect(6 + (i % 3) * 82, 22 + Math.floor(i / 3) * 64, 78, 58); g.fillStyle = '#7dff9a'; g.font = 'bold 12px monospace'; g.fillText('KAMERY W11', 8, 14); g.fillStyle = '#ff3030'; g.beginPath(); g.arc(w - 14, 9, 4, 0, 7); g.fill(); g.fillStyle = '#5fbf72'; g.font = '9px monospace'; for (let i = 0; i < 6; i++) g.fillText('CAM ' + (i + 1), 10 + (i % 3) * 82, 34 + Math.floor(i / 3) * 64); }) }));
+    ls.position.set(0, .1175, .001); lid.add(ls);
+    phone.lap = [lbase, lkb, ltp, lb, lbz, ls];
     // drukarka etykiet (po prawej od monitora) z wysuniętą etykietą
     B(.17, .13, .2, M({ color: 0x2a2d31 }), .5, .82, -.52); B(.17, .02, .2, M({ color: 0x3c4046 }), .5, .895, -.52);
     const lab = add(new T.PlaneGeometry(.1, .065), new T.MeshLambertMaterial({ color: 0xffffff, side: T.DoubleSide }), .5, .86, -.41); lab.rotation.x = -1.1;
@@ -4135,15 +4169,35 @@ const FN = (() => {
     B(.5, .06, .5, grey, 0, .48, 1.05); B(.5, .55, .06, grey, 0, .8, 1.32);
     B(.22, .3, .22, M({ color: 0x4a4f57 }), -1.0, .15, .1);
     [0x1f4fa0, 0xb02a2a, 0x2a7a3a, 0xd8b02a].forEach((c, i) => B(.06, .3, .22, M({ color: c }), -2.5 + i * .07, 1.17, FZ + .12));
-    // magazyn za oknem: regały, kartony, przyciemnione światło
-    const out = new T.PointLight(0xffe6c0, 22, 30, 1.3); out.position.set(-1, 5, -8); scene.add(out);
-    const wf = add(new T.PlaneGeometry(30, 20), M({ color: 0x6d7176 }), 0, 0, -11); wf.rotation.x = -Math.PI / 2;
-    const blue = M({ color: 0x2f5fa8 }), orange = M({ color: 0xe0701e }), carton = M({ color: 0xb8854a });
-    for (const z of [-5, -9, -13]) for (const x0 of [-9, 1]) {
-      for (let x = x0; x <= x0 + 8; x += 2.7) for (const dz of [-.5, .5]) B(.1, 4.5, .1, blue, x, 2.25, z + dz);
-      for (const y of [.2, 1.5, 2.8, 4.1]) { for (const dz of [-.5, .5]) B(8.1, .12, .08, orange, x0 + 4, y, z + dz); for (let x = x0 + .3; x < x0 + 7.6; x += .95 + Math.random() * .3) if (Math.random() > .2) { const hh = .5 + Math.random() * .6; B(.85, hh, .8, carton, x + .4, y + .07 + hh / 2, z); } }
+    // ---------- hala magazynu (widoczna przez okno i na kamerach) ----------
+    const metal = M({ color: 0x59606a }), blue = M({ color: 0x2f5fa8 }), orange = M({ color: 0xe0701e }), carton = M({ color: 0xb8854a }), pal = M({ color: 0x9c7a4c }), yel = M({ color: 0xe8c020 });
+    const hf = add(new T.PlaneGeometry(32, 29), M({ map: floorT.clone() }), 0, 0, -15.9); hf.rotation.x = -Math.PI / 2; hf.material.map.repeat.set(12, 11); hf.material.map.needsUpdate = true;
+    const hc = add(new T.PlaneGeometry(32, 29), M({ color: 0x2a2e34 }), 0, 8, -15.9); hc.rotation.x = Math.PI / 2;
+    B(32, 8, .2, metal, 0, 4, -30.4); B(.2, 8, 29, metal, -16.1, 4, -15.9); B(.2, 8, 29, metal, 16.1, 4, -15.9);
+    B(12.8, 8, .2, metal, -9.6, 4, -1.5); B(12.8, 8, .2, metal, 9.6, 4, -1.5); B(6.4, 5.2, .2, metal, 0, 5.4, -1.5); // ściana z kanciapą
+    for (const x of [-3.9, 3.9]) { const l = add(new T.PlaneGeometry(.12, 27), yel, x, .01, -16); l.rotation.x = -Math.PI / 2; }
+    // regały A (lewo) i B (prawo)
+    for (const z of [-8, -12.5, -17, -21.5]) for (const x0 of [-14.5, 4.5]) {
+      for (let x = x0; x <= x0 + 10.01; x += 2.5) for (const dz of [-.5, .5]) B(.1, 5, .1, blue, x, 2.5, z + dz);
+      for (const y of [.2, 1.5, 2.8, 4.1]) { for (const dz of [-.5, .5]) B(10.1, .12, .08, orange, x0 + 5, y, z + dz); for (let x = x0 + .3; x < x0 + 9.6; x += .95 + Math.random() * .3) if (Math.random() > .2) { const hh = .5 + Math.random() * .6; B(.85, hh, .8, carton, x + .4, y + .07 + hh / 2, z); } }
     }
-    B(30, 8, .2, M({ color: 0x4a5058 }), 0, 4, -16); // tylna ściana hali
+    // rampa: bramy rolowane, palety z kartonami
+    for (const x of [-11, -4, 4, 11]) { B(3.2, 3.6, .1, M({ color: 0x7b858f }), x, 1.8, -30.25); for (let y = .2; y < 3.6; y += .25) B(3.2, .03, .02, M({ color: 0x5c656e }), x, y, -30.18); B(3.4, .12, .12, yel, x, 3.65, -30.2); }
+    for (const [x, z] of [[-11, -27.5], [-6.5, -26.5], [4, -27.8], [9.5, -26.8], [12.5, -28]]) { B(1.2, .15, 1.0, pal, x, .075, z); const h = .7 + Math.random() * .8; B(1.1, h, .9, carton, x, .15 + h / 2, z); }
+    // pakowanie: stoły z kartonami (po lewej od kanciapy)
+    for (const x of [-13.5, -9.5]) { B(3, .06, 1.2, M({ color: 0xbfae8e }), x, .9, -3.6); for (const dx of [-1.4, 1.4]) for (const dz of [-.5, .5]) B(.06, .9, .06, metal, x + dx, .45, -3.6 + dz); B(.5, .35, .4, carton, x - .7, 1.1, -3.6); B(.4, .25, .3, carton, x + .5, 1.05, -3.4); B(.12, .12, .12, M({ color: 0x8a6a30 }), x + .1, .99, -3.8); }
+    // lampy hali (przyciemnione – nocna zmiana)
+    const lampM2 = new T.MeshBasicMaterial({ color: 0xd8d2bd });
+    for (const [x, z] of [[-9, -6], [9, -6], [-9, -18], [9, -18], [0, -26], [0, -12]]) { B(2.2, .08, .3, lampM2, x, 7.7, z); const pl = new T.PointLight(0xffe9c4, 16, 18, 1.4); pl.position.set(x, 7.3, z); scene.add(pl); }
+    // kamery: [nazwa, pozycja, punkt, w który patrzy]
+    G.cams = [
+      ['Hala główna', [0, 6.5, -29], [0, .8, -3]],
+      ['Regały A', [-15.3, 5.5, -5], [-6, .5, -22]],
+      ['Regały B', [15.3, 5.5, -5], [6, .5, -22]],
+      ['Rampa', [15.3, 4.6, -24], [-6, .6, -29.5]],
+      ['Pakowanie', [-15.3, 4, -1.9], [-8, .6, -5.5]],
+      ['Korytarz przy kanciapie', [7, 3.6, -7], [1.6, 1.1, -1.6]]
+    ].map(([n, p, l]) => { const c = new T.PerspectiveCamera(62, 16 / 9, .05, 80); c.position.set(...p); c.lookAt(...l); return { n, c }; });
     ray = new T.Raycaster(); clock = new T.Clock();
   }
 
@@ -4211,7 +4265,7 @@ const FN = (() => {
     }
   }
   function endNight() {
-    G.st = 'end'; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
+    camClose(); $('#fnCamBtn').hidden = true; G.st = 'end'; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
     if (document.pointerLockElement) document.exitPointerLock();
     ov(`<div class="fnBig">6:00 AM</div><span>Koniec zmiany – noc ${G.night} przetrwana.</span><button type="button" data-a="menu">Menu główne</button>`);
   }
@@ -4219,15 +4273,27 @@ const FN = (() => {
     if (!G.open) { G.raf = 0; return; }
     const dt = Math.min(.05, clock.getDelta());
     if (G.st !== 'menu' && G.st !== 'end' && G.st !== 'pause' && scene) update(dt);
-    if (R && scene) { resize(); R.render(scene, cam); }
+    if (R && scene) { resize(); R.render(scene, G.cam >= 0 ? G.cams[G.cam].c : cam); }
+    if (G.cam >= 0 && (G.nT = (G.nT || 0) + 1) % 3 === 0) camNoise();
     G.raf = requestAnimationFrame(loop);
   }
-  function resize() { const r = cv.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height); if (!w || (cv._w === w && cv._h === h)) return; cv._w = w; cv._h = h; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  function resize() { const r = cv.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height); if (!w || (cv._w === w && cv._h === h)) return; cv._w = w; cv._h = h; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); if (G.cams) G.cams.forEach(c => { c.c.aspect = w / h; c.c.updateProjectionMatrix(); }); }
+  // ---------- system kamer (laptop) ----------
+  function camOpen(i) {
+    if (!['night', 'call', 'ring'].includes(G.st)) return;
+    G.cam = i == null ? (G.lastCam || 0) : i; G.lastCam = G.cam; click(); camStatic();
+    $('#fnWrap').classList.add('cam'); $('#fnCam').hidden = false;
+    $('#fnCamN').textContent = `CAM ${G.cam + 1} – ${G.cams[G.cam].n}`;
+    document.querySelectorAll('#fnMap [data-c]').forEach(b => b.classList.toggle('on', +b.dataset.c === G.cam));
+  }
+  function camClose() { if (G.cam < 0) return; G.cam = -1; click(); $('#fnWrap').classList.remove('cam'); $('#fnCam').hidden = true; }
+  function camStatic() { const n = $('#fnCamS'); n.classList.remove('burst'); void n.offsetWidth; n.classList.add('burst'); if (!audio) return; const { ac, master } = audio, b = ac.createBuffer(1, ac.sampleRate * .25, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = .12; s.buffer = b; s.connect(g).connect(master); s.start(); }
+  function camNoise() { const c = $('#fnCamS'), x = c.getContext('2d'), w = c.width = 192, h = c.height = 108, im = x.createImageData(w, h), d = im.data; for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } x.putImageData(im, 0, 0); $('#fnCamT').textContent = $('#fnClk').firstChild ? $('#fnClk').firstChild.textContent : ''; }
 
   // ---------- menu ----------
   const ov = h => { const o = $('#fnOv'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function menu() {
-    G.st = 'menu'; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
+    camClose(); G.st = 'menu'; $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
     ov(`<div class="fnTitle">FIVE NIGHTS<br>AT <span>DZIK</span></div>
       <nav class="fnMenu">
@@ -4254,7 +4320,7 @@ const FN = (() => {
     G.night = n; G.t = 0; G.yaw = 0; G.st = 'ring'; G.ringFor = 0; ringT = .8; ov('');
     audioInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
     phone.door.rotation.y = 0; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
-    $('#fnHint').classList.add('on'); $('#fnClk').innerHTML = `12:00 AM<small>Noc ${n}</small>`;
+    $('#fnHint').classList.add('on'); $('#fnClk').innerHTML = `12:00 AM<small>Noc ${n}</small>`; $('#fnCamBtn').hidden = false;
   }
   async function act(a) {
     if (a === 'new') startNight(1);
@@ -4278,16 +4344,22 @@ const FN = (() => {
     $('#fnWrap').addEventListener('pointerup', () => tx = null);
     // klik w telefon = odbierz
     cv.addEventListener('click', e => {
-      if (G.st !== 'ring' || !ray) return; const r = cv.getBoundingClientRect();
+      if (!ray || G.cam >= 0) return; const r = cv.getBoundingClientRect();
       ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), cam);
-      if (ray.intersectObjects(phone.hit.concat(phone.hs.children), false).length) answer();
+      if (G.st === 'ring' && ray.intersectObjects(phone.hit.concat(phone.hs.children), false).length) return answer();
+      if (ray.intersectObjects(phone.lap, false).length) camOpen();
     });
+    $('#fnCamX').onclick = camClose; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
+    $('#fnMap').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) camOpen(+b.dataset.c); });
     document.addEventListener('keydown', e => { if (!G.open) return; const k = e.key.toLowerCase();
       if (k === ' ' && G.st === 'ring') { e.preventDefault(); answer(); }
       if (k === 'arrowleft' || k === 'a') { G.look = 1; e.preventDefault(); } if (k === 'arrowright' || k === 'd') { G.look = -1; e.preventDefault(); }
+      if (k === 'escape' && G.cam >= 0) { e.preventDefault(); return camClose(); }
+      if ((k === 'tab' || k === 'q') && ['night', 'call', 'ring'].includes(G.st)) { e.preventDefault(); G.cam >= 0 ? camClose() : camOpen(); }
+      if (G.cam >= 0 && /^[1-6]$/.test(k)) camOpen(+k - 1);
       if (k === 'escape' && (G.st === 'night' || G.st === 'call' || G.st === 'ring')) { e.preventDefault(); menu(); } });
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'a', 'd'].includes(k)) G.look = 0; });
-    $('#fn').addEventListener('cancel', e => { if (G.st !== 'menu') { e.preventDefault(); menu(); } });
+    $('#fn').addEventListener('cancel', e => { if (G.cam >= 0) { e.preventDefault(); camClose(); } else if (G.st !== 'menu') { e.preventDefault(); menu(); } });
     $('#fn').addEventListener('close', () => { G.open = false; if (audio) audio.ac.suspend(); });
   }
   async function open() {
