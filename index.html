@@ -3298,7 +3298,7 @@ function gmImgs() {
 function gmReset() {
   const m = GM.N >> 1;
   GM.body = [[m, m], [m - 1, m], [m - 2, m]]; GM.prev = null; GM.ha = 0; GM.dir = [1, 0]; GM.q = []; GM.score = 0; GM.step = 150; GM.over = false;
-  GM.lives = 1; GM.gt = 0; GM.eff = {}; GM.item = null; GM.nextPw = 5000 + Math.random() * 4000; GM.msg = null;
+  GM.lives = 1; GM.freeze = 0; GM.ghost = 0; GM.recover = false; GM.gt = 0; GM.eff = {}; GM.item = null; GM.nextPw = 5000 + Math.random() * 4000; GM.msg = null;
   gmFood(); $('#gmS').textContent = '0'; gmHud();
 }
 // --- power-upy: czas liczony w czasie gry (GM.gt), więc pauza go zatrzymuje
@@ -3320,7 +3320,7 @@ function gmPwSpawn() {
 }
 function gmPwTake(ty) {
   SFX.play('fanfare');
-  if (ty === 'life') { GM.lives = Math.min(5, GM.lives + 1); GM.msg = { txt: '❤ DODATKOWE ŻYCIE!', until: GM.gt + 2200 }; }
+  if (ty === 'life') { GM.lives = Math.min(3, GM.lives + 1); GM.msg = { txt: '❤ DODATKOWE ŻYCIE!', until: GM.gt + 2200 }; }
   else GM.eff[ty] = GM.gt + GM_PWI[ty].d;
   GM.item = null; GM.nextPw = GM.gt + 7000 + Math.random() * 6000; gmHud();
 }
@@ -3341,17 +3341,20 @@ function gmTurn(d) {
 }
 function gmTick() {
   if (GM.q.length) GM.dir = GM.q.shift();
+  const ghost = GM.ghost > GM.gt; // chwila nietykalności po utracie serca
+  if (GM.recover) { // po zatrzymaniu: jeśli przed dzikiem jest przeszkoda, skręca w wolną stronę
+    GM.recover = false;
+    const ok = d => { const hh = GM.body[0]; let c = [hh[0] + d[0], hh[1] + d[1]]; if (GM.eff.wall > GM.gt) c = [(c[0] + GM.N) % GM.N, (c[1] + GM.N) % GM.N]; return c[0] >= 0 && c[1] >= 0 && c[0] < GM.N && c[1] < GM.N && !GM.body.slice(0, -1).some(b => b[0] === c[0] && b[1] === c[1]); };
+    if (!ok(GM.dir)) { const alt = [[1, 0], [-1, 0], [0, 1], [0, -1]].find(d => !(d[0] === -GM.dir[0] && d[1] === -GM.dir[1]) && ok(d)); if (alt) GM.dir = alt; }
+  }
   const h = GM.body[0], n = [h[0] + GM.dir[0], h[1] + GM.dir[1]];
-  if (GM.eff.wall > GM.gt) { n[0] = (n[0] + GM.N) % GM.N; n[1] = (n[1] + GM.N) % GM.N; } // przez ścianę – wyjście z drugiej strony
+  if (GM.eff.wall > GM.gt || ghost) { n[0] = (n[0] + GM.N) % GM.N; n[1] = (n[1] + GM.N) % GM.N; } // przez ścianę – wyjście z drugiej strony
   const eat = GM.food && n[0] === GM.food[0] && n[1] === GM.food[1];
-  const hit = n[0] < 0 || n[1] < 0 || n[0] >= GM.N || n[1] >= GM.N || GM.body.slice(0, eat ? GM.body.length : -1).some(b => b[0] === n[0] && b[1] === n[1]);
-  if (hit && GM.lives > 1) { // tracimy serce: dzik wraca na środek, wynik zostaje
+  const hit = !ghost && (n[0] < 0 || n[1] < 0 || n[0] >= GM.N || n[1] >= GM.N || GM.body.slice(0, eat ? GM.body.length : -1).some(b => b[0] === n[0] && b[1] === n[1]));
+  if (hit && GM.lives > 1) { // tracimy serce: dzik staje na 2 s i miga (z całym ogonem), potem jedzie dalej z tą samą długością
     GM.lives--; SFX.play('crash');
-    const m = GM.N >> 1; GM.body = [[m, m], [m - 1, m], [m - 2, m]]; GM.prev = null; GM.dir = [1, 0]; GM.q = []; GM.ha = 0;
-    if (GM.food && GM.body.some(b => b[0] === GM.food[0] && b[1] === GM.food[1])) gmFood();
-    if (GM.item && GM.body.some(b => b[0] === GM.item.c[0] && b[1] === GM.item.c[1])) GM.item = null;
-    GM.run = false; gmHud();
-    gmOv('<b>−1 ❤</b><span>Zostało serc: ' + GM.lives + '</span><button type="button" class="p" id="gmGo">Jedziemy dalej</button><small>albo naciśnij strzałkę</small>');
+    GM.prev = null; GM.freeze = GM.gt + 2000; GM.ghost = GM.gt + 2600; GM.recover = true;
+    GM.msg = { txt: '−1 ❤  zostało serc: ' + GM.lives, until: GM.gt + 2000 }; gmHud();
     return;
   }
   if (hit) {
@@ -3394,6 +3397,9 @@ function gmDraw() {
   if (GM.food) { const p = 1 + Math.sin(performance.now() / 180) * .06; bar((GM.food[0] + .5) * cs, (GM.food[1] + .5) * cs, cs * 1.7 * p, -0.5); }
   // ogon: zjedzone batony ułożone wzdłuż drogi dzika
   const P = GM.body.map((_, i) => pos(i));
+  const frz = GM.freeze > GM.gt; // po utracie serca: dzik z ogonem miga, potem chwilę jest półprzezroczysty
+  if (frz && Math.floor(performance.now() / 140) % 2) return;
+  if (!frz && GM.ghost > GM.gt) x.globalAlpha = .55;
   for (let i = P.length - 1; i > 0; i--) {
     const b = P[i], f = P[i - 1]; let ang = Math.atan2(f[1] - b[1], f[0] - b[0]); if (Math.abs(ang) > Math.PI / 2 + .01) ang += Math.PI; // napis zawsze czytelny
     bar(b[0], b[1], cs * 1.3, ang);
@@ -3407,7 +3413,7 @@ function gmDraw() {
   const k = bw / BOAR.W, sw = GM.run ? Math.sin(performance.now() / 70) : 0;
   im.legs.forEach((l, i) => { x.save(); const ox = -bw / 2 + (l.x + l.w * l.ox / 100) * k, oy = -bh / 2 + l.y * k; x.translate(ox, oy); x.rotate((i % 2 ? 1 : -1) * sw * .45); x.drawImage(l.im, -(l.w * l.ox / 100) * k, 0, l.w * k, l.h * k); x.restore(); });
   x.drawImage(im.body, -bw / 2, -bh / 2, bw, bh);
-  x.restore();
+  x.restore(); x.globalAlpha = 1;
 }
 function gmLoop(t) {
   if (!$('#gm').open) { GM.raf = 0; return; }
@@ -3415,7 +3421,8 @@ function gmLoop(t) {
     const dt = Math.min(t - GM.last, 200); GM.gt += dt;
     if (!GM.item && GM.gt >= GM.nextPw) gmPwSpawn();
     if (GM.item && GM.gt > GM.item.until) { GM.item = null; GM.nextPw = GM.gt + 4000 + Math.random() * 5000; }
-    GM.t = Math.min(GM.t + dt, gmStep() * 3); while (GM.t >= gmStep() && GM.run) { GM.t -= gmStep(); gmTick(); }
+    if (GM.freeze > GM.gt) GM.t = 0;
+    else { GM.t = Math.min(GM.t + dt, gmStep() * 3); while (GM.t >= gmStep() && GM.run && !(GM.freeze > GM.gt)) { GM.t -= gmStep(); gmTick(); } }
     gmHud();
   }
   GM.last = t; gmDraw(); GM.raf = requestAnimationFrame(gmLoop);
