@@ -780,7 +780,7 @@ const SL3 = (() => {
 // ===== FN – kanciapa brygadzistów (Three.js, ten sam silnik co Slender) =====
 // Na razie: menu główne, kanciapa, telefon od Lukasa Frozena, zegar 00:00→06:00 (koniec zmiany zapisuje postęp).
 const FN = (() => {
-  const FN_V = 'c5fea99875'; // wersja modelu hali (omija cache)
+  const FN_V = 'e53ddfc99b'; // wersja modelu hali (omija cache)
   const URLS = ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js', 'https://unpkg.com/three@0.160.0/build/three.module.min.js'];
   const HOUR = 60; // 1 godzina w grze = 60 s
   let T, R, scene, cam, clock, cv, built = false, ray, phone = {}, audio, ringT = 0;
@@ -817,7 +817,7 @@ const FN = (() => {
     phone.g.position.set(18.75, .75, 6.15); phone.g.rotation.y = -.35;
     fnScreens();
     // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
-    const hit = new T.Mesh(new T.BoxGeometry(.5, .36, .5), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.28, .87, 5.86); scene.add(hit); phone.lap = [hit];
+    const hit = new T.Mesh(new T.BoxGeometry(.5, .36, .5), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.38, .87, 5.84); scene.add(hit); phone.lap = [hit];
     phone.door = FNM.getObjectByName('fn_kanciapa_drzwi') || phone.door;
     G.cams = [
       ['Zgrzewki', [-19.9, 4.1, 6.9], [-20.7, .3, -1.2]],
@@ -856,17 +856,16 @@ const FN = (() => {
   }
   function fnScreens() {
     G.scrM = []; const M = k => { const m = new T.MeshBasicMaterial({ map: scrTex(k), toneMapped: false }); G.scrM.push(m); return m; };
-    // kanciapa: szeroki monitor pod oknem (przodem do +z), monitor przy prawej ścianie (przodem do −x), dwa laptopy (pochylone klapy – z narożników)
-    scene.add(quad([17.18, .895, 5.85], [18.02, .895, 5.85], [18.02, 1.205, 5.85], [17.18, 1.205, 5.85], M('w11')));
-    scene.add(quad([20.912, .895, 7.635], [20.912, .895, 7.065], [20.912, 1.205, 7.065], [20.912, 1.205, 7.635], M('slack')));
-    const inset = (p, q, k) => p.map((v, i) => v + (q[i] - v) * k);
-    { const A = [16.187, .774, 5.99], B = [16.404, .774, 5.755], C = [16.361, .966, 5.715], D = [16.144, .966, 5.95], o = [.01, 0, .01], sh = v => v.map((x, i) => x + o[i]);
-      const cx = [0, 1, 2].map(i => (A[i] + B[i] + C[i] + D[i]) / 4); scene.add(quad(...[A, B, C, D].map(p => sh(inset(p, cx, .12))), M('cams'))); }
-    { const A = [20.839, .774, 7.779], B = [20.678, .774, 8.056], C = [20.729, .966, 8.086], D = [20.89, .966, 7.809], o = [-.01, 0, 0], sh = v => v.map((x, i) => x + o[i]);
-      const cx = [0, 1, 2].map(i => (A[i] + B[i] + C[i] + D[i]) / 4); scene.add(quad(...[A, B, C, D].map(p => sh(inset(p, cx, .12))), M('xls'))); }
-    // stanowiska na hali: ekran w układzie stanowiska (obrócone razem z nim)
-    const pk = M('pack');
-    FNM.traverse(o => { if (/^fn_station/.test(o.name) && o.isMesh) { const q2 = quad([-.37, 1.335, -.235], [.17, 1.335, -.235], [.17, 1.625, -.235], [-.37, 1.625, -.235], pk); q2.scale.set(-1, 1, 1); o.add(q2); } });
+    // monitory z modelu (kanciapa i stanowiska): ekran dostaje własny obraz zamiast pulpitu
+    let pk = null;
+    FNM.traverse(o => {
+      if (!o.isMesh || !o.material || o.material.name !== 'eq_mon_RenderMonitor') return;
+      let p = o; while (p && !/^fn_eq_monitor/.test(p.name)) p = p.parent; if (!p) return;
+      o.material = /k1$/.test(p.name) ? M('w11') : /k2$/.test(p.name) ? M('slack') : (pk = pk || M('pack'));
+    });
+    // laptopy: klapa z modelu ma pulpit w atlasie tekstur, więc obraz kładziemy na nią (lekko przed ekranem)
+    scene.add(quad([16.23, .785, 5.847], [16.53, .785, 5.847], [16.53, .965, 5.785], [16.23, .965, 5.785], M('cams')));
+    scene.add(quad([20.763, .785, 7.71], [20.763, .785, 8.01], [20.825, .965, 8.01], [20.825, .965, 7.71], M('xls')));
   }
   // mapka kamer: rzut hali 50,3 × 16,3 m (x → poziomo, z → pionowo, północ u góry)
   function fnMapBuild() {
@@ -1354,7 +1353,7 @@ const FN = (() => {
         <button type="button" data-a="cont"${d ? '' : ' disabled title="Najpierw przetrwaj pierwszą noc"'}>Wróć z przerwy${d ? ` <small>noc ${Math.min(5, d + 1)}</small>` : ''}</button>
         <button type="button" data-a="set">Ustawienia</button>
         <button type="button" data-a="quit">Wyjdź</button>
-      </nav>`);
+      </nav><div class="fnCred">Modele (CC BY, Sketchfab): „Monitor” – portgl16 · „Laptop” – senthil123 · „Mouse and Keyboard” – RMrando · „HP Color Laser Jet Pro MFP 400” – mixmamo.studio</div>`);
   }
   function settings() {
     G.st = 'menu';
