@@ -1080,7 +1080,7 @@ const FN = (() => {
   // ---------- menu ----------
   const ov = h => { const o = $('#fnOv'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function menu() {
-    camClose(); G.st = 'menu'; $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
+    camClose(); G.st = 'menu'; if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
     ov(`<div class="fnTitle">FIVE NIGHTS<br>AT <span>DZIK</span></div>
       <nav class="fnMenu">
@@ -1124,7 +1124,28 @@ const FN = (() => {
     $('#fnOv').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && !b.disabled) { act(b.dataset.a); } });
     const pos = e => { const r = cv.getBoundingClientRect(); G.mx = (e.clientX - r.left) / r.width; G.my = (e.clientY - r.top) / r.height; };
     $('#fnWrap').addEventListener('pointermove', e => { if (e.pointerType === 'mouse') pos(e); });
-    $('#fnWrap').addEventListener('mouseleave', () => { G.mx = .5; });
+    $('#fnWrap').addEventListener('mouseleave', () => { if (document.pointerLockElement !== $('#fnWrap')) G.mx = .5; });
+    // blokada kursora: w trakcie zmiany myszka nie wychodzi poza ekran gry (własny kursor w środku)
+    const wrap = $('#fnWrap'), cur = $('#fnCur'), PLAY = ['ring', 'call', 'night'];
+    const locked = () => document.pointerLockElement === wrap;
+    const curPos = () => { const r = cv.getBoundingClientRect(); return [r.left + G.mx * r.width, r.top + G.my * r.height]; };
+    wrap.addEventListener('mousedown', e => {
+      if (!e.isTrusted || locked() || !PLAY.includes(G.st) || !matchMedia('(pointer:fine)').matches || !wrap.requestPointerLock) return;
+      pos(e); try { const p = wrap.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (er) {}
+    });
+    document.addEventListener('pointerlockchange', () => { wrap.classList.toggle('lock', locked()); cur.style.left = G.mx * 100 + '%'; cur.style.top = G.my * 100 + '%'; });
+    document.addEventListener('mousemove', e => {
+      if (!locked()) return; const r = cv.getBoundingClientRect();
+      G.mx = Math.max(0, Math.min(1, G.mx + e.movementX / r.width)); G.my = Math.max(0, Math.min(1, G.my + e.movementY / r.height));
+      cur.style.left = G.mx * 100 + '%'; cur.style.top = G.my * 100 + '%';
+    });
+    // przy blokadzie klik trafia w wrap – przekazujemy go do elementu pod własnym kursorem
+    wrap.addEventListener('click', e => {
+      if (!e.isTrusted || !locked()) return; e.stopPropagation(); e.preventDefault();
+      const [x, y] = curPos(); cur.hidden = true; const el = document.elementFromPoint(x, y); cur.hidden = false;
+      if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      if (!PLAY.includes(G.st)) document.exitPointerLock();
+    }, true);
     // dotyk: przeciąganie obraca widok
     let tx = null; $('#fnWrap').addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') tx = e.clientX; });
     $('#fnWrap').addEventListener('pointermove', e => { if (tx === null || e.pointerType === 'mouse') return; G.yaw = Math.max(-YAWMAX, Math.min(YAWMAX, G.yaw + (e.clientX - tx) * .004 * S.sens)); tx = e.clientX; });
@@ -1147,7 +1168,7 @@ const FN = (() => {
       if (k === 'escape' && (G.st === 'night' || G.st === 'call' || G.st === 'ring')) { e.preventDefault(); menu(); } });
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'a', 'd'].includes(k)) G.look = 0; });
     $('#fn').addEventListener('cancel', e => { if (G.cam >= 0) { e.preventDefault(); camClose(); } else if (G.st !== 'menu') { e.preventDefault(); menu(); } });
-    $('#fn').addEventListener('close', () => { G.open = false; if (audio) audio.ac.suspend(); });
+    $('#fn').addEventListener('close', () => { G.open = false; if (audio) audio.ac.suspend(); if (document.pointerLockElement) document.exitPointerLock(); });
   }
   async function open() {
     initUI(); $('#fn').showModal(); G.open = true;
