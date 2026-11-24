@@ -805,10 +805,14 @@ const FN = (() => {
     // nocne oświetlenie hali: przygaszone lampy pod oprawami
     for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); }
     const kl = new T.PointLight(0xf4f8ff, 5.5, 7, 1.4); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); // lampa w kanciapie
-    cam.position.set(18.1, 1.22, 7.0); YAWMAX = 1.4; // gracz na krześle przy biurku pod oknem, przodem do okna (−z)
-    phone.g.position.set(18.95, .75, 6.12); phone.g.rotation.y = -.25;
+    // gracz SIEDZI na krześle gamingowym przy biurku pod oknem (oczy ~1,15 m), przodem do okna (−z); to krzesło chowamy, żeby kamera w nie nie wchodziła
+    cam.position.set(17.3, 1.15, 6.9); YAWMAX = 1.45;
+    const ch = FNM.getObjectByName('fn_gaming_chair.i'); if (ch) ch.visible = false;
+    phone.g.position.set(18.75, .75, 6.15); phone.g.rotation.y = -.35;
+    fnScreens();
+    fnMapBuild();
     // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
-    const hit = new T.Mesh(new T.BoxGeometry(.48, .36, .42), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.4, .92, 5.98); scene.add(hit); phone.lap = [hit];
+    const hit = new T.Mesh(new T.BoxGeometry(.5, .36, .5), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.28, .87, 5.86); scene.add(hit); phone.lap = [hit];
     phone.door = FNM.getObjectByName('fn_kanciapa_drzwi') || phone.door;
     G.cams = [
       ['Hala – widok wzdłuż', [24, 5.5, 0], [-20, .8, 0]],
@@ -818,6 +822,55 @@ const FN = (() => {
       ['Stanowiska', [-1, 4, 4], [12, .8, 7.7]],
       ['Pod kanciapą', [14, 3.2, 3], [20.7, 1.1, 5.65]]
     ].map(([n, p, l]) => { const c = new T.PerspectiveCamera(62, cam.aspect, .05, 90); c.position.set(...p); c.lookAt(...l); return { n, c }; });
+  }
+  // obrazy na ekranach monitorów i laptopów (świecą w ciemności – materiał bez oświetlenia)
+  function scrTex(kind) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 300; const g = c.getContext('2d'), W = 512, H = 300;
+    const bar = (t, col) => { g.fillStyle = col; g.fillRect(0, 0, W, 30); g.fillStyle = '#fff'; g.font = 'bold 16px sans-serif'; g.fillText(t, 10, 21); };
+    if (kind === 'w11') { g.fillStyle = '#0f1217'; g.fillRect(0, 0, W, H); bar('DZIK / W11 – stany magazynowe', '#1b2030');
+      for (let i = 0; i < 6; i++) { const y = 40 + i * 42; g.fillStyle = '#171b24'; g.fillRect(8, y, W - 16, 36); g.fillStyle = '#dfe6f3'; g.font = '13px sans-serif'; g.fillText(['CORE T-SHIRT SLIM BLACK', 'PRO LIFT GRIP REGULAR', 'CORE HOODIE NAVY', 'CORE JOGGERS BLACK', 'TROPIC 500 ML', 'BATON KOKOSOWY'][i], 16, y + 15); g.fillStyle = '#7c8799'; g.font = '11px sans-serif'; g.fillText('SKU DM' + (1000 + i * 137) + '-99X', 16, y + 29);
+        ['S', 'M', 'L', 'XL'].forEach((z, k) => { g.fillStyle = (i + k) % 5 ? '#1f3d2a' : '#4a3a12'; g.fillRect(W - 196 + k * 46, y + 8, 40, 21); g.fillStyle = '#9fe3b4'; g.font = 'bold 12px sans-serif'; g.fillText(z + ' ' + ((i * 7 + k * 13) % 40), W - 192 + k * 46, y + 23); }); } }
+    else if (kind === 'cams') { g.fillStyle = '#060a07'; g.fillRect(0, 0, W, H); bar('KAMERY W11  ● REC', '#0d2a14');
+      for (let i = 0; i < 6; i++) { const x = 8 + (i % 3) * 168, y = 38 + Math.floor(i / 3) * 130; const gr = g.createLinearGradient(x, y, x, y + 122); gr.addColorStop(0, '#2a3a2e'); gr.addColorStop(1, '#101a12'); g.fillStyle = gr; g.fillRect(x, y, 160, 122); g.strokeStyle = '#3f6a48'; g.strokeRect(x, y, 160, 122); g.fillStyle = '#4c6b52'; for (let k = 0; k < 4; k++) g.fillRect(x + 12 + k * 36, y + 40, 22, 70); g.fillStyle = '#9fe3b4'; g.font = 'bold 12px monospace'; g.fillText('CAM ' + (i + 1), x + 6, y + 16); } }
+    else if (kind === 'slack') { g.fillStyle = '#1a1d21'; g.fillRect(0, 0, W, H); g.fillStyle = '#3f0e40'; g.fillRect(0, 0, 120, H); g.fillStyle = '#fff'; g.font = 'bold 14px sans-serif'; g.fillText('WK DZIK', 12, 24);
+      g.font = '12px sans-serif'; ['# magazyn', '# braki', '# wysylki', '# ogolny'].forEach((t, i) => { g.fillStyle = i === 1 ? '#fff' : '#c9b8ca'; g.fillText(t, 14, 56 + i * 22); });
+      [['Lukas Frozen', 'ktoś widział Tropica?? 😳'], ['Rudy', 'braki ogarnięte do 16'], ['Bartek', 'paleta GLS stoi przy rampie'], ['Lukas Frozen', 'nie wychodźcie z kanciapy…']].forEach(([n, t], i) => { const y = 40 + i * 62; g.fillStyle = '#4a5568'; g.fillRect(132, y, 30, 30); g.fillStyle = '#fff'; g.font = 'bold 13px sans-serif'; g.fillText(n, 172, y + 12); g.fillStyle = '#d1d2d3'; g.font = '13px sans-serif'; g.fillText(t, 172, y + 30); }); }
+    else if (kind === 'xls') { g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#1e7a3c'; g.fillRect(0, 0, W, 26); g.fillStyle = '#fff'; g.font = 'bold 13px sans-serif'; g.fillText('Dostawy – listopad.xlsx', 8, 18); g.strokeStyle = '#d6d6d6';
+      for (let x = 0; x < W; x += 85) { g.beginPath(); g.moveTo(x, 26); g.lineTo(x, H); g.stroke(); } for (let y = 26; y < H; y += 18) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+      g.fillStyle = '#333'; g.font = '11px sans-serif'; for (let r = 0; r < 15; r++) for (let k = 0; k < 6; k++) g.fillText(k === 0 ? (r + 1) + '.11.2026' : k === 1 ? 'DM' + (1200 + r * 31) : String((r * 37 + k * 11) % 240), 5 + k * 85, 40 + r * 18); }
+    else { g.fillStyle = '#f4f6f8'; g.fillRect(0, 0, W, H); bar('PAKOWANIE – zamówienie #8697' + (10 + Math.random() * 89 | 0), '#2f5fa8');
+      g.fillStyle = '#222'; g.font = '14px sans-serif'; ['1 × CORE T-SHIRT SLIM BLACK  M', '2 × DZIK ENERGY TROPIC', '1 × BATON KOKOSOWY'].forEach((t, i) => g.fillText(t, 16, 64 + i * 28));
+      g.fillStyle = '#111'; for (let x = 16; x < 300; x += 3 + (x * 7) % 5) g.fillRect(x, 170, 1 + (x * 3) % 3, 70); g.fillStyle = '#2ecc71'; g.fillRect(340, 180, 150, 50); g.fillStyle = '#fff'; g.font = 'bold 18px sans-serif'; g.fillText('SPAKOWANE', 358, 212); }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
+  }
+  function quad(a, b, c2, d, mat) { // a=lewy dół, b=prawy dół, c2=prawy góra, d=lewy góra
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute([...a, ...b, ...c2, ...d], 3)); g.setAttribute('uv', new T.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2)); g.setIndex([0, 1, 2, 0, 2, 3]);
+    const m = new T.Mesh(g, mat); m.material.side = T.DoubleSide; return m;
+  }
+  function fnScreens() {
+    const M = k => new T.MeshBasicMaterial({ map: scrTex(k), toneMapped: false });
+    // kanciapa: szeroki monitor pod oknem (przodem do +z), monitor przy prawej ścianie (przodem do −x), dwa laptopy (pochylone klapy – z narożników)
+    scene.add(quad([17.18, .895, 5.85], [18.02, .895, 5.85], [18.02, 1.205, 5.85], [17.18, 1.205, 5.85], M('w11')));
+    scene.add(quad([20.912, .895, 7.635], [20.912, .895, 7.065], [20.912, 1.205, 7.065], [20.912, 1.205, 7.635], M('slack')));
+    const inset = (p, q, k) => p.map((v, i) => v + (q[i] - v) * k);
+    { const A = [16.187, .774, 5.99], B = [16.404, .774, 5.755], C = [16.361, .966, 5.715], D = [16.144, .966, 5.95], o = [.01, 0, .01], sh = v => v.map((x, i) => x + o[i]);
+      const cx = [0, 1, 2].map(i => (A[i] + B[i] + C[i] + D[i]) / 4); scene.add(quad(...[A, B, C, D].map(p => sh(inset(p, cx, .12))), M('cams'))); }
+    { const A = [20.839, .774, 7.779], B = [20.678, .774, 8.056], C = [20.729, .966, 8.086], D = [20.89, .966, 7.809], o = [-.01, 0, 0], sh = v => v.map((x, i) => x + o[i]);
+      const cx = [0, 1, 2].map(i => (A[i] + B[i] + C[i] + D[i]) / 4); scene.add(quad(...[A, B, C, D].map(p => sh(inset(p, cx, .12))), M('xls'))); }
+    // stanowiska na hali: ekran w układzie stanowiska (obrócone razem z nim)
+    const pk = M('pack');
+    FNM.traverse(o => { if (/^fn_station/.test(o.name) && o.isMesh) { const q2 = quad([-.37, 1.335, -.235], [.17, 1.335, -.235], [.17, 1.625, -.235], [-.37, 1.625, -.235], pk); q2.scale.set(-1, 1, 1); o.add(q2); } });
+  }
+  // mapka kamer: rzut hali 50,3 × 16,3 m (x → poziomo, z → pionowo, północ u góry)
+  function fnMapBuild() {
+    const U = x => ((x + 25.15) / 50.3 * 100).toFixed(1) + '%', V = z => ((z + 8.15) / 16.3 * 100).toFixed(1) + '%';
+    const zone = (n, x0, x1, z0, z1, cls = '') => `<div class="z ${cls}" style="left:${U(x0)};top:${V(z0)};width:${((x1 - x0) / 50.3 * 100).toFixed(1)}%;height:${((z1 - z0) / 16.3 * 100).toFixed(1)}%">${n}</div>`;
+    const cams = [[24, 0], [2.5, -.75], [-14, 6], [5, -2], [-1, 4], [14, 3.2]];
+    $('#fnMap').classList.add('hall');
+    $('#fnMap').innerHTML = zone('REGAŁ', -24.6, 24.2, -8.1, -6.9) + zone('REGAŁY', -18.2, .9, -4.94, -2.56) + zone('', -18.2, .9, 1.06, 3.44) + zone('KUWETY', 9.9, 21, -.15, 4.15)
+      + zone('WYSYŁKI', 8, 20, -6.6, -4.2) + zone('PAKOWANIE', -22.8, -15, -1, 3.6) + zone('STANOWISKA', 1, 15.7, 7.2, 8.15) + zone('KANCIAPA', 15.75, 21.2, 5.57, 8.15, 'kan') + zone('', -25.1, -23.9, -6.9, 7.5)
+      + `<i class="you" style="left:${U(17.3)};top:${V(6.9)}"></i>`
+      + cams.map(([x, z], i) => `<button type="button" data-c="${i}" style="left:${U(x)};top:${V(z)}">${i + 1}</button>`).join('');
   }
   async function load() { if (T) return; for (const u of URLS) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
   function ctex(w, h, fn) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t; }
@@ -1007,7 +1060,7 @@ const FN = (() => {
     if (!G.open) { G.raf = 0; return; }
     const dt = Math.min(.05, clock.getDelta());
     if (G.st !== 'menu' && G.st !== 'end' && G.st !== 'pause' && scene) update(dt);
-    if (R && scene) { resize(); R.render(scene, G.cam >= 0 ? G.cams[G.cam].c : cam); }
+    if (R && scene) { resize(); R.toneMappingExposure = G.cam >= 0 ? 2.6 : 1.1; R.render(scene, G.cam >= 0 ? G.cams[G.cam].c : cam); }
     if (G.cam >= 0 && (G.nT = (G.nT || 0) + 1) % 3 === 0) camNoise();
     G.raf = requestAnimationFrame(loop);
   }

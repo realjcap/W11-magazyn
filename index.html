@@ -436,12 +436,12 @@ dialog[open]{opacity:1;transform:none}
 #fn{width:min(1200px,calc(100vw - 12px));max-width:none;padding:0;background:#000;border-color:#222;overflow:hidden}
 #fnWrap{position:relative;width:min(100%,calc((100dvh - 14px) * 16 / 9));aspect-ratio:16/9;margin:0 auto;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #fnC{display:block;width:100%;height:100%}
-#fnWrap.cam #fnC{filter:grayscale(.55) sepia(.25) hue-rotate(60deg) contrast(1.25) brightness(1.35)}
+#fnWrap.cam #fnC{filter:grayscale(.45) sepia(.2) hue-rotate(60deg) contrast(1.1) brightness(1.25)}
 #fnCam{position:absolute;inset:0;pointer-events:none;font-family:'Courier New',monospace;color:#d8ffe0}
 #fnCam[hidden]{display:none}
-#fnCamS{position:absolute;inset:0;width:100%;height:100%;opacity:.16;mix-blend-mode:screen;image-rendering:pixelated}
+#fnCamS{position:absolute;inset:0;width:100%;height:100%;opacity:.06;mix-blend-mode:screen;image-rendering:pixelated}
 #fnCamS.burst{animation:fnBurst .35s ease-out}
-@keyframes fnBurst{0%{opacity:.95}100%{opacity:.16}}
+@keyframes fnBurst{0%{opacity:.8}100%{opacity:.06}}
 #fnCam .scan{position:absolute;inset:0;background:repeating-linear-gradient(rgba(0,0,0,.18) 0 1px,transparent 1px 3px);pointer-events:none}
 #fnCamN{position:absolute;left:14px;top:12px;font:700 clamp(14px,2.2vw,22px)/1 'Courier New',monospace;text-shadow:0 0 4px #000}
 #fnCam .rec{position:absolute;left:14px;top:40px;font:700 13px/1 'Courier New',monospace;color:#ff4040;animation:fnBlink 1s steps(2) infinite}
@@ -454,6 +454,12 @@ dialog[open]{opacity:1;transform:none}
 #fnMap button{position:absolute;width:15%;height:13%;min-height:0;padding:0;font:700 12px/1 'Courier New',monospace;background:#0d2a14;color:#d8ffe0;border:1px solid #d8ffe0;border-radius:2px;cursor:pointer}
 #fnMap button::before{content:'CAM';display:block;font-size:7px}
 #fnMap button.on{background:#d8ffe0;color:#0d2a14}
+#fnMap.hall{width:clamp(260px,36%,440px);aspect-ratio:50.3/16.3}
+#fnMap.hall .z{position:absolute;font-size:8px;letter-spacing:.04em;background:rgba(216,255,224,.08);overflow:hidden;white-space:nowrap}
+#fnMap.hall .z.kan{background:rgba(255,211,77,.18);border-color:rgba(255,211,77,.7);color:#ffd34d}
+#fnMap.hall button{width:auto;height:auto;min-width:22px;padding:2px 4px;transform:translate(-50%,-50%);font-size:11px;z-index:2}
+#fnMap.hall button::before{display:none}
+#fnMap.hall .you{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ffd34d;box-shadow:0 0 6px #ffd34d;z-index:1}
 #fnCamX,#fnCamBtn{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:6px 22px;min-height:0;background:rgba(0,0,0,.55);color:#d8ffe0;border:1px solid rgba(216,255,224,.6);font:700 13px 'Courier New',monospace;cursor:pointer;pointer-events:auto}
 #fnCamBtn[hidden]{display:none}
 #fnWrap.cam #fnCamBtn{display:none}
@@ -3549,7 +3555,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'b792c8ec65'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = 'ad2b1b22d8'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
