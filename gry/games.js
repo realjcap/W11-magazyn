@@ -202,10 +202,30 @@ function hubOpen() {
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
   $('#hubBest').textContent = GM.best ? 'Twój rekord: ' + GM.best : 'Jeszcze nie grałeś';
   $('#hub').showModal();
+  playsShow();
+}
+// kto w co grał: ROOT-plays/<gra>/<uid> = { name, n, last }. Zapis: każdy swój licznik; odczyt i podgląd w hubie: tylko delma
+function playRec(g) {
+  const me = lbMe(); if (!db || !me || !user) return;
+  db.ref(ROOT + '-plays/' + g + '/' + me).transaction(v => ({ name: cap(user), n: Math.min(100000, ((v && Number(v.n)) || 0) + 1), last: Date.now() })).catch(() => {});
+}
+function playsShow() {
+  document.querySelectorAll('#hub .hubpl').forEach(e => e.remove());
+  if (lbMe() !== DELMA_UID || !db) return;
+  db.ref(ROOT + '-plays').once('value').then(sn => {
+    const all = sn.val() || {};
+    document.querySelectorAll('#hub .hubt[data-g]').forEach(t => {
+      const rows = Object.values(all[t.dataset.g] || {}).filter(v => v && v.name).sort((a, b) => (b.last || 0) - (a.last || 0));
+      const d = document.createElement('small'); d.className = 'hubpl';
+      d.innerHTML = rows.length ? 'Grali: ' + rows.map(r => `<b>${esc(txt(r.name, 30))}</b> ×${Number(r.n) || 0}`).join(' · ') : 'Nikt jeszcze nie grał';
+      d.title = rows.map(r => txt(r.name, 30) + ' – ostatnio ' + new Date(r.last || 0).toLocaleString('pl-PL')).join('\n');
+      t.appendChild(d);
+    });
+  }).catch(() => {});
 }
 $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
-  SFX.play('tick');
+  SFX.play('tick'); if (t.dataset.g !== 'fn' || lbMe() === DELMA_UID) playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
   if (t.dataset.g === 'fl') { $('#hub').close(); FL.open(); }
