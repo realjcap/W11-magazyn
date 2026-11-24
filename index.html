@@ -990,7 +990,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div id="slWrap"><canvas id="slC"></canvas><canvas id="slNs"></canvas><div id="slHud" hidden></div><div id="slQ"></div><div id="slList" hidden></div><div id="slPr">E – weź listę od Długiego</div><div id="slStB"><i id="slSt"></i></div><div id="slMsg"></div><div id="slX0"></div>
     <div id="slJs" hidden><i></i></div><div id="slOv"></div>
     <div id="slTb"><button type="button" id="slFl">🔦</button><button type="button" id="slRun">🏃</button></div></div>
-  <div class="gbt"><button type="button" id="slHub" class="e">← Game Hub</button><span class="mu">Esc – pauza</span><button type="button" id="slX">Zamknij</button></div>
+  <div class="gbt"><button type="button" id="slHub" class="e">← Game Hub</button><span class="mu">Esc – pauza</span><button type="button" id="slgX">Zamknij</button></div>
 </dialog>
 <dialog id="fl">
   <div class="gh"><h2>Flappy Dzik</h2><span class="mu">Spacja / ↑ / klik – podskok</span></div>
@@ -3468,7 +3468,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '39a8c0b349'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = 'e1134ad028'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

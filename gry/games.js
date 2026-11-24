@@ -678,7 +678,7 @@ const SL3 = (() => {
     const sndBtn = () => $('#slSnd').textContent = G.mute ? '🔇' : '🔊'; sndBtn();
     $('#slSnd').onclick = () => { G.mute = !G.mute; try { localStorage.setItem('w11-sl-mute', G.mute ? '1' : '0'); } catch (e) {} sndBtn(); if (audio) audio.master.gain.value = G.mute ? 0 : 1; };
     $('#sl').addEventListener('close', () => { G.open = false; G.run = false; G.keys = {}; if (document.pointerLockElement) document.exitPointerLock(); if (audio) audio.ac.suspend(); });
-    $('#slX').onclick = () => $('#sl').close();
+    $('#slgX').onclick = () => $('#sl').close(); // osobne id – „slX” ma już przycisk panelu Slacka
     $('#slHub').onclick = () => { $('#sl').close(); hubOpen(); };
   }
   async function open() {
