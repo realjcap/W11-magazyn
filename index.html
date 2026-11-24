@@ -475,6 +475,11 @@ dialog[open]{opacity:1;transform:none}
 #fnSub b{color:#ffd34d}
 #fnOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:14px;padding:0 7%;background:linear-gradient(90deg,rgba(0,0,0,.92) 0,rgba(0,0,0,.75) 45%,rgba(0,0,0,.25) 100%);color:#ddd;font-family:'Courier New',monospace}
 #fnOv[hidden]{display:none}
+#fnPrn{position:absolute;right:14px;bottom:52px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:3px solid #e22;border-radius:6px;background:rgba(0,0,0,.55);color:#ff4040;font:900 13px 'Courier New',monospace;letter-spacing:.06em;pointer-events:none;opacity:0;z-index:4}
+#fnPrn b{display:grid;place-items:center;width:26px;height:26px;border:3px solid #e22;border-radius:4px;font-size:22px;line-height:1}
+#fnPrn.on{opacity:.35}#fnPrn.on.blink{opacity:1;box-shadow:0 0 14px rgba(255,30,30,.7)}
+#fnPrnBtn{position:absolute;right:14px;bottom:12px;padding:6px 14px;min-height:0;background:rgba(0,0,0,.55);color:#ffd2d2;border:1px solid rgba(255,140,140,.6);font:700 13px 'Courier New',monospace;cursor:pointer;z-index:4}
+#fnPrnBtn[hidden]{display:none}#fnWrap.cam #fnPrnBtn,#fnWrap.cam #fnPrn{display:none}
 #fnOv .fnCred{position:absolute;left:7%;right:7%;bottom:10px;font:400 10px/1.3 system-ui,sans-serif;color:#777}
 #fnHud{position:absolute;left:14px;bottom:12px;color:#eee;font:700 clamp(12px,1.6vw,17px)/1.45 'Courier New',monospace;text-shadow:0 0 4px #000,0 0 2px #000;pointer-events:none;z-index:4}
 #fnHud[hidden],#fnHud.off{display:none}
@@ -1016,7 +1021,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
         <button type="button" data-c="0" style="left:44%;top:6%">1</button><button type="button" data-c="1" style="left:6%;top:30%">2</button><button type="button" data-c="2" style="left:82%;top:30%">3</button>
         <button type="button" data-c="3" style="left:82%;top:4%">4</button><button type="button" data-c="4" style="left:4%;top:72%">5</button><button type="button" data-c="5" style="left:64%;top:66%">6</button></div>
       <button type="button" id="fnCamX">▼ Zamknij kamery</button></div>
-    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnHud" hidden><div>Prąd: <b id="fnPw">100</b>%</div><div>Zużycie: <span id="fnUse"></span></div><small>E – drzwi · F – lampa · Q – kamery</small></div><div id="fnOv"></div><div id="fnCur"></div></div>
+    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnHud" hidden><div>Prąd: <b id="fnPw">100</b>%</div><div>Zużycie: <span id="fnUse"></span></div><small>E – drzwi · F – lampa · Q – kamery</small></div><div id="fnPrn"><b>!</b><span>UKRAINKA</span></div><button type="button" id="fnPrnBtn" hidden>↻ Ukrainka (R)</button><div id="fnOv"></div><div id="fnCur"></div></div>
 </dialog>
 <dialog id="sl">
   <div class="gh"><h2>Slender: Magazyn</h2><span class="mu slh">Shift – sprint · F – latarka · E – podnieś</span><button type="button" id="slSnd" class="e" title="Dźwięk">🔊</button></div>
@@ -3565,7 +3570,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '2729508cc9'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '1af90b2d76'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

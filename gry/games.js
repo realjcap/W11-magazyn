@@ -813,9 +813,11 @@ const FN = (() => {
     phone.bD = btn(.09, 0x5a1515); phone.bL = btn(-.09, 0x55585c);
     // gracz SIEDZI na krześle gamingowym przy biurku pod oknem (oczy ~1,15 m), przodem do okna (−z); to krzesło chowamy, żeby kamera w nie nie wchodziła
     cam.position.set(17.3, 1.15, 6.9); YAWMAX = 1.45;
-    const ch = FNM.getObjectByName('fn_gaming_chair.i'); if (ch) ch.visible = false;
+    // GLTFLoader usuwa kropki z nazw węzłów
+    const byName = n => FNM.getObjectByName(n) || FNM.getObjectByName(n.replace(/\./g, '')); G.byName = byName;
+    ['fn_gaming_chair.i', 'fn_gaming_chair.i.001'].forEach(n => { const c = byName(n); if (c) c.visible = false; });
     phone.g.position.set(18.75, .75, 6.15); phone.g.rotation.y = -.35;
-    fnScreens();
+    fnScreens(); prnInit();
     // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
     const hit = new T.Mesh(new T.BoxGeometry(.5, .36, .5), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.38, .87, 5.84); scene.add(hit); phone.lap = [hit];
     phone.door = FNM.getObjectByName('fn_kanciapa_drzwi') || phone.door;
@@ -1047,12 +1049,12 @@ const FN = (() => {
     if (G.pow <= 0) blackout();
   }
   function doorToggle() {
-    if (!PLAY.includes(G.st) || G.cam >= 0 || G.out) return;
+    if (!PLAY.includes(G.st) || G.cam >= 0 || G.out || G.turn) return;
     if (G.inside) return errBeep(); // drzwi się zacięły – ktoś już jest w środku
     G.door = !G.door; doorSfx(); btnUpd();
   }
   function lightSet(on) {
-    if (on && (!PLAY.includes(G.st) || G.cam >= 0 || G.out)) return;
+    if (on && (!PLAY.includes(G.st) || G.cam >= 0 || G.out || G.turn)) return;
     if (on && G.inside) return errBeep();
     G.light = on; if (phone.spot) phone.spot.intensity = on ? 26 : 0; btnUpd();
     if (on) { lightHum(); if (!G.stung && G.en.some(e => FRONT.includes(e.node))) { G.stung = true; sting(); } }
@@ -1069,7 +1071,7 @@ const FN = (() => {
     if (G.out) return; G.pow = 0; camClose(); G.door = false; G.light = false; if (phone.spot) phone.spot.intensity = 0; btnUpd();
     G.out = { t: 0, show: 4 + Math.random() * 5, end: 0 }; powerDown();
     (G.L || []).forEach(l => { l.userData.i0 = l.userData.i0 ?? l.intensity; l.intensity = 0; }); if (G.hemi) G.hemi.intensity = .07;
-    (G.scrM || []).forEach(m => m.color.set(0x000000)); $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true;
+    (G.scrM || []).forEach(m => m.color.set(0x000000)); $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true; $('#fnPrnBtn').hidden = true;
   }
   function outTick(dt) {
     const O = G.out; if (!O) return; O.t += dt;
@@ -1086,13 +1088,13 @@ const FN = (() => {
   // jumpscare: postać doskakuje do twarzy, krzyk, ekran gaśnie
   function scare(e) {
     if (G.st === 'dead' || G.st === 'end') return; camClose(); G.st = 'dead'; G.inside = null; lightSet(false); if (audio) audio.hum.gain.value = 0;
-    G.sc = { e, t: 0 }; scream(); if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; }
+    G.sc = { e, t: 0 }; if (G.turn) { G.turn = null; ARM.visible = false; cam.position.copy(SEAT); } scream(); if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; }
     if (e.g) {
       const f = new T.Vector3(); cam.getWorldDirection(f); f.y = 0; f.normalize(); G.sc.f = f; e.run = null;
       e.g.visible = true; e.g.position.set(cam.position.x + f.x * .8, cam.position.y - 1.66, cam.position.z + f.z * .8); e.g.rotation.y = Math.atan2(-f.x, -f.z);
       if (!G.redL) { G.redL = new T.PointLight(0xff2a1a, 0, 3, 1.5); scene.add(G.redL); } G.redL.position.set(cam.position.x + f.x * .35, cam.position.y + .1, cam.position.z + f.z * .35);
     }
-    $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on');
+    $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true; $('#fnPrnBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on');
   }
   function scareTick(dt) {
     const S2 = G.sc; if (!S2) return; S2.t += dt; const e = S2.e, t = S2.t;
@@ -1273,6 +1275,7 @@ const FN = (() => {
     ['Lukas Frozen', 'Biały przycisk to lampa przed kanciapą, F. Za oknem jest ciemno, więc świeć i sprawdzaj, czy ktoś tam nie stoi.'],
     ['Lukas Frozen', 'Tylko oszczędzaj prąd. Drzwi, lampa i kamery ciągną z agregatu. Jak prąd siądzie… to siądzie.'],
     ['Lukas Frozen', 'I ci dwaj na mixach, przy górnej ścianie. Zaglądaj do nich na kamerach. Jak nikt na nich nie patrzy, robią się nerwowi.'],
+    ['Lukas Frozen', 'Aha, i ta drukarka za tobą. Ukrainka. Co pół minuty trzeba się odwrócić i jej przywalić, bo się zacina i piszczy na cały magazyn. R albo przycisk w rogu.'],
     ['Lukas Frozen', 'Dobra, muszę kończyć. Do szóstej rano. Powodzenia.'],
     ['', '*klik*']
   ];
@@ -1294,16 +1297,65 @@ const FN = (() => {
     $('#fnSub').classList.toggle('on', S.subs); $('#fnSub').innerHTML = (L[0] ? `<b>${esc(L[0])}:</b> ` : '') + '<span></span>';
   }
 
+  // ---------- „ukrainka”: drukarka za plecami, co 30 s trzeba się odwrócić na krześle i jej przywalić ----------
+  const PRN_T = 30, PRN_YAW = Math.atan2(-(19.86 - 18.85), -(7.96 - 7.3)) + .3;
+  let SEAT = null, PRNV = null, ARM = null, PRN0 = null;
+  function prnInit() {
+    SEAT = cam.position.clone(); PRNV = new T.Vector3(18.85, 1.2, 7.3);
+    phone.prn = G.byName && G.byName('fn_eq_drukarka.k'); if (phone.prn) PRN0 = phone.prn.position.clone();
+    const pl = new T.PointLight(0xff2020, 0, 2.6, 1.4); pl.position.set(19.75, 1.25, 7.75); scene.add(pl); phone.prnL = pl;
+    // ręka gracza (rękaw bluzy + pięść), przypięta do kamery
+    ARM = new T.Group(); const sl = new T.Mesh(new T.CylinderGeometry(.05, .058, .46, 10), new T.MeshLambertMaterial({ color: 0x23262b })); sl.rotation.x = Math.PI / 2; sl.position.z = .2; ARM.add(sl);
+    const fist = new T.Mesh(new T.BoxGeometry(.085, .075, .1), new T.MeshLambertMaterial({ color: 0xd29a76 })); fist.position.z = -.06; ARM.add(fist);
+    ARM.visible = false; cam.add(ARM);
+  }
+  function prnHit() {
+    if (!PLAY.includes(G.st) || G.turn || G.out || !SEAT) return;
+    camClose(); if (G.light) lightSet(false); G.turn = { t: 0, y0: G.yaw, hit: false };
+  }
+  const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  function turnTick(dt) {
+    const U = G.turn; U.t += dt; const t = U.t;
+    const k = t < .45 ? ease(t / .45) : t < 1.0 ? 1 : t < 1.45 ? 1 - ease((t - 1) / .45) : 0;
+    cam.position.lerpVectors(SEAT, PRNV, k); cam.rotation.set(-.12 - .22 * k, U.y0 + (PRN_YAW - U.y0) * k, 0);
+    // cios: ręka wyskakuje z prawego dołu do przodu
+    const p = t < .45 ? 0 : t < .68 ? ease((t - .45) / .23) : t < .95 ? 1 - ease((t - .68) / .27) : 0;
+    ARM.visible = t > .35 && t < 1.05; ARM.position.set(.24 - .2 * p, -.3 + .14 * p, -.2 - .55 * p); ARM.rotation.set(.12, .45 - .1 * p, 0);
+    if (!U.hit && t > .68) { U.hit = true; G.prn = PRN_T; G.prnS = .35; const t0 = audio ? audio.ac.currentTime : 0; thump(t0, 80, .9, .2); noiseHit(t0, .7, .18, 1500, .6); thump(t0 + .05, 140, .4, .1); }
+    if (t >= 1.45) { G.turn = null; ARM.visible = false; cam.position.copy(SEAT); G.yaw = U.y0; }
+  }
+  function prnTick(dt) {
+    if (!phone.prnL) return;
+    if (!G.out && (G.st === 'night' || G.st === 'call')) { G.prn -= dt; if (G.prn <= 0) prnJam(); }
+    const left = G.prn, warn = left < 12 && !G.out && PLAY.includes(G.st);
+    // im mniej czasu, tym szybciej miga (wykrzyknik, czerwone światło drukarki) i piszczy
+    G.prnPh = (G.prnPh || 0) + dt * (warn ? 1.2 + (12 - left) * .55 : .6);
+    const on = warn && (G.prnPh % 1) < .5;
+    if (on && !G.prnOn && audio) { const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = 2500 + (12 - left) * 60; g.gain.setValueAtTime(.025 + (12 - left) * .004, ac.currentTime); g.gain.setValueAtTime(0, ac.currentTime + .09); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .1); }
+    G.prnOn = on; phone.prnL.intensity = on ? 2 + (12 - left) * .4 : 0;
+    const box = $('#fnPrn'), show = left < 20 && !G.out && PLAY.includes(G.st);
+    box.classList.toggle('on', show); const ph2 = (G.prnPh2 = (G.prnPh2 || 0) + dt * (.8 + Math.max(0, 20 - left) * .4)); box.classList.toggle('blink', show && ph2 % 1 < .5);
+    if (phone.prn && PRN0) { if (G.prnS > 0) { G.prnS -= dt; phone.prn.position.set(PRN0.x + (Math.random() - .5) * .03, PRN0.y + Math.random() * .02, PRN0.z + (Math.random() - .5) * .03); } else phone.prn.position.copy(PRN0); }
+  }
+  // zacięta ukrainka piszczy na cały magazyn: wszyscy się zbliżają, ucieka trochę prądu
+  function prnJam() {
+    G.prn = PRN_T; sting(); for (let i = 0; i < 6; i++) setTimeout(() => { if (audio) noiseHit(audio.ac.currentTime, .3, .12, 3000, 2); }, i * 120);
+    G.pow = Math.max(0, G.pow - 3);
+    for (const e of G.en) { if (e.kind === 'zg') { if (!G.inside && e.node !== 'drzwi' && (e.node !== 'home' || Math.random() < .6)) enMove(e); } else if (!e.run && e.stage < 3) { e.stage++; if (e.stage === 3) e.runIn = 15 + Math.random() * 6; enPlace(e); } }
+    const h = $('#fnHint'); h.textContent = '🖨️ Ukrainka się zacięła! Wszyscy to słyszeli…'; h.classList.add('on'); clearTimeout(G.hintT); G.hintT = setTimeout(() => h.classList.remove('on'), 2600);
+  }
   // ---------- pętla ----------
   function update(dt) {
     if (G.en) G.en.forEach(e => enAnim(e, dt));
     if (G.st === 'dead') return scareTick(dt);
     // drzwi: animacja zamykania (otwarte = wychylone na halę)
     G.dA += ((G.door ? 1 : 0) - G.dA) * Math.min(1, dt * 9); if (phone.door) phone.door.rotation.y = -1.45 * (1 - G.dA);
+    prnTick(dt);
+    if (G.turn) turnTick(dt); else {
     // rozglądanie jak w FNAF: kursor przy krawędzi obraca widok
     const edge = G.mx < .3 ? (.3 - G.mx) / .3 : G.mx > .7 ? -(G.mx - .7) / .3 : 0;
     G.yaw = Math.max(-YAWMAX, Math.min(YAWMAX, G.yaw + (edge + G.look) * 1.6 * S.sens * dt));
-    cam.rotation.set(-.12 + (G.my - .5) * -.12, G.yaw, 0);
+    cam.rotation.set(-.12 + (G.my - .5) * -.12, G.yaw, 0); }
     if (G.st === 'ring') {
       ringT -= dt; if (ringT <= 0) { ringBurst(); ringT = 2.6; }
       phone.led.material.color.set(Math.floor(clock.elapsedTime * 4) % 2 ? 0xff2020 : 0x330000);
@@ -1324,7 +1376,7 @@ const FN = (() => {
     }
   }
   function endNight() {
-    camClose(); $('#fnCamBtn').hidden = true; G.st = 'end'; G.inside = null; G.out = null; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } lightSet(false); $('#fnHud').hidden = true; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
+    camClose(); $('#fnCamBtn').hidden = true; G.st = 'end'; G.inside = null; G.out = null; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } lightSet(false); $('#fnHud').hidden = true; $('#fnPrnBtn').hidden = true; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
     if (document.pointerLockElement) document.exitPointerLock();
     const last = G.night >= 5;
     ov(`<div class="fnBig">6:00 AM</div><span>${last ? 'Przetrwałeś cały tydzień na W11. Lukas stawia Tropica (świeżego).' : `Koniec zmiany – noc ${G.night} przetrwana.`}</span>${last ? '' : `<button type="button" data-a="next">Następna noc</button>`}<button type="button" data-a="menu">Menu główne</button>`);
@@ -1340,7 +1392,7 @@ const FN = (() => {
   function resize() { const r = cv.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height); if (!w || (cv._w === w && cv._h === h)) return; cv._w = w; cv._h = h; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); if (G.cams) G.cams.forEach(c => { c.c.aspect = w / h; c.c.updateProjectionMatrix(); }); }
   // ---------- system kamer (laptop) ----------
   function camOpen(i) {
-    if (!['night', 'call', 'ring'].includes(G.st) || G.out) return; if (G.light) lightSet(false);
+    if (!['night', 'call', 'ring'].includes(G.st) || G.out || G.turn) return; if (G.light) lightSet(false);
     G.cam = i == null ? (G.lastCam || 0) : i; G.lastCam = G.cam; click(); camStatic();
     $('#fnWrap').classList.add('cam'); $('#fnCam').hidden = false;
     $('#fnCamN').textContent = `CAM ${G.cam + 1} – ${G.cams[G.cam].n}`;
@@ -1353,7 +1405,7 @@ const FN = (() => {
   // ---------- menu ----------
   const ov = h => { const o = $('#fnOv'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function menu() {
-    camClose(); G.st = 'menu'; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
+    camClose(); G.st = 'menu'; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnPrnBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
     ov(`<div class="fnTitle">FIVE NIGHTS<br>AT <span>DZIK</span></div>
       <nav class="fnMenu">
@@ -1383,13 +1435,13 @@ const FN = (() => {
     enLoad(['dzik']).catch(() => {}); // szef zmiany – potrzebny dopiero, gdy zabraknie prądu
     G.night = n; G.t = 0; G.yaw = 0; G.st = 'ring'; G.ringFor = 0; ringT = .8; ov('');
     // reset stanu nocy
-    G.pow = 100; G.door = false; G.dA = 0; G.light = false; G.inside = null; G.out = null; G.sc = null; G.stung = false;
+    G.pow = 100; G.prn = PRN_T; G.turn = null; if (ARM) ARM.visible = false; if (SEAT) cam.position.copy(SEAT); G.door = false; G.dA = 0; G.light = false; G.inside = null; G.out = null; G.sc = null; G.stung = false;
     cam.fov = 68; cam.updateProjectionMatrix(); if (G.redL) G.redL.intensity = 0; if (phone.spot) phone.spot.intensity = 0; btnUpd();
     (G.L || []).forEach(l => { if (l.userData.i0 != null) l.intensity = l.userData.i0; }); if (G.hemi) G.hemi.intensity = .22; (G.scrM || []).forEach(m => m.color.set(0xffffff));
     if (ENC.dzik) { ENC.dzik.g.visible = false; scene.remove(ENC.dzik.g); }
     if (audio) { audio.hum.gain.cancelScheduledValues(0); audio.hum.gain.value = .02; if (audio.jg) { audio.jg.disconnect(); audio.jg = null; } }
     if (FNM) enSpawn(pick, n);
-    $('#fnHud').hidden = false; $('#fnHud').classList.remove('off');
+    $('#fnHud').hidden = false; $('#fnHud').classList.remove('off'); $('#fnPrnBtn').hidden = false;
     phone.door.rotation.y = -1.45; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
     $('#fnHint').classList.add('on'); $('#fnClk').innerHTML = `12:00 AM<small>Noc ${n}</small>`; $('#fnCamBtn').hidden = false;
   }
@@ -1445,7 +1497,7 @@ const FN = (() => {
       if (phone.bL && ray.intersectObject(phone.bL, false).length) return lightSet(!G.light);
       if (ray.intersectObjects(phone.lap, false).length) camOpen();
     });
-    $('#fnCamX').onclick = camClose; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
+    $('#fnCamX').onclick = camClose; $('#fnPrnBtn').onclick = prnHit; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
     $('#fnMap').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) camOpen(+b.dataset.c); });
     document.addEventListener('keydown', e => { if (!G.open) return; const k = e.key.toLowerCase();
       if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'pageup', 'pagedown', 'home', 'end'].includes(k) && !e.target.closest('input,select,textarea')) e.preventDefault(); // bez przewijania strony w tle
@@ -1454,7 +1506,7 @@ const FN = (() => {
       if (k === 'escape' && G.cam >= 0) { e.preventDefault(); return camClose(); }
       if ((k === 'tab' || k === 'q') && ['night', 'call', 'ring'].includes(G.st)) { e.preventDefault(); G.cam >= 0 ? camClose() : camOpen(); }
       if (G.cam >= 0 && /^[1-7]$/.test(k)) camOpen(+k - 1);
-      if (k === 'e' && !e.repeat) doorToggle(); if (k === 'f' && !e.repeat) lightSet(!G.light);
+      if (k === 'e' && !e.repeat) doorToggle(); if (k === 'r' && !e.repeat) prnHit(); if (k === 'f' && !e.repeat) lightSet(!G.light);
       if (k === 'escape' && (G.st === 'night' || G.st === 'call' || G.st === 'ring')) { e.preventDefault(); menu(); } });
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'a', 'd'].includes(k)) G.look = 0; });
     $('#fn').addEventListener('cancel', e => { if (G.cam >= 0) { e.preventDefault(); camClose(); } else if (G.st !== 'menu') { e.preventDefault(); menu(); } });
@@ -1469,7 +1521,7 @@ const FN = (() => {
     menu(); if (audio) audio.ac.resume();
     if (!G.raf) { clock.getDelta(); G.raf = requestAnimationFrame(loop); }
   }
-  return { open, G, _dbg: () => ({ scene, cam, R, ENC, enLoad, enSpawn, enPlace, scare, blackout, pose, AN, mixGo, doorToggle, lightSet, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
+  return { open, G, _dbg: () => ({ scene, cam, R, ENC, prnHit, enLoad, enSpawn, enPlace, scare, blackout, pose, AN, mixGo, doorToggle, lightSet, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
 })();
 
 const SL_FACE = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCAEgANQDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCvRRRXEe2FFFFABRRTSaAFJppbFNZ8VXkmxQTcmaQCoXmHrVSW4x3qlNe7e9NIhyNF58VC1x71kvqIHU1C2oq38VOxDmbJufegXI9axDfY6GgX3vTsTzm+tx71Mk9c+l771aivM96LFKZupLUyvmsiK5z3q3HOD3qbGikXwc04Gq6SZqYNSLTH0UgNLQAUUUUDCiiigAooooAKKKKACiikJoEITUbPSs2KryyYzQJiSy4qjPPjvRcT4HWsu5ucZ5ppGcpDrm7xnmsy4vODzUNzc5J5rMuLnGeapIwlMnnuz61Te7YHgmqslz6moWuR9aqxk5GguolepqVb4H+KsRn396bvaPkNVInmOlivfercN6B3rkP7QkQY5qSPUmJ5NOxSmd1Bfrx81aEF8p71wttfkkc1s2d0TioaNYzOxhug2OauRzZrnLSY8ZNa9vLnvWbR0Rkaitmng1XjfNTKc0ix9FAooGFFFFAwooooAKKKKAA0xjSk1E7YoEMkfAqhcTYzzU08lZV3NtzzTRnJkN1cZzWTdTMc4FS3Nziq4nXqwq0jCTMy4dyTg7azLiY+uT61szrFIztu49KoW+kPdPuH3PUmqRizHllJ71D5hzWpf6aluSu4E1kupU9DTM2To4PWjIzwKgTcegqVFZT8wxQIdIm5OlQImG+atBYt61WmgKnimhFq3dEwBWvaXWMYNcyspQ4Jq9bXPTmm0XGR2Fpdnjmtq1uM45rjbO66c1u2VznHNZtHRCR1UEucVdjbNYdrPkDmtSCTIrNo6Ysug06o0NPFIsWiiigYUUUUAFBopDQIaxqvK3FSuaqytQJlO5brWRduTkVpXL8Hmsi5Y4I6U0YyMu6kCD37VEgfyi+8D6064XPGaiKokRMh3r/dzVmDKqeZcy7Cv7v19a29NtIZwY5HMcYHIFY9vdpLuiHyjsvpW1bzra2J2x7pzwDTJM2+02FmdoySq9zWIYhvwUP1xXTmzuXtWMqLl+QQelUoQUTyZIllfsR2pXG43OdkTEmByPpSm0lBy1a81k8twIwgDE9qv3GgTxBTu3AincSgYccbbcYqZI1mXY0WT61vWenKxEbpzWi2iRxlWC5PpRclxZ5vqdo1pKRtIWooH4BBrvfEfh+O7s2kjby2A+7ivO4UkSdoW4KmrRnazNu0lII5rdsp8Yrn7WByR1rd0+1lAy3A96bLjI6Kynzitu2fOKwLQxpjc4Fa9tcx8Ac1i0dcJGxEciphVOGbd0q0jZqDdMkopBS0FBRRRQAU004000CZE4NQvDk1ZxmhYsmglmbPZbhxVC50tmHTNdILdmNTrYbxRclwbPPL3S2j5Izn9KyLqyk27c5HpXqM+gmZWAWsyLwTLLPnacU1IzdKR55bWsdmC8sJLH7tSQS3VxC+1hHg8Zr04+ABMMbcMO5qOP4Y/Md8nHtT5ifYyPPWinEKKZDz1OauWelMYx9lRmY/eY13cPw5hjkG+QkDtXQW/hm3sowsWPypcxcaLPPNJ8Hzl/tLku+ehre1XRna0HlRYCjmuuSwSMccUkluNp4yKXMbKkcDbaSDEHVSrjsasR2UhXkfMK6SW2UE7QBWdcRshJFFwlRMW4013ViBweteV+LLIaZqImVNgJ5969iln2AKe9ef/FK0C2kVwo4PWtos8+rHlZzEHiERqFigB96sxapczsC0mAOwrmIJMEc1pW8+0irMYs6uzuN2NzEmugsZ+lcdY3PIrobGbpWcjpgzrLWXIHNaMTZFYVlJnFbEDZFZs64stg06mKafSLCiiigYhpDSmmscUCY9Bk1Iow1QxnJqYHmgSLEa5NXIlANVYRV2JaTNootwJnoavRIU5AFVLcbTV5T8opFkiEt1NSIrYI28VChxUwfjGahyAbJBnnbUPl+tWiSRUDK5PFTqIiMAqGWNQvWrXlMerVVmibB+amhozbiPBJFULmLcOlaMyMvJOaqzLkVomOVrHM6mnlkn0FcZ40b7Z4eKty69K9D1KENH05rzjxUxjt5YiPl7VtE8zER6nliMQcVdt2PBNUmG2VvrVmB8gVscCZuWTkYro9Pl6c1yto/IroNPk6VmzeDOusZOBW5bPwK5qwk6VvWr8Cs2dkGaqGpBUER4qdak2FooooGNJpjnFKxqGV8Cglj0fmrSDjNUY25zV6MgqKBJ6l61APWtCICs21NXo2NJnRBlxW281YSQkVUT5qsRrkVJqWVcVIJFUbsZx2qDacUdO9S0BK96w+6lQm4mfttp6stDnPSpFYhPmt1Y0yRXPGanwaa0bE0BYy51ZW56VAxzV+6iIOaoyDFWkSyldQ71bArzvxxYv5RIXjFeks+C3euf8QWiXtu68A4NbROOvHm0Pne5XbO6luM06H5TgHNenab8PtOu7eZ7hwZiTjFcBrGlnSNTltecKeM10J6Hn1KLirj7VuRXQWD9K5y1PIrbsX5FSxw3Or09+ldDZvwK5bT36V0lk3ArJnVBm3CeKsLVSA8VaWoOhD6KKKCiJzVWU5qxIarvzzQQxochhVyCTpmqirkg1Mz7RxTEadvIA3FacZ9KxLD5jnOa1kYhQQOewqWjeBoQgtnd0qyoAFZ8UkjgdMfWrtuSetKxsn0LA5FLs74piMN2DxU/mqowOTSaGRDAPSpsBl6YqJ5QvORSicFeDmpAQIM0Mdo5pC+0bqzNT1IQJ1poHKxNc3C9NwFZVzcIpyWBrntV1pgcbiuax9Q1OeOHdHNvbHK56VokctSrY6G+1CRWJiA2+ua5nU9djCurtz3rBbxTJv2XoaNOgIqe0006wfM3gwnvmrsccqjkzO03Xp7XWY0jJaGZuc1q/FHwxHc6fDrlknzoP32KbqehR2zwfZRjaQd1dneoL7wjdRcYMfP4Cqi9TePv02meB2xBX6VrWTcisZG8uUr23EVrWRwRVs89HT6e3SulsW4Fctp7dK6WwPArOR00zetzwKuJVG2PAq6lZnSiWigUUFEEqsB0qqxxWlx0NVbqHaCwHFAmiJeVpkj4GM4NJC3JBqtrDtHZOVOGPSmZ3LqavaWSDzJAW9qjfxdbTSCJH2k965yw0G4voxIzkknqTWgnhWGNsyH/AIFTJ55dDcTWMJ8k27PvVi28SmEjdLjFcJqYTTZW8md5CP4VGcVUtNUa5uRAyyLIfbj86rluiVXcXqenS+MPNO2DBb1pjeKBDGWnfB9q5QeH9cltBcWNuZIj37inWOgX7Za9BYDqves5KxtTquTOrsNdW9B2uTW3bXWQFzXNWFlFAoWFCr+9dJptplgX696yZ0xbJbi528ZrC1W7iZsNXRX9rH5ZZeuK427AnuCjcc4oW45vQz30q71eRks49zGsK+8O32lsGm3Ek4x6V6TpMkukbvLiUqQMPnpUt7bLfnzbhlZ27YrppyS3OCrSlLY4nw34XsNQjZtRtgWHJJOKbcaHDb3JTTlKxg888V0L6e4BjJIQdhULWgiAC5AocrsqnQcfiMxLQSRSRsMsBxU1lJv0e8tj1RDmrEUTCZmrK882eoXiE4SSM8fhRHcpu2x4fLxeSr6SN/OteyYcVlXWDezMP+ejfzq/ZHpWrPOT1OnsGHFdLYHgVy+n9q6bT+1ZSOqmb9r0FX06Vn2vQVfSszpRMOlFIOlFAx4GTSTDKFTTl9aUqZBtxSKMoLtlNOmtEul2PUkqeXIeKs221sVRCRFbWoto9q8AVFe2s1zHhXIU9RW15aFelJGsZGCKVzWMFYzbbTNOisTDbgC4I+Z2Gc1kW2i3EV0Szr9nzyu3k/jXUG0UtlML61aitpJcKFGa0jPQwlg+Z3L2mavb6Xpywxjzpcfdx0qgRLcXJuNgjJPTtVmPSxGM9TTZFdTtFRKVzelQ5EOngiJVxjd3IpguTC2EbNMdJNvNVSCJAKysbwgaZuTNARnmuX1CMxXRkB+U101pGGQ5rK1a17iixpOmrXILUuUBSQtnqtX4pgPldShrHtJzBIAa30t/PjDDqaaMF5CeUDyOVPeq81vmp/KeM7OeKXywRyeaaY5IpC32o7EY9K4XxrMbBDcjgYIJr0C4bbGRXnPxJOdHatobnFXdlc8kZt8rMDkFia07HtWVD0rWse1as85as6PTh0rp7AcCua0/tXTWHQVlI66ZuW3atBKz7XoK0ErM6USDpRQOlFBRItWIQNpIqqDkZFSxyFCMdKRRDdRDy2bvUFm/QGrVxIG3KVODWXHKUm29MVRk9GdBHhhipFiB7VUtZN2Oa0kXpik0dNOVxFh9RxV+1Tb9agjRs/NV+3j4qbmw9sAVB5Qds1ZePJp8VvyDTFZFC7g2x5FZJHz5rorqMFCK5+5PlselSVGRatHz8oqO/hLIabZnb+87VbdhcocCg05rqxyM6NDLuI4BrqNIk863UjpWRf2xyQRRoGofYro20p+VjxntQcm0jppI1xyvNUpVAPStJwdvNUZl5NJMpsx9QfaCK89+Inz6K5Hau41iQqSM1w/jb97o8g9q2p7nBX2PI4eoHrW3YRZxisaFfmz71vacMCt2cEdze09eldNYcAVzliucGujsR0rGR2UzbthwKvIOKpWw4FXkqDoRIKKBRQMYH2Nz0qYfNgiq7jiokujA3zfd/lQO5swjgZUGsTWYPKug4GA1aUF/C4yHA+prM1/UrV1jjEq+YD2oSJm9CxYygsnNbkEoJ61y2nzD16dK27eTBGTRJCpyN2NwRircL4GKy4JNwBzV2NxxzUnSpF1DzVqMbhiqKOM1aSTA461LZQy5P7pyO1cfNm4nZsng12UIEu9T3rlruM6dePvQlGNJDJ7VQybSa1bG1DDiufbUN3MKcCp7TXJVHzqQPYVQc1jU1GyiCMe4rj7rH2s7OWzxitnUdVnuIGWJTz3rN01rWFwZ2Hmd80GcndnUWsrNZx+YfnxzUMxBzVU3ydQwx2xTHulxyahbhJ6GHrnLA+9cf4vP+gbfUV12pzJN908iuN8Yvtto89DxXRT3OCrseWom2dvrW5p68CsuSPFyyjr1rY05egrVnKlqdBp6/LXR2K8CsLT04FdFZLwKzZ1wRq244q2tVoBxVpag6EPooooGRuKp3C5Bq6wqtOOKBMwr0MoO1iPpXP3BYTqSSTnrmunvI+DXPXceJQfSrRhM3dKu/mUFuMc11NnIsiZB6VwlhKVfg102m3YUFc0MUGdFHJs4zWhbPu71jROsgGeTV2IuhGDgVmzpjI2YzVpW+WsyGU4BJqytyFG5vujtWTRvFmhEREpY96o3nkzZ3gGopNQ3ZGfl9KyNU1hIYiBw/ahIpyRnavqVnaO0CLhvSptK1ZRpTeYgZ8+lctOkupXYdwSfWtCKG58lljQkjgcVSRlz6nVS3cEum+aigMw9K5S6iO4uykr610VnaXEukJCYyJB0OOlQ3OnSoFV2Ukjk07EypyepzsE1wjjaxMX8Oa1W1KNYct98Cqt1GIDtEobHYCoU02S5Rm8z5T2pWMJcyMnUtTMbecD8ueawvEt2L6GMIc8VsarpTQIYXy+7kH0rl9QjMSjAx2FaQ3Oeb0OYKg3BI61s6bEeKzTCRMT1OeK3NOjbjArdmUVqblhHyK6G0TgVkWETccVu20ZAHFZM64F2IcCrC1FGMVMKk2QtFFFBQjVBKuRU5qNxxQSZN0nBrCvoueldLcpkGsS+iJFUjOSMgyGHBrc064D23mg/N6VkyWkk33EJAFU7S8kt5jGSQoNBjsz0SxnLorHitWGbeQK5HTtSUoCzVsWupLt4NSzVSOi83YuT0rL1DxAlurIWApxm82MtuxxXJanC092Bksuaho0U9DobbWFmGfN4qO5ZbxhjJ96l0nRIniV3TnHStBNJmDEoAielKxMU2yrp1vBbS5lweKt/2pBbsTER+VPGmW4OZGJNSDSbMSAZ4qjuo011K0viScrtiH6VUeS9vBjBGerVtS2tjbjIwfwqu16rKY4IfxoNZSijJNklsB5h3se9X7Ly1TaycGmPD8u6brRJhIgQcZoOKo0Y3iMrDEygbmPQ+led6jKZ2ORwOldr4gk2rt37s1xN8hWRcjCtVw3OGZSt7cFyT82K3rCEDGBxWXbLiQL69a6CzhxjA4rUiK1NSzQYFa0C9KoWsfStOFcCs2dUETIKkFNUU6pNUFFFFAwpjCn0hFAipMuRWVdxZzW1IuRVC4hL8AUIhoi0GFX81WAJrB8SaatrN5sSnk8itu0mOn3e4/d71f1K3W8XcACpobCVO6ucHBdNC2GO0VuWV2No2tvqlrOjJakSjIzWUNRe2fggqKrSxz7HZR63LD8vlbh0+lPtc3Nz5shCKP4fWuWttYAjMhGQegrY0y8aRwQc7v0qGi00d5YT7VHz5Aq99oDgkZzXL2l06cE1pQ3yqfmPPpUam0JWNTfvXBSmiRM4xVMX5mfaBtFVL3Ugs5XHT0oTZrKbS0Ld5eRRZBOazrTVSkpXYGB6GqF1O86ueQo71n2l8FQk8kHApnPKTZvPqZluDGy4A/WpbxmRATwpHArOikTzW3LnoRSXV2zNgH5R2ouD2Od1u4JlOHxXPXkslxsX+53rS1qYmc4FZTncVGOtawRjKxa0+MFsEZPrXSWcQAFZOnQdOOa37WIgCqYQRdt48Yq9GvFQQpVlRWbOlIeBS0CigsKKKKACg0UUCI2FRqgL81ORUbDHI60CM3VLUg5A4NV0uLkSfJzEo55rc+S4Qo3BrGu7ZrZ2UL8p70ikx5vNO1hDDI2MAg8dK4nWdFNpNiJt0bk4bPSuhKCK0aIH9454IHSqF7askdwu8yCPbt+pp3M5wTRzLTrBhM7hWjp2qhGXDbcdqhvtIuVZ/NhAZAGYA9BWakqIMpn0qtDld0zvYNYiwo3/AFNakN7ER5m7IXpXl4v5EU4zgdfatW01eSVVjVyFX72azsWpWPR4dRV0LZCk9KrT3agl0IeuattSEo3swCJ704arEFLjO3+dCRfOa6Xs1wGiEQVD1aqNxcR26Ou0HB+UjvWcmrmYlFJjGeTSGaPzjiTzNo+UepqrEtm3YzOzk84AzmrEsqG3klz83aspb14rKAbcSSZyKjMskiNHnp1pctx3uineP5ikkZYmm2umSORKwytSWUBlk2PzzXS2sSRRhcZ/Cp5nE3pYdTjdlC1tgMYGK1raPaAMUqxRk/KOasxxAdK05rkqFmSxripQKaoxTxSLSFooooGFFFFABRRRQAGmkU6kNAiB17jg00yxuPLuBx/eqdhVeWPNAiC60gugNths9/Ssq4sWsVDupmU8vWqss1q2YmOPSphqltLmO5jCE/xYpNMcZRv7xx94sstrO/KtdMoGewBqrqNpYwXEwVQqQRg5HO5iK7ifQrfVkxDMki9hnGKybnwyElSLGEB+cdd1Q5Jbms6MZfA7nnj2TGyFwWJuJCf3QHaqyXXlsIWyrr1GK9BstCZfEM1yyAxIAFB6CotZ07SIJyxRXuH/ALvOKXt430EsBJx5m7HHWk+6bYMlO/NaM14gi2o4GPSob+wWeXy9Kgdpf4uMYqG38Paru2fZ8Megz96t1JNHBUg4OzHW8jc5bg1PBGY33B8jqTTodMuRJ5M8Bhk7Zq0mkzodxyVpOSKhRlJcyRJFeSTTfMPlTp7U95ySdv3m70gimA2RQkDufWrVtYENudTn6dKaaYOLWlhdOt5Ek80fe966OCQyLhuGqnawAAcGtGGHA6VMkma021oTxp8oG3HrU6qB0piJipgKVjVCAU6iimAUUUUAFFFFABRRRQAUUUUAIRTGWpKQigRVkjzVOa3DdRmtNlqF46aZDRiSQPEd0bsh9jS/2vfwja7+Yo9RWhLDntVKaD2p6GbutileavLcxlPL2Z6kd6itL/T7Y7zakSHqzc5qWW39qqvbA9hSdKLNaeKqU3fcvnUInSRrONFkcdcYqtZXNxHseSPc8ZzjPSqptsdMj6VIjSqu0ScfSpVG2w8RiVXtdWsaFxKdXn8+VvlHTAq15SeWAFyazYHmj4DcfSrsM8/qKzlRZ04fFQpxsizHCsS7nUfTFC73bJUKB04pyPI/JGatR7j/AAiqjFxIq1lNiRp7VYjQ0KD9KkANUZCquKdikApaBhRRRTAKKKKACiiigD//2Q==';
