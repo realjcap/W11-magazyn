@@ -1082,7 +1082,7 @@ const FL = (() => {
   const LW = 360, LH = 540, FLOOR = 470, PW = 66, GAP = 150, SPACE = 215;
   const G = { open: false, st: 'menu', raf: 0, last: 0, y: 0, vy: 0, rot: 0, pipes: [], score: 0, best: 0, speed: 150, scroll: 0, t: 0, flapT: 0, dead: 0 };
   try { G.best = +localStorage.getItem('w11-fl-best') || 0; } catch (e) {}
-  let cv, x, dpr = 1, can, strip, bgFar, bgNear, boar;
+  let cv, x, dpr = 1, can, strip, bgFar, bgNear, boar, barImg;
   const LB = LBX('fl', '#flOv');
 
   // ---------- tło: magazyn (generowane w kodzie, dwie warstwy z paralaksą) ----------
@@ -1150,7 +1150,23 @@ const FL = (() => {
     x.restore();
   }
 
-  function reset() { G.y = LH * .42; G.vy = 0; G.rot = 0; G.pipes = []; G.score = 0; G.speed = 150; G.dead = 0; G.nextX = LW + 60; }
+  function reset() { G.y = LH * .42; G.vy = 0; G.rot = 0; G.pipes = []; G.bars = []; G.score = 0; G.speed = 150; G.dead = 0; G.nextX = LW + 60; G.lastTop = 200; G.lvl = 0; G.lvlT = 0; }
+  // trudność rośnie z wynikiem: mniejsza przerwa, krótsze odstępy, większe skoki wysokości, ruchome puszki, serie
+  function levelUp() { const l = Math.floor(G.score / 10); if (l > G.lvl) { G.lvl = l; G.lvlT = 1.6; } }
+  function spawnPipe() {
+    const sc = G.score, d = Math.min(1, sc / 40);
+    const gap = Math.round(150 - d * 38 + (Math.random() - .5) * 14);            // 150 → ok. 112
+    const lo = 80, hi = FLOOR - 60 - gap, jump = 90 + d * 170;                     // jak daleko może skoczyć przerwa względem poprzedniej
+    const top = Math.max(lo, Math.min(hi, G.lastTop + (Math.random() * 2 - 1) * jump));
+    const move = sc >= 6 && Math.random() < .25 + d * .35 ? { amp: 22 + Math.random() * (25 + d * 30), sp: 1.2 + Math.random() * (1 + d * 1.3), ph: Math.random() * 6.28 } : null;
+    G.pipes.push({ x: G.nextX, top, base: top, gap, move, done: false });
+    // baton w przerwie (bonus +2) – czasem trochę z boku, żeby trzeba było po niego sięgnąć
+    if (Math.random() < .3) G.bars.push({ x: G.nextX + PW / 2, y: top + gap / 2 + (Math.random() - .5) * gap * .5, got: false, pipe: G.pipes[G.pipes.length - 1] });
+    G.lastTop = top;
+    let sp = 215 - d * 45 + (Math.random() - .5) * 50;                            // odstęp: 215 → ok. 170, z wahaniem
+    if (sc >= 10 && Math.random() < .18) sp = 150 + Math.random() * 20;            // seria – dwie puszki blisko siebie
+    G.nextX += Math.max(140, sp);
+  }
   function flap() {
     if (G.st === 'menu' || G.st === 'over') { if (G.st === 'over' && G.dead > 0) return; reset(); G.st = 'run'; ov(''); }
     if (G.st !== 'run') return;
@@ -1169,18 +1185,22 @@ const FL = (() => {
     G.vy = Math.min(620, G.vy + 1350 * dt); G.y += G.vy * dt;
     G.rot += ((G.vy < 0 ? -.45 : Math.min(1.2, G.vy / 520)) - G.rot) * Math.min(1, dt * 10);
     G.scroll += G.speed * dt;
-    for (const p of G.pipes) p.x -= G.speed * dt;
+    for (const p of G.pipes) { p.x -= G.speed * dt; if (p.move) { p.move.ph += p.move.sp * dt; p.top = Math.max(60, Math.min(FLOOR - 50 - p.gap, p.base + Math.sin(p.move.ph) * p.move.amp)); } }
+    for (const b of G.bars) { b.x -= G.speed * dt; if (b.pipe && b.pipe.move) b.y += (b.pipe.top - (b.pipe.prevTop ?? b.pipe.top)); }
+    G.pipes.forEach(p => p.prevTop = p.top);
     G.nextX -= G.speed * dt;
-    if (G.nextX <= LW) { const lo = 90, hi = FLOOR - 70 - GAP; G.pipes.push({ x: G.nextX, top: lo + Math.random() * (hi - lo), done: false }); G.nextX += SPACE; }
-    G.pipes = G.pipes.filter(p => p.x > -PW - 10);
+    if (G.nextX <= LW) spawnPipe();
+    G.pipes = G.pipes.filter(p => p.x > -PW - 10); G.bars = G.bars.filter(b => b.x > -30 && !b.got);
     // kolizje: prostokąt gracza (trochę mniejszy niż grafika – uczciwiej)
     const bx = 92, hw = 20, hh = 13;
     if (G.y + hh >= FLOOR) { G.y = FLOOR - hh; die(); return; }
     if (G.y - hh < 0) { G.y = hh; G.vy = 0; }
     for (const p of G.pipes) {
-      if (bx + hw > p.x + 6 && bx - hw < p.x + PW - 6 && (G.y - hh < p.top || G.y + hh > p.top + GAP)) { die(); return; }
-      if (!p.done && p.x + PW < bx - hw) { p.done = true; G.score++; G.speed = Math.min(215, 150 + G.score * 2); SFX.play('eat'); }
+      if (bx + hw > p.x + 6 && bx - hw < p.x + PW - 6 && (G.y - hh < p.top || G.y + hh > p.top + p.gap)) { die(); return; }
+      if (!p.done && p.x + PW < bx - hw) { p.done = true; G.score++; G.speed = Math.min(245, 150 + G.score * 2.6); SFX.play('eat'); levelUp(); }
     }
+    for (const b of G.bars) if (!b.got && Math.abs(b.x - bx) < 26 && Math.abs(b.y - G.y) < 22) { b.got = true; G.score += 2; SFX.play('tick'); G.pop = { x: b.x, y: b.y, t: .7 }; levelUp(); }
+    G.lvlT -= dt; if (G.pop) G.pop.t -= dt;
   }
   function draw() {
     const r = cv.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1190,12 +1210,16 @@ const FL = (() => {
     // tło
     const fo = -(G.scroll * .35 % bgFar.width); for (let i = fo; i < LW; i += bgFar.width) x.drawImage(bgFar, i, 0);
     // puszki
-    if (can.complete && can.naturalWidth) { if (!strip) strip = makeStrip(); for (const p of G.pipes) { drawPipe(p.x, p.top, true); drawPipe(p.x, p.top + GAP, false); } }
+    if (can.complete && can.naturalWidth) { if (!strip) strip = makeStrip(); for (const p of G.pipes) { drawPipe(p.x, p.top, true); drawPipe(p.x, p.top + p.gap, false); } }
+    // batony-bonusy
+    if (barImg && barImg.complete) for (const b of G.bars) if (!b.got) { const w = 46, h = w * barImg.naturalHeight / barImg.naturalWidth; x.save(); x.translate(b.x, b.y); x.rotate(Math.sin(G.t * 3 + b.x) * .25); x.drawImage(barImg, -w / 2, -h / 2, w, h); x.restore(); }
     // podłoga
     const no = -(G.scroll % bgNear.width); for (let i = no; i < LW; i += bgNear.width) x.drawImage(bgNear, i, FLOOR);
     // gracz (sylwetka z nóżkami, nóżki machają przy podskoku)
     drawBoar(92, G.y, G.rot);
     // wynik
+    if (G.pop && G.pop.t > 0) { x.globalAlpha = Math.min(1, G.pop.t * 2); x.font = '900 22px system-ui,sans-serif'; x.textAlign = 'center'; x.lineWidth = 4; x.strokeStyle = '#111'; x.strokeText('+2', G.pop.x, G.pop.y - (1 - G.pop.t) * 30); x.fillStyle = '#ffd34d'; x.fillText('+2', G.pop.x, G.pop.y - (1 - G.pop.t) * 30); x.globalAlpha = 1; }
+    if (G.lvlT > 0 && G.st === 'run') { x.globalAlpha = Math.min(1, G.lvlT); x.font = '900 28px system-ui,sans-serif'; x.textAlign = 'center'; x.lineWidth = 6; x.strokeStyle = '#111'; const t2 = 'POZIOM ' + (G.lvl + 1) + '!'; x.strokeText(t2, LW / 2, 130); x.fillStyle = '#1ab8ff'; x.fillText(t2, LW / 2, 130); x.globalAlpha = 1; }
     if (G.st !== 'menu') { x.font = '900 46px system-ui,sans-serif'; x.textAlign = 'center'; x.lineWidth = 7; x.strokeStyle = '#111'; x.strokeText(G.score, LW / 2, 70); x.fillStyle = '#fff'; x.fillText(G.score, LW / 2, 70); }
   }
   function drawBoar(cx0, cy, rot) {
@@ -1218,7 +1242,7 @@ const FL = (() => {
     if (cv) return;
     cv = $('#flC'); x = cv.getContext('2d');
     bgFar = makeFar(); bgNear = makeNear();
-    can = new Image(); can.src = FL_CAN;
+    can = new Image(); can.src = FL_CAN; barImg = new Image(); barImg.src = GM_BAR;
     boar = gmImgs();
     const go = e => { if (!G.open) return; if (e) e.preventDefault(); flap(); };
     $('#flWrap').addEventListener('pointerdown', e => { if ((e.target.closest('button') && !e.target.closest('[data-go]')) || e.target.closest('.lbx')) return; go(e); });
