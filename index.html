@@ -354,6 +354,12 @@ dialog[open]{opacity:1;transform:none}
 .brpick{position:fixed;z-index:70;display:flex;gap:4px;padding:6px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,.3)}
 .brpick .brstar{font-size:24px;padding:2px 6px;border-radius:6px}
 .brpick .brstar:hover{background:color-mix(in srgb,var(--tx) 8%,transparent)}
+.brbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;border:1px solid var(--ac);border-radius:10px;background:var(--card)}
+.brbar span{font-weight:600;margin-right:auto}
+.brbar button{padding:6px 12px;font-size:13px}
+.brord .brsel{width:auto!important;height:auto;margin:0 8px 0 0!important;vertical-align:-2px;cursor:pointer}
+.brord.brsl{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 8%,var(--card))}
+.brord.brmv{opacity:.5}
 .brord{border:1px solid var(--bd);border-radius:10px;background:var(--card);padding:9px 12px;margin-bottom:8px;font-size:14px}
 .brord a.no{font-weight:700}
 .brord .cm{margin-top:3px;line-height:1.4}
@@ -608,6 +614,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <section id="vBr" hidden>
   <div class="brhead"><b>BRAK – do weryfikacji</b><span id="brAt" class="mu"></span><label class="brgr" title="Zamówienia, które w BaseLinkerze mają już zieloną gwiazdkę"><input type="checkbox" id="brGreen"> pokaż też z zieloną ★</label></div>
   <div id="brSum"></div>
+  <div id="brBar" class="brbar" hidden><span id="brBarN"></span><button type="button" id="brAll" class="e">Zaznacz wszystkie</button><button type="button" id="brNone" class="e">Odznacz</button><button type="button" id="brMove" class="p">Przenieś do „BOK - brak towaru”</button></div>
   <div id="brList"></div>
 </section>
 
@@ -3793,11 +3800,44 @@ function renderBraki() {
     const have = x.z ? (x.p.sizes[x.z] || 0) : sum(x.p), ok = have >= x.n;
     return `<div class="brrow" data-pid="${esc(x.p.id)}" title="Pokaż model w magazynie"><span>${esc(x.p.name)} ${x.z ? '<b>' + esc(x.z) + '</b>' : ''}<br><small>SKU ${esc(x.p.sku)}</small></span><span class="need"${x.u ? ' title="? = zamówienia bez uwag z kilkoma modelami – nie wiadomo, którego brakuje"' : ''}>${x.n ? x.n + ' zam.' : ''}${x.u ? (x.n ? ' + ' : '') + x.u + ' ?' : ''}</span><span class="st ${ok ? 'ok' : 'no'}">${x.z ? '' : 'razem '}${have} szt.</span></div>`;
   }).join('')}</div>` : '';
-  $('#brList').innerHTML = per.map(({ o, hs, src, unsure }) => `<div class="brord${o.star === 'green' ? ' gr' : ''}"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}
+  [...brSel].forEach(id => { if (!os.some(o => o.id === id)) brSel.delete(id); });
+  [...brMoving].forEach(id => { if (!brOrders(true).some(o => o.id === id)) brMoving.delete(id); });
+  brBarRender();
+  $('#brList').innerHTML = per.map(({ o, hs, src, unsure }) => `<div class="brord${o.star === 'green' ? ' gr' : ''}${brSel.has(o.id) ? ' brsl' : ''}${brMoving.has(o.id) ? ' brmv' : ''}"><input type="checkbox" class="brsel" data-id="${esc(o.id)}"${brSel.has(o.id) ? ' checked' : ''}${brMoving.has(o.id) ? ' disabled' : ''} title="Zaznacz do przeniesienia"><button type="button" class="brstar ${brPend[o.id] !== undefined ? 'pend ' : ''}${esc(brPend[o.id] !== undefined ? brPend[o.id] : o.star)}" data-id="${esc(o.id)}" title="Gwiazdka w BaseLinkerze">${(brPend[o.id] !== undefined ? brPend[o.id] : o.star) ? '★' : '☆'}</button><a class="no" href="https://panel.baselinker.com/orders.php#order:${encodeURIComponent(o.id)}" target="_blank" rel="noopener">#${esc(o.id)}</a>${o.shop ? ' <small class="mu">(' + esc(o.shop) + ')</small>' : ''}${brMoving.has(o.id) ? ' <small class="mu">⏳ przenoszenie do BOK…</small>' : ''}
     <div class="cm${o.c ? '' : ' none'}">${o.c ? esc(o.c) : 'brak uwag sprzedawcy'}</div>${o.p && src === o.p && hs.length ? `<div class="pr">${unsure ? '⚠ Brak uwag – nie wiadomo, którego modelu brakuje. ' : 'Brak uwag – model wzięty z zamówienia. '}W zamówieniu: ${hs.map(h => esc(h.p.name) + (h.sizes.size ? ' <b>' + esc([...h.sizes].join(', ')) + '</b>' : '')).join(' · ')}</div>` : ''}${hs.length ? brStockHtml(hs) : ''}</div>`).join('')
     || (at ? '<p class="mu">Nie ma teraz zamówień w tym statusie.</p>' : '');
 }
 $('#brGreen').onchange = e => { brShowGreen = e.target.checked; try { localStorage.setItem('w11-br-green', brShowGreen ? '1' : '0'); } catch (x) {} renderBraki(); };
+// --- przenoszenie zaznaczonych zamówień do statusu „BOK - brak towaru” (tylko ten jeden status; ID wpisane na sztywno w rozszerzeniu)
+const brSel = new Set(), brMoving = new Set();
+function brBarRender() {
+  const n = brSel.size; $('#brBar').hidden = !n;
+  $('#brBarN').textContent = 'Zaznaczono: ' + n;
+}
+$('#vBr').addEventListener('change', e => {
+  const c = e.target.closest('.brsel'); if (!c) return;
+  c.checked ? brSel.add(c.dataset.id) : brSel.delete(c.dataset.id);
+  c.closest('.brord').classList.toggle('brsl', c.checked); brBarRender();
+});
+$('#brAll').onclick = () => { brOrders(brShowGreen).forEach(o => { if (!brMoving.has(o.id)) brSel.add(o.id); }); renderBraki(); };
+$('#brNone').onclick = () => { brSel.clear(); renderBraki(); };
+$('#brMove').onclick = async () => {
+  const ids = [...brSel]; if (!ids.length) return;
+  if (!await ask('Przenieść ' + ids.length + ' zam. do statusu „BOK - brak towaru” w BaseLinkerze?\n\n' + ids.join(', '))) return;
+  ids.forEach(id => { brMoving.add(id); brSel.delete(id); }); renderBraki();
+  try {
+    const ref = db.ref(ROOT + '-brcmd').push();
+    await ref.set({ id: ids[0], ids: ids.join(','), act: 'bok', by: user, at: firebase.database.ServerValue.TIMESTAMP });
+    const done = () => { ids.forEach(id => brMoving.delete(id)); renderBraki(); };
+    const to = setTimeout(() => { ref.off(); done(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 120000);
+    ref.child('res').on('value', s => {
+      const r = s.val(); if (!r) return;
+      clearTimeout(to); ref.child('res').off(); done();
+      if (r.ok) { toast('Przeniesiono do „BOK - brak towaru”: ' + ids.length + ' zam.'); SFX.play('tick'); }
+      else say((/^przeniesiono/.test(r.msg || '') ? '' : 'Nie udało się przenieść: ') + (r.msg || 'błąd'));
+    });
+  } catch (x) { ids.forEach(id => brMoving.delete(id)); renderBraki(); say('Nie udało się wysłać: ' + (x.message || x)); }
+};
 $('#vBr').addEventListener('click', e => {
   const st = e.target.closest('.brstar');
   if (st) { const r = st.getBoundingClientRect(), p = $('#brPick'); p.dataset.id = st.dataset.id; p.hidden = false; p.style.left = Math.max(8, Math.min(innerWidth - 230, r.left)) + 'px'; p.style.top = (r.bottom + 6) + 'px'; return; }
@@ -3867,7 +3907,7 @@ function brWatchCmds() {
   db.ref(ROOT + '-brcmd').on('child_added', s => {
     const c = s.val(); if (!c || c.res) return;
     if (Date.now() - (Number(c.at) || 0) > 2 * 60 * 1000) { s.ref.remove().catch(() => {}); return; }
-    brQ.push({ key: s.key, id: String(c.id || ''), star: BR_STARS.includes(c.star) ? c.star : '' }); brNext();
+    brQ.push({ key: s.key, id: String(c.id || ''), star: BR_STARS.includes(c.star) ? c.star : '', act: c.act === 'bok' ? 'bok' : '', ids: String(c.ids || '').split(',').filter(x => /^\d{4,15}$/.test(x)).slice(0, 100) }); brNext();
   });
 }
 function brNext() {
@@ -3875,7 +3915,7 @@ function brNext() {
   brBusy = true; const c = brQ.shift();
   window.postMessage({ w11cmd: c }, location.origin);
   brBusy = c.key;
-  setTimeout(() => { if (brBusy === c.key) { brBusy = false; db.ref(ROOT + '-brcmd/' + c.key + '/res').set({ ok: false, msg: 'brak odpowiedzi z karty BaseLinkera' }).catch(() => {}); brNext(); } }, 30000);
+  setTimeout(() => { if (brBusy === c.key) { brBusy = false; db.ref(ROOT + '-brcmd/' + c.key + '/res').set({ ok: false, msg: 'brak odpowiedzi z karty BaseLinkera' }).catch(() => {}); brNext(); } }, c.act ? 100000 : 30000);
 }
 window.addEventListener('message', e => {
   if (e.source !== window || !e.data || !e.data.w11cmdres) return;
