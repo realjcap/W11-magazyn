@@ -803,10 +803,10 @@ const FN = (() => {
     scene.add(FNM); FNM.traverse(o => { if (o.isMesh) { o.frustumCulled = true; } });
     G.hemi = new T.HemisphereLight(0xb8c4d8, 0x2a2622, .22); scene.add(G.hemi); G.L = [];
     // nocne oświetlenie hali: przygaszone lampy pod oprawami; przed kanciapą ciemno (okno i drzwi widać słabo – od tego jest lampa nad drzwiami)
-    for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { if (z > 4 && x > 16) continue; const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); G.L.push(l); }
-    const kl = new T.PointLight(0xf4f8ff, 5.5, 4.5, 1.4); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); G.L.push(kl); // lampa w kanciapie
+    for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { if (z > -1 && x > 2) continue; const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); G.L.push(l); }
+    const kl = new T.PointLight(0xf4f8ff, 5.5, 3.6, 1.6); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); G.L.push(kl); // lampa w kanciapie
     // lampa nad drzwiami (z zewnątrz) + panel z dwoma przyciskami między oknem a drzwiami: czerwony = drzwi, biały = lampa
-    const sp = new T.SpotLight(0xfff0cc, 0, 8, .75, .5, 1.3); sp.position.set(20.7, 2.45, 5.95); sp.target.position.set(20.4, .2, 4.4); scene.add(sp, sp.target); phone.spot = sp;
+    const sp = new T.SpotLight(0xfff0cc, 0, 9, 1.05, .45, 1.2); sp.position.set(18.7, 2.75, 5.45); sp.target.position.set(18.9, 0, 3.9); scene.add(sp, sp.target); phone.spot = sp;
     const pnl = new T.Group(); pnl.position.set(20.215, 1.42, 5.75); scene.add(pnl);
     pnl.add(new T.Mesh(new T.BoxGeometry(.15, .4, .02), new T.MeshLambertMaterial({ color: 0x8c9196 })));
     const btn = (y, c) => { const b = new T.Mesh(new T.CylinderGeometry(.04, .04, .03, 18), new T.MeshBasicMaterial({ color: c })); b.rotation.x = Math.PI / 2; b.position.set(0, y, .02); pnl.add(b); return b; };
@@ -918,13 +918,16 @@ const FN = (() => {
     // stoi i patrzy (lekko przechylona głowa, czasem drgnie)
     stand: (t, look = 0) => { const tw = Math.sin(t * 13) * (Math.sin(t * .9) > .93 ? .12 : 0); return { spine_01: [.06], upperarm_l: [.05, 0, -.92], upperarm_r: [.05, 0, .92], lowerarm_l: EL(.12), lowerarm_r: ER(.12), neck_01: [-.04, look * .4, .1], head: [.12 + tw, look * .6 + tw, .26] }; },
     // dłonie na szybie kanciapy
+    // pochylony nad monitorem za szybą, z otwartymi ustami
+    peek: t => ({ spine_01: [.32], spine_02: [.1], neck_01: [.15, Math.sin(t * .5) * .1], head: [-.3, Math.sin(t * .8) * .12, .18], upperarm_l: [-1.35, -.1, -.6], upperarm_r: [-1.35, .1, .6], lowerarm_l: EL(.6), lowerarm_r: ER(.6) }),
     glass: t => ({ spine_01: [.12], upperarm_l: [-1.15, -.2, -.55], upperarm_r: [-1.15, .2, .55], lowerarm_l: EL(.35), lowerarm_r: ER(.35), neck_01: [.1], head: [.05, Math.sin(t * .7) * .08, .2] }),
     run: t => { const s = Math.sin(t * 9.5); return { spine_01: [.32], thigh_l: [-.75 * s - .1], thigh_r: [.75 * s - .1], calf_l: [.35 + .9 * (.5 - .5 * s)], calf_r: [.35 + .9 * (.5 + .5 * s)], upperarm_l: [.6 * s, 0, -1.0], upperarm_r: [-.6 * s, 0, 1.0], lowerarm_l: EL(1.1), lowerarm_r: ER(1.1), neck_01: [-.25] }; },
     scare: t => ({ spine_01: [.18], neck_01: [.1, Math.sin(t * 37) * .12], head: [-.28, Math.sin(t * 53) * .18, Math.sin(t * 41) * .14], upperarm_l: [-1.3, -.25, -.55], upperarm_r: [-1.3, .25, .55], lowerarm_l: EL(.3 + Math.sin(t * 30) * .12), lowerarm_r: ER(.3 + Math.sin(t * 27) * .12) })
   };
   // węzły trasy (x, z, kamera która je widzi); okno i drzwi widać tylko z kanciapy
-  const NODES = { al: [-13, -.75, 2], al2: [5, -.75, 3], wy: [13, -3.4, 4], st: [9, 5.0, 5], pk: [14.8, 4.8, 6], okno: [18.3, 4.85, -1], drzwi: [20.5, 5.0, -1] };
-  const NEXT = { home: ['al'], al: ['al2'], al2: ['wy', 'st'], wy: ['pk'], st: ['pk', 'okno'], pk: ['okno', 'drzwi'], okno: ['drzwi'] };
+  const NODES = { al: [-13, -.75, 2], al2: [5, -.75, 3], wy: [13, -3.4, 4], st: [9, 5.0, 5], pk: [14.8, 4.8, 6], okno: [18.3, 4.85, -1], szyba: [17.55, 5.28, -1], drzwi: [20.5, 5.0, -1] };
+  const FRONT = ['okno', 'szyba', 'drzwi'];
+  const NEXT = { home: ['al'], al: ['al2'], al2: ['wy', 'st'], wy: ['pk'], st: ['pk', 'okno', 'szyba'], pk: ['okno', 'szyba', 'drzwi'], okno: ['drzwi', 'szyba'], szyba: ['drzwi'] };
   const ZG_SPOTS = [[-21.05, -3.6, -Math.PI / 2], [-20.4, -3.6, Math.PI / 2], [-21.05, 2.4, -Math.PI / 2], [-20.4, 2.4, Math.PI / 2]];
   const MX_SPOTS = [[-12.8, -5.35, Math.PI], [-10.6, -5.35, Math.PI]];
   const MX_RUN = [[3.0, -5.4], [3.2, 5.0], [20.5, 5.0]];
@@ -975,8 +978,13 @@ const FN = (() => {
     else if (e.node === 'home' && e.stage === 0) s = AN.mix(e.t);
     else if (e.node === 'home' && e.stage === 1) { const c = G.cams[1].c.position, p = e.g.position; let a = Math.atan2(c.x - p.x, c.z - p.z) - e.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); s = AN.stand(e.t, Math.max(-1.3, Math.min(1.3, a))); }
     else if (e.node === 'okno') { s = AN.glass(e.t); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .6); }
+    else if (e.node === 'szyba') { s = AN.peek(e.t); face(e, 'usta_krzyk', .85 + Math.sin(e.t * 2.3) * .15); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .5); }
     else s = AN.stand(e.t);
-    if (e.node !== 'okno') { const z = e.node === 'drzwi' || (e.kind === 'mx' && e.stage === 2) ? .7 : e.node === 'home' ? 0 : .3; face(e, 'oczy_szeroko', z); face(e, 'wykrzywienie', z * .6); }
+    if (e.node !== 'szyba') face(e, 'usta_krzyk', 0);
+    // przed kanciapą jest ciemno: bez lampy widać najwyżej zarys
+    const dk = !G.light && !(G.sc && G.sc.e === e) && (FRONT.includes(e.node) || (e.run && e.g.position.x > 14 && e.g.position.z > 3.8)) ? .03 : 1;
+    if (e.dk !== dk) { e.dk = dk; e.g.traverse(o => { if (!o.isMesh) return; [].concat(o.material).forEach(m => { if (!m.userData.c0) m.userData.c0 = m.color.clone(); m.color.copy(m.userData.c0).multiplyScalar(dk); }); }); }
+    if (e.node !== 'okno' && e.node !== 'szyba') { const z = e.node === 'drzwi' || (e.kind === 'mx' && e.stage === 2) ? .7 : e.node === 'home' ? 0 : .3; face(e, 'oczy_szeroko', z); face(e, 'wykrzywienie', z * .6); }
     pose(e.r, s); e.g.position.y = e.run ? -.05 + Math.abs(Math.cos(e.t * 9.5)) * .06 : 0;
     // rekwizyt w rękach (zgrzewka między dłońmi / puszka w prawej)
     if (e.prop) {
@@ -1008,7 +1016,7 @@ const FN = (() => {
     } else e.node = rnd(NEXT[e.node]);
     enPlace(e); const to = nodeCam(e);
     if (G.cam >= 0 && (G.cam === from || G.cam === to)) camStatic();
-    if (e.node === 'pk' || e.node === 'okno') steps(.5); if (e.node === 'drzwi') { steps(1); G.stung = false; }
+    if (e.node === 'pk') steps(.5); if (FRONT.includes(e.node)) { steps(e.node === 'drzwi' ? 1 : .6); G.stung = false; }
   }
   function mixTick(e, dt, bonus) {
     if (e.run) return mixRun(e, dt);
@@ -1047,7 +1055,7 @@ const FN = (() => {
     if (on && (!PLAY.includes(G.st) || G.cam >= 0 || G.out)) return;
     if (on && G.inside) return errBeep();
     G.light = on; if (phone.spot) phone.spot.intensity = on ? 26 : 0; btnUpd();
-    if (on) { lightHum(); if (!G.stung && G.en.some(e => e.node === 'drzwi')) { G.stung = true; sting(); } }
+    if (on) { lightHum(); if (!G.stung && G.en.some(e => FRONT.includes(e.node))) { G.stung = true; sting(); } }
   }
   function btnUpd() { if (!phone.bD) return; phone.bD.material.color.set(G.door ? 0xff2a2a : 0x5a1515); phone.bL.material.color.set(G.light ? 0xfff2b0 : 0x55585c); }
   const PLAY = ['ring', 'call', 'night'];
@@ -1262,7 +1270,7 @@ const FN = (() => {
     ['Lukas Frozen', 'Nie pytaj, skąd to wzięli. Teraz są… dziwni.'],
     ['Lukas Frozen', 'Ci przy zgrzewkach, po lewej stronie hali, czasem rzucają robotę i łażą po magazynie.'],
     ['Lukas Frozen', 'Jak któryś stanie pod drzwiami kanciapy, zamknij drzwi. Czerwony przycisk przy drzwiach albo E.'],
-    ['Lukas Frozen', 'Biały przycisk to lampa nad drzwiami, F. Na zewnątrz jest ciemno, więc sprawdzaj, czy ktoś tam nie stoi.'],
+    ['Lukas Frozen', 'Biały przycisk to lampa przed kanciapą, F. Za oknem jest ciemno, więc świeć i sprawdzaj, czy ktoś tam nie stoi.'],
     ['Lukas Frozen', 'Tylko oszczędzaj prąd. Drzwi, lampa i kamery ciągną z agregatu. Jak prąd siądzie… to siądzie.'],
     ['Lukas Frozen', 'I ci dwaj na mixach, przy górnej ścianie. Zaglądaj do nich na kamerach. Jak nikt na nich nie patrzy, robią się nerwowi.'],
     ['Lukas Frozen', 'Dobra, muszę kończyć. Do szóstej rano. Powodzenia.'],
