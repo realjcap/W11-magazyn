@@ -428,7 +428,8 @@ dialog[open]{opacity:1;transform:none}
 .presl .pr{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;padding:7px 9px;border:1px solid var(--bd);border-radius:9px}
 .presl .pr b{font-size:14px}
 .presl .pr .dot{width:9px;height:9px;border-radius:50%;background:#2ecc71;box-shadow:0 0 6px #2ecc71}
-.presl .pr.idle .dot{background:#f1c40f;box-shadow:none}
+.presl .pr.off{opacity:.7}
+.presl .pr.off .dot{background:#8a8f98;box-shadow:none}
 .presl .pr small{color:var(--mu);font-size:12px;text-align:right}
 .presl .wh{grid-column:2;font-size:13px;color:var(--mu)}
 #gm,#w3,#fl,#sl,#fn,#hub{max-height:calc(100dvh - 12px);margin-block:auto}
@@ -1027,7 +1028,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div id="gmLb" class="gmlb"></div>
   <div class="gbt"><button type="button" id="gmHub" class="e">← Game Hub</button><span class="mu">Strzałki – ruch · Spacja – pauza</span><button type="button" id="gmX">Zamknij</button></div>
 </dialog>
-<aside id="presP" hidden aria-label="Kto jest teraz w aplikacji"><h3>Aktywni <span id="presN"></span></h3><div id="presL" class="presl"></div></aside>
+<aside id="presP" hidden aria-label="Kto jest teraz w aplikacji"><h3>Konta <span id="presN"></span></h3><div id="presL" class="presl"></div></aside>
 <dialog id="sec">
   <h2>Bezpieczeństwo konta delma</h2>
   <div class="secrow"><span>Logowanie przez Google</span><b id="secG"></b></div>
@@ -3444,17 +3445,30 @@ function presTick() {
   if (!db || !auth || !auth.currentUser || !unlocked || !user) return;
   const w = presWhere() + (document.hidden ? ' (karta w tle)' : ''), now = Date.now();
   if (w === presLast && now - presT < 60000) return; presLast = w; presT = now;
-  if (!presRef) { presRef = db.ref(ROOT + '-presence/' + auth.currentUser.uid + '/' + PRES_ID); try { presRef.onDisconnect().remove(); } catch (e) {} }
-  presRef.set({ name: cap(user), where: w, at: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  const base = ROOT + '-presence/' + auth.currentUser.uid;
+  if (!presRef) { presRef = db.ref(base + '/' + PRES_ID); try { presRef.onDisconnect().remove(); db.ref(base + '/_last/at').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP); } catch (e) {} }
+  const v = { name: cap(user), where: w, at: firebase.database.ServerValue.TIMESTAMP };
+  presRef.set(v).catch(() => {}); db.ref(base + '/_last').set(v).catch(() => {}); // _last zostaje po wyjściu: „kiedy ostatnio”
 }
-function presStop() { if (presRef) { try { presRef.onDisconnect().cancel(); } catch (e) {} presRef.remove().catch(() => {}); presRef = null; } presLast = ''; }
+function presStop() { if (presRef && auth && auth.currentUser) db.ref(ROOT + '-presence/' + auth.currentUser.uid + '/_last/at').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+  if (presRef) { try { presRef.onDisconnect().cancel(); } catch (e) {} presRef.remove().catch(() => {}); presRef = null; } presLast = ''; }
 setInterval(presTick, 2500); document.addEventListener('visibilitychange', presTick);
 function presRender() {
-  const rows = []; Object.entries(PRES).forEach(([uid, ss]) => Object.values(ss || {}).forEach(v => { if (v && typeof v === 'object') rows.push({ uid, name: txt(v.name, 30) || '?', where: txt(v.where, 80), at: Number(v.at) || 0 }); }));
-  rows.sort((a, b) => b.at - a.at);
-  const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000 | 0); return s < 90 ? 'teraz' : s < 3600 ? Math.round(s / 60) + ' min temu' : Math.round(s / 3600) + ' h temu'; };
-  $('#presN').textContent = rows.length ? '(' + new Set(rows.map(r => r.uid)).size + ')' : '';
-  $('#presL').innerHTML = rows.length ? rows.map(r => `<div class="pr${Date.now() - r.at > 150000 ? ' idle' : ''}"><i class="dot"></i><b>${esc(r.name)}${auth.currentUser && r.uid === auth.currentUser.uid ? ' <span class="mu">(Ty)</span>' : ''}</b><small>${ago(r.at)}</small><span class="wh">${esc(r.where)}</span></div>`).join('') : '<p class="mu">Nikogo nie ma.</p>';
+  const ACT = 150000, now = Date.now(), list = [];
+  const ago = t => { const s = Math.max(0, (now - t) / 1000 | 0); return s < 90 ? 'teraz' : s < 3600 ? Math.round(s / 60) + ' min temu' : s < 86400 ? Math.round(s / 3600) + ' h temu' : s < 7 * 86400 ? Math.round(s / 86400) + ' dni temu' : new Date(t).toLocaleDateString('pl-PL'); };
+  Object.entries(PRES).forEach(([uid, ss]) => {
+    if (!ss || typeof ss !== 'object') return;
+    const last = ss._last && typeof ss._last === 'object' ? ss._last : null;
+    const sess = Object.entries(ss).filter(([k, v]) => k !== '_last' && v && typeof v === 'object' && now - (Number(v.at) || 0) < ACT).map(([, v]) => ({ where: txt(v.where, 80), at: Number(v.at) || 0 }));
+    const name = txt((last && last.name) || (Object.values(ss).find(v => v && v.name) || {}).name, 30) || '?';
+    list.push({ uid, name, on: sess.length > 0, sess: sess.sort((a, b) => b.at - a.at), at: Math.max(Number(last && last.at) || 0, ...sess.map(x => x.at)), where: last ? txt(last.where, 80) : '' });
+  });
+  list.sort((a, b) => (b.on - a.on) || b.at - a.at);
+  $('#presN').textContent = list.length ? '· online ' + list.filter(r => r.on).length + '/' + list.length : '';
+  const me = auth && auth.currentUser && auth.currentUser.uid;
+  $('#presL').innerHTML = list.length ? list.map(r => r.on
+    ? `<div class="pr"><i class="dot"></i><b>${esc(r.name)}${r.uid === me ? ' <span class="mu">(Ty)</span>' : ''}</b><small>teraz</small>${r.sess.map(x => `<span class="wh">${esc(x.where)}</span>`).join('')}</div>`
+    : `<div class="pr off"><i class="dot"></i><b>${esc(r.name)}</b><small>${r.at ? ago(r.at) : '—'}</small><span class="wh">${r.where ? 'ostatnio: ' + esc(r.where) : 'jeszcze nie był'}</span></div>`).join('') : '<p class="mu">Nikogo jeszcze nie było.</p>';
 }
 // panel „Aktywni” po prawej (między stroną a przyciskiem Slacka) – stale widoczny, tylko dla delmy, tylko na szerokim ekranie
 function presPanel(on) {
