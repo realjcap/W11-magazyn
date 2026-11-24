@@ -786,7 +786,7 @@ const FN = (() => {
   let T, R, scene, cam, clock, cv, built = false, ray, phone = {}, audio, ringT = 0;
   const S = { vol: .8, sens: 1, subs: true };
   try { Object.assign(S, JSON.parse(localStorage.getItem('w11-fn-set') || '{}')); } catch (e) {}
-  const G = { cam: -1, open: false, st: 'menu', night: 1, t: 0, yaw: 0, look: 0, mx: .5, my: .5, call: null, lines: [], li: 0, lt: 0 };
+  const G = { cam: -1, open: false, st: 'menu', night: 1, dA: 0, pow: 100, en: [], t: 0, yaw: 0, look: 0, mx: .5, my: .5, call: null, lines: [], li: 0, lt: 0 };
   const done = () => { try { return +localStorage.getItem('w11-fn-night') || 0; } catch (e) { return 0; } };
 
   let YAWMAX = 1.05, FNM = null; // model hali z Blendera (gry/modele/fnad_magazyn.glb), ładowany dopiero przy otwarciu gry
@@ -801,27 +801,34 @@ const FN = (() => {
     const keep = new Set([cam, phone.g]);
     [...scene.children].forEach(o => { if (!keep.has(o)) scene.remove(o); });
     scene.add(FNM); FNM.traverse(o => { if (o.isMesh) { o.frustumCulled = true; } });
-    scene.add(new T.HemisphereLight(0xb8c4d8, 0x2a2622, .22));
-    // nocne oświetlenie hali: przygaszone lampy pod oprawami
-    for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); }
-    const kl = new T.PointLight(0xf4f8ff, 5.5, 7, 1.4); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); // lampa w kanciapie
+    G.hemi = new T.HemisphereLight(0xb8c4d8, 0x2a2622, .22); scene.add(G.hemi); G.L = [];
+    // nocne oświetlenie hali: przygaszone lampy pod oprawami; przed kanciapą ciemno (okno i drzwi widać słabo – od tego jest lampa nad drzwiami)
+    for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { if (z > 4 && x > 16) continue; const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); G.L.push(l); }
+    const kl = new T.PointLight(0xf4f8ff, 5.5, 4.5, 1.4); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); G.L.push(kl); // lampa w kanciapie
+    // lampa nad drzwiami (z zewnątrz) + panel z dwoma przyciskami między oknem a drzwiami: czerwony = drzwi, biały = lampa
+    const sp = new T.SpotLight(0xfff0cc, 0, 8, .75, .5, 1.3); sp.position.set(20.7, 2.45, 5.95); sp.target.position.set(20.4, .2, 4.4); scene.add(sp, sp.target); phone.spot = sp;
+    const pnl = new T.Group(); pnl.position.set(20.215, 1.42, 5.75); scene.add(pnl);
+    pnl.add(new T.Mesh(new T.BoxGeometry(.15, .4, .02), new T.MeshLambertMaterial({ color: 0x8c9196 })));
+    const btn = (y, c) => { const b = new T.Mesh(new T.CylinderGeometry(.04, .04, .03, 18), new T.MeshBasicMaterial({ color: c })); b.rotation.x = Math.PI / 2; b.position.set(0, y, .02); pnl.add(b); return b; };
+    phone.bD = btn(.09, 0x5a1515); phone.bL = btn(-.09, 0x55585c);
     // gracz SIEDZI na krześle gamingowym przy biurku pod oknem (oczy ~1,15 m), przodem do okna (−z); to krzesło chowamy, żeby kamera w nie nie wchodziła
     cam.position.set(17.3, 1.15, 6.9); YAWMAX = 1.45;
     const ch = FNM.getObjectByName('fn_gaming_chair.i'); if (ch) ch.visible = false;
     phone.g.position.set(18.75, .75, 6.15); phone.g.rotation.y = -.35;
     fnScreens();
-    fnMapBuild();
     // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
     const hit = new T.Mesh(new T.BoxGeometry(.5, .36, .5), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.28, .87, 5.86); scene.add(hit); phone.lap = [hit];
     phone.door = FNM.getObjectByName('fn_kanciapa_drzwi') || phone.door;
     G.cams = [
-      ['Hala – widok wzdłuż', [24, 5.5, 0], [-20, .8, 0]],
+      ['Zgrzewki', [-19.9, 4.1, 6.9], [-20.7, .3, -1.2]],
+      ['Mixy', [-6.5, 3.1, -5.3], [-12, .6, -6.2]],
       ['Regały – alejka', [2.5, 4.5, -.75], [-18, .5, -.75]],
-      ['Pakowanie', [-14, 4.5, 6], [-21, .4, -1]],
+      ['Hala – widok wzdłuż', [24, 5.5, 0], [-20, .8, 0]],
       ['Wysyłki INPOST / GLS', [5, 4.5, -2], [16, .8, -5.4]],
       ['Stanowiska', [-1, 4, 4], [12, .8, 7.7]],
-      ['Pod kanciapą', [14, 3.2, 3], [20.7, 1.1, 5.65]]
+      ['Pod kanciapą', [10.5, 3.3, 3.2], [16.5, .9, 5.3]]
     ].map(([n, p, l]) => { const c = new T.PerspectiveCamera(62, cam.aspect, .05, 90); c.position.set(...p); c.lookAt(...l); return { n, c }; });
+    fnMapBuild();
   }
   // obrazy na ekranach monitorów i laptopów (świecą w ciemności – materiał bez oświetlenia)
   function scrTex(kind) {
@@ -848,7 +855,7 @@ const FN = (() => {
     const m = new T.Mesh(g, mat); m.material.side = T.DoubleSide; return m;
   }
   function fnScreens() {
-    const M = k => new T.MeshBasicMaterial({ map: scrTex(k), toneMapped: false });
+    G.scrM = []; const M = k => { const m = new T.MeshBasicMaterial({ map: scrTex(k), toneMapped: false }); G.scrM.push(m); return m; };
     // kanciapa: szeroki monitor pod oknem (przodem do +z), monitor przy prawej ścianie (przodem do −x), dwa laptopy (pochylone klapy – z narożników)
     scene.add(quad([17.18, .895, 5.85], [18.02, .895, 5.85], [18.02, 1.205, 5.85], [17.18, 1.205, 5.85], M('w11')));
     scene.add(quad([20.912, .895, 7.635], [20.912, .895, 7.065], [20.912, 1.205, 7.065], [20.912, 1.205, 7.635], M('slack')));
@@ -865,12 +872,232 @@ const FN = (() => {
   function fnMapBuild() {
     const U = x => ((x + 25.15) / 50.3 * 100).toFixed(1) + '%', V = z => ((z + 8.15) / 16.3 * 100).toFixed(1) + '%';
     const zone = (n, x0, x1, z0, z1, cls = '') => `<div class="z ${cls}" style="left:${U(x0)};top:${V(z0)};width:${((x1 - x0) / 50.3 * 100).toFixed(1)}%;height:${((z1 - z0) / 16.3 * 100).toFixed(1)}%">${n}</div>`;
-    const cams = [[24, 0], [2.5, -.75], [-14, 6], [5, -2], [-1, 4], [14, 3.2]];
+    const cams = G.cams.map(c => [c.c.position.x, c.c.position.z]);
     $('#fnMap').classList.add('hall');
     $('#fnMap').innerHTML = zone('REGAŁ', -24.6, 24.2, -8.1, -6.9) + zone('REGAŁY', -18.2, .9, -4.94, -2.56) + zone('', -18.2, .9, 1.06, 3.44) + zone('KUWETY', 9.9, 21, -.15, 4.15)
-      + zone('WYSYŁKI', 8, 20, -6.6, -4.2) + zone('PAKOWANIE', -22.8, -15, -1, 3.6) + zone('STANOWISKA', 1, 15.7, 7.2, 8.15) + zone('KANCIAPA', 15.75, 21.2, 5.57, 8.15, 'kan') + zone('', -25.1, -23.9, -6.9, 7.5)
+      + zone('WYSYŁKI', 8, 20, -6.6, -4.2) + zone('ZGRZEWKI', -22.8, -18.65, -5.2, 3.65, 'zg') + zone('MIXY', -14.3, -9.1, -6.85, -5.1, 'zg') + zone('STANOWISKA', 1, 15.7, 7.2, 8.15) + zone('KANCIAPA', 15.75, 21.2, 5.57, 8.15, 'kan') + zone('', -25.1, -23.9, -6.9, 7.5)
       + `<i class="you" style="left:${U(17.3)};top:${V(6.9)}"></i>`
       + cams.map(([x, z], i) => `<button type="button" data-c="${i}" style="left:${U(x)};top:${V(z)}">${i + 1}</button>`).join('');
+  }
+  // ---------- przeciwnicy: pracownicy po przeterminowanym Tropicu ----------
+  // 3 losowych przy zgrzewkach (stoły po lewej), 2 przy mixach (stół przy górnej ścianie); modele ładowane dopiero przy starcie zmiany
+  const EN_V = '7c67bdc51c', EN_POOL = ['oryginal', 'magazynier', 'skorzana', 'flanela', 'robocza', 'granat', 'zombie'];
+  const EN_NAME = { oryginal: 'Szary', magazynier: 'Odblaskowy', skorzana: 'Skórzany', flanela: 'Flanela', robocza: 'Kraciasty', granat: 'Granatowy', zombie: 'Zgniły', dzik: 'Szef zmiany' };
+  const ENC = {};
+  async function enLoad(names) {
+    const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'); const L = new GLTFLoader();
+    await Promise.all(names.filter(n => !ENC[n]).map(n => L.loadAsync(`gry/modele/ludzie/${n}.glb?v=${EN_V}`).then(gl => {
+      const root = gl.scene, g = new T.Group(); g.add(root); const fm = []; root.traverse(o => { if (o.isMesh && o.morphTargetDictionary) fm.push(o); });
+      ENC[n] = { n, g, r: mkRig(root), fm };
+    }, e => console.warn(n, e))));
+  }
+  // rig bez animacji w plikach: pozy liczone w kodzie, obroty podawane w osiach modelu (postać patrzy w +z)
+  function mkRig(root) {
+    const B = {}; root.traverse(o => { if (o.isBone) B[o.name] = o; if (o.isMesh) o.frustumCulled = false; });
+    root.updateMatrixWorld(true); const rest = {};
+    for (const n in B) { const b = B[n], pq = new T.Quaternion(); if (b.parent) b.parent.getWorldQuaternion(pq); rest[n] = { q0: b.quaternion.clone(), P: pq.clone(), Pi: pq.clone().invert() }; }
+    return { B, rest };
+  }
+  let _pq, _pe, _pv;
+  function pose(r, spec) {
+    if (!_pq) { _pq = new T.Quaternion(); _pe = new T.Euler(); _pv = new T.Vector3(); }
+    for (const n in r.rest) r.B[n].quaternion.copy(r.rest[n].q0);
+    for (const n in spec) {
+      const b = r.B[n], s = r.rest[n], v = spec[n]; if (!b) continue;
+      if (v.a) _pq.setFromAxisAngle(_pv.set(...v.a).normalize(), v.r); else _pq.setFromEuler(_pe.set(v[0], v[1] || 0, v[2] || 0, 'YXZ'));
+      b.quaternion.copy(s.Pi).multiply(_pq).multiply(s.P).multiply(s.q0);
+    }
+  }
+  // mimika z modelu: usta_krzyk, oczy_szeroko, wykrzywienie (0–1)
+  function face(e, k, v) { (e.fm || []).forEach(o => { const i = o.morphTargetDictionary[k]; if (i != null) o.morphTargetInfluences[i] = v; }); }
+  const EL = (r) => ({ a: [-1, -1, 0], r }), ER = (r) => ({ a: [-1, 1, 0], r });
+  const AN = {
+    // pakowanie zgrzewek do kartonu: oba ramiona podnoszą i opuszczają zgrzewkę
+    work: t => { const u = (Math.sin(t * 2.1) + 1) / 2; return { spine_01: [.36 + u * .14], neck_01: [.3, Math.sin(t * .6) * .12], upperarm_l: [-.28 - u * .3, -.15, -.9], upperarm_r: [-.28 - u * .3, .15, .9], lowerarm_l: EL(.3 + u * .55), lowerarm_r: ER(.3 + u * .55) }; },
+    // mixy: na zmianę ręce wkładają puszki do małego kartonika
+    mix: t => { const a = (Math.sin(t * 3.2) + 1) / 2, b = (Math.sin(t * 3.2 + 3.1) + 1) / 2; return { spine_01: [.42], neck_01: [.45, Math.sin(t * 1.3) * .1], upperarm_l: [-.25 - a * .35, -.12, -.88], upperarm_r: [-.25 - b * .35, .12, .88], lowerarm_l: EL(.35 + a * .5), lowerarm_r: ER(.35 + b * .5) }; },
+    // stoi i patrzy (lekko przechylona głowa, czasem drgnie)
+    stand: (t, look = 0) => { const tw = Math.sin(t * 13) * (Math.sin(t * .9) > .93 ? .12 : 0); return { spine_01: [.06], upperarm_l: [.05, 0, -.92], upperarm_r: [.05, 0, .92], lowerarm_l: EL(.12), lowerarm_r: ER(.12), neck_01: [-.04, look * .4, .1], head: [.12 + tw, look * .6 + tw, .26] }; },
+    // dłonie na szybie kanciapy
+    glass: t => ({ spine_01: [.12], upperarm_l: [-1.15, -.2, -.55], upperarm_r: [-1.15, .2, .55], lowerarm_l: EL(.35), lowerarm_r: ER(.35), neck_01: [.1], head: [.05, Math.sin(t * .7) * .08, .2] }),
+    run: t => { const s = Math.sin(t * 9.5); return { spine_01: [.32], thigh_l: [-.75 * s - .1], thigh_r: [.75 * s - .1], calf_l: [.35 + .9 * (.5 - .5 * s)], calf_r: [.35 + .9 * (.5 + .5 * s)], upperarm_l: [.6 * s, 0, -1.0], upperarm_r: [-.6 * s, 0, 1.0], lowerarm_l: EL(1.1), lowerarm_r: ER(1.1), neck_01: [-.25] }; },
+    scare: t => ({ spine_01: [.18], neck_01: [.1, Math.sin(t * 37) * .12], head: [-.28, Math.sin(t * 53) * .18, Math.sin(t * 41) * .14], upperarm_l: [-1.3, -.25, -.55], upperarm_r: [-1.3, .25, .55], lowerarm_l: EL(.3 + Math.sin(t * 30) * .12), lowerarm_r: ER(.3 + Math.sin(t * 27) * .12) })
+  };
+  // węzły trasy (x, z, kamera która je widzi); okno i drzwi widać tylko z kanciapy
+  const NODES = { al: [-13, -.75, 2], al2: [5, -.75, 3], wy: [13, -3.4, 4], st: [9, 5.0, 5], pk: [14.8, 4.8, 6], okno: [18.3, 4.85, -1], drzwi: [20.5, 5.0, -1] };
+  const NEXT = { home: ['al'], al: ['al2'], al2: ['wy', 'st'], wy: ['pk'], st: ['pk', 'okno'], pk: ['okno', 'drzwi'], okno: ['drzwi'] };
+  const ZG_SPOTS = [[-21.05, -3.6, -Math.PI / 2], [-20.4, -3.6, Math.PI / 2], [-21.05, 2.4, -Math.PI / 2], [-20.4, 2.4, Math.PI / 2]];
+  const MX_SPOTS = [[-12.8, -5.35, Math.PI], [-10.6, -5.35, Math.PI]];
+  const MX_RUN = [[3.0, -5.4], [3.2, 5.0], [20.5, 5.0]];
+  const AI = [null, { zg: [2, 3, 0], mx: [0, 1] }, { zg: [4, 5, 3], mx: [2, 1] }, { zg: [7, 6, 5], mx: [5, 3] }, { zg: [10, 9, 8], mx: [7, 6] }, { zg: [13, 12, 12], mx: [10, 9] }];
+  const rnd = a => a[Math.floor(Math.random() * a.length)];
+  const shuf = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  let PM = null;
+  function propMats() {
+    if (PM) return PM;
+    const tape = ctex(64, 64, (g, w, h) => { g.fillStyle = '#b07a42'; g.fillRect(0, 0, w, h); g.fillStyle = '#c9a56b'; g.fillRect(w / 2 - 6, 0, 12, h); g.fillStyle = 'rgba(0,0,0,.12)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * w, Math.random() * h, 3, 1); });
+    PM = { box: new T.MeshLambertMaterial({ map: tape }), cans: [0xd8dde2, 0x1d9fd8, 0xf2c41b, 0x2bb24c].map(c => new T.MeshLambertMaterial({ color: c })), foil: new T.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: .25 }), canG: new T.CylinderGeometry(.033, .033, .12, 10) };
+    return PM;
+  }
+  function pack(n2, col) { // zgrzewka: puszki w folii
+    const m = propMats(), g = new T.Group(), c = m.cans[col % m.cans.length];
+    for (let i = 0; i < n2 * 2; i++) { const k = new T.Mesh(m.canG, c); k.position.set((i % n2 - (n2 - 1) / 2) * .068, .06, (Math.floor(i / n2) - .5) * .068); g.add(k); }
+    const f = new T.Mesh(new T.BoxGeometry(n2 * .068 + .01, .125, .146), m.foil); f.position.y = .062; g.add(f); return g;
+  }
+  function enSpawn(names, n) {
+    (G.en || []).forEach(e => scene.remove(e.g)); (G.props || []).forEach(p => scene.remove(p)); G.en = []; G.props = [];
+    const ai = AI[Math.min(5, n)], zs = shuf(ZG_SPOTS.slice()), m = propMats();
+    names.forEach((k, i) => {
+      const C = ENC[k], zg = i < 3, sp = zg ? zs[i] : MX_SPOTS[i - 3]; if (!C || (!zg && !sp)) return;
+      const e = { k, name: EN_NAME[k], kind: zg ? 'zg' : 'mx', g: C.g, r: C.r, fm: C.fm, sp, node: 'home', ai: zg ? ai.zg[i] : ai.mx[i - 3], op: 3 + Math.random() * 4, t: Math.random() * 9, stage: 0, lock: 0, watch: false, runIn: 0, run: null, hits: 0 };
+      // rekwizyty na stole
+      const tx = zg ? sp[0] + (sp[2] < 0 ? -1.15 : 1.15) : sp[0], tz = zg ? sp[1] : -6.35;
+      const box = new T.Mesh(new T.BoxGeometry(zg ? .42 : .26, zg ? .3 : .16, zg ? .32 : .2), m.box); box.position.set(tx, .864 + (zg ? .15 : .08), zg ? tz + .38 : tz + (i === 3 ? .25 : -.25)); scene.add(box); G.props.push(box);
+      if (zg) { for (let j = 0; j < 3; j++) { const p2 = pack(3, i); p2.position.set(tx + (Math.random() - .5) * .2, .864 + j * .13, tz - .45); scene.add(p2); G.props.push(p2); } e.prop = pack(3, i); scene.add(e.prop); G.props.push(e.prop); }
+      else { for (let j = 0; j < 5; j++) { const c = new T.Mesh(m.canG, m.cans[(i + j) % 4]); c.position.set(tx - .25 + j * .07, .924, tz + .05); scene.add(c); G.props.push(c); } e.prop = new T.Mesh(m.canG, m.cans[i % 4]); scene.add(e.prop); G.props.push(e.prop); }
+      e.g.visible = true; scene.add(e.g); G.en.push(e); enPlace(e);
+    });
+  }
+  function nodeCam(e) { return e.run ? -2 : e.node === 'home' ? (e.kind === 'zg' ? 0 : 1) : NODES[e.node][2]; }
+  function enPlace(e) {
+    let x, z, ry;
+    if (e.node === 'home') { [x, z, ry] = e.sp; if (e.kind === 'mx' && e.stage >= 2) { z += .9; const c = G.cams[1].c.position; ry = Math.atan2(c.x - x, c.z - z); } }
+    else {
+      [x, z] = NODES[e.node]; const same = G.en.filter(o => o !== e && o.node === e.node && o.node !== 'home').length; x -= same * .7;
+      const ci = NODES[e.node][2]; if (ci >= 0) { const c = G.cams[ci].c.position; ry = Math.atan2(c.x - x, c.z - z); } else ry = 0;
+    }
+    e.g.position.set(x, 0, z); e.g.rotation.y = ry; e.g.visible = !(e.kind === 'mx' && e.stage === 3 && !e.run);
+  }
+  function enAnim(e, dt) {
+    e.t += dt; if (!e.g.visible || (G.sc && G.sc.e === e)) return;
+    let s;
+    if (e.run) s = AN.run(e.t);
+    else if (e.node === 'home' && e.kind === 'zg') s = AN.work(e.t);
+    else if (e.node === 'home' && e.stage === 0) s = AN.mix(e.t);
+    else if (e.node === 'home' && e.stage === 1) { const c = G.cams[1].c.position, p = e.g.position; let a = Math.atan2(c.x - p.x, c.z - p.z) - e.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); s = AN.stand(e.t, Math.max(-1.3, Math.min(1.3, a))); }
+    else if (e.node === 'okno') { s = AN.glass(e.t); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .6); }
+    else s = AN.stand(e.t);
+    if (e.node !== 'okno') { const z = e.node === 'drzwi' || (e.kind === 'mx' && e.stage === 2) ? .7 : e.node === 'home' ? 0 : .3; face(e, 'oczy_szeroko', z); face(e, 'wykrzywienie', z * .6); }
+    pose(e.r, s); e.g.position.y = e.run ? -.05 + Math.abs(Math.cos(e.t * 9.5)) * .06 : 0;
+    // rekwizyt w rękach (zgrzewka między dłońmi / puszka w prawej)
+    if (e.prop) {
+      const hl = e.r.B.hand_l, hr = e.r.B.hand_r; if (!hl || !hr) return;
+      if (e.node === 'home' && !e.run && (e.kind === 'zg' || e.stage === 0)) {
+        e.g.updateMatrixWorld(true); const a = hl.getWorldPosition(new T.Vector3()), b = hr.getWorldPosition(new T.Vector3());
+        if (e.kind === 'zg') { e.prop.position.copy(a).add(b).multiplyScalar(.5); e.prop.position.y -= .08; e.prop.rotation.y = e.g.rotation.y; }
+        else { e.prop.position.copy(b); e.prop.position.y -= .04; }
+        e.prop.visible = true;
+      } else if (e.kind === 'zg') { const [x, z, ry] = e.sp; e.prop.position.set(x + (ry < 0 ? -.95 : .95), .864 + .3, z + .38); }
+      else e.prop.visible = false;
+    }
+  }
+  // ---------- mechanika nocy (jak w FNaF 1) ----------
+  function aiTick(dt) {
+    const hr = Math.floor(G.t / HOUR), bonus = hr >= 4 ? 3 : hr >= 3 ? 2 : hr >= 2 ? 1 : 0;
+    for (const e of G.en) {
+      if (e.kind === 'mx') { mixTick(e, dt, bonus); continue; }
+      if ((e.op -= dt) > 0) continue; e.op = 4.6 + Math.random() * .8;
+      if (G.inside || G.out) continue;
+      if (Math.random() * 20 < e.ai + bonus) enMove(e);
+    }
+  }
+  function enMove(e) {
+    const from = nodeCam(e);
+    if (e.node === 'drzwi') {
+      if (G.door) { e.node = rnd(['al2', 'st', 'wy']); knock(.35); }
+      else { e.node = 'in'; e.g.visible = false; G.inside = e; G.insideT = 2 + Math.random() * 3; G.inCam = 0; lightSet(false); if (G.cam >= 0 && G.cam === from) camStatic(); return; }
+    } else e.node = rnd(NEXT[e.node]);
+    enPlace(e); const to = nodeCam(e);
+    if (G.cam >= 0 && (G.cam === from || G.cam === to)) camStatic();
+    if (e.node === 'pk' || e.node === 'okno') steps(.5); if (e.node === 'drzwi') { steps(1); G.stung = false; }
+  }
+  function mixTick(e, dt, bonus) {
+    if (e.run) return mixRun(e, dt);
+    if (G.cam >= 0) e.watch = true; else if (e.watch) { e.watch = false; e.lock = 1 + Math.random() * 11; } // patrzenie w kamery uspokaja mixy
+    if (e.lock > 0 && G.cam < 0) e.lock -= dt;
+    if (e.stage === 3) { if (G.cam === 1) e.runIn = Math.min(e.runIn, 1.4); if ((e.runIn -= dt) <= 0 && !G.out) mixGo(e); return; }
+    if ((e.op -= dt) > 0) return; e.op = 5 + Math.random();
+    if (G.cam >= 0 || e.lock > 0 || G.out) return;
+    if (Math.random() * 20 < e.ai + bonus) { e.stage++; if (e.stage === 3) { e.runIn = 20 + Math.random() * 8; if (G.cam === 1) camStatic(); } enPlace(e); }
+  }
+  function mixGo(e) { const p = e.g.position; e.run = { i: 0, x: e.sp[0], z: e.sp[1] + .9 }; e.g.visible = true; e.g.position.set(e.run.x, 0, e.run.z); if (G.cam === 1) camStatic(); steps(.25); }
+  function mixRun(e, dt) {
+    const R2 = e.run, tgt = MX_RUN[R2.i]; let dx = tgt[0] - R2.x, dz = tgt[1] - R2.z, d = Math.hypot(dx, dz), st = 7.5 * dt;
+    if (d <= st) { R2.x = tgt[0]; R2.z = tgt[1]; R2.i++; if (R2.i === 2) steps(.7); if (R2.i >= MX_RUN.length) return mixHit(e); }
+    else { R2.x += dx / d * st; R2.z += dz / d * st; }
+    e.g.position.x = R2.x; e.g.position.z = R2.z; e.g.rotation.y = Math.atan2(dx, dz);
+  }
+  function mixHit(e) {
+    e.run = null;
+    if (G.door) { bang(); G.pow = Math.max(0, G.pow - (1 + e.hits * 5)); e.hits++; e.stage = Math.random() < .5 ? 0 : 1; e.node = 'home'; e.op = 5; enPlace(e); }
+    else scare(e);
+  }
+  function powTick(dt) {
+    const use = 1 + (G.door ? 1 : 0) + (G.light ? 1 : 0) + (G.cam >= 0 ? 1 : 0);
+    G.pow -= dt * (use * .16 + (G.night - 1) * .015);
+    $('#fnPw').textContent = Math.max(0, Math.ceil(G.pow));
+    $('#fnUse').innerHTML = [0, 1, 2, 3].map(i => i < use ? `<i class="${use > 3 ? 'r' : use > 2 ? 'y' : ''}"></i>` : '').join('');
+    if (G.pow <= 0) blackout();
+  }
+  function doorToggle() {
+    if (!PLAY.includes(G.st) || G.cam >= 0 || G.out) return;
+    if (G.inside) return errBeep(); // drzwi się zacięły – ktoś już jest w środku
+    G.door = !G.door; doorSfx(); btnUpd();
+  }
+  function lightSet(on) {
+    if (on && (!PLAY.includes(G.st) || G.cam >= 0 || G.out)) return;
+    if (on && G.inside) return errBeep();
+    G.light = on; if (phone.spot) phone.spot.intensity = on ? 26 : 0; btnUpd();
+    if (on) { lightHum(); if (!G.stung && G.en.some(e => e.node === 'drzwi')) { G.stung = true; sting(); } }
+  }
+  function btnUpd() { if (!phone.bD) return; phone.bD.material.color.set(G.door ? 0xff2a2a : 0x5a1515); phone.bL.material.color.set(G.light ? 0xfff2b0 : 0x55585c); }
+  const PLAY = ['ring', 'call', 'night'];
+  function insideTick(dt) {
+    if (!G.inside) return;
+    if (G.cam >= 0) { if ((G.inCam += dt) > 9) scare(G.inside); }
+    else if ((G.insideT -= dt) <= 0) scare(G.inside);
+  }
+  // brak prądu: gaśnie wszystko, drzwi się otwierają, w drzwiach pojawia się szef zmiany
+  function blackout() {
+    if (G.out) return; G.pow = 0; camClose(); G.door = false; G.light = false; if (phone.spot) phone.spot.intensity = 0; btnUpd();
+    G.out = { t: 0, show: 4 + Math.random() * 5, end: 0 }; powerDown();
+    (G.L || []).forEach(l => { l.userData.i0 = l.userData.i0 ?? l.intensity; l.intensity = 0; }); if (G.hemi) G.hemi.intensity = .07;
+    (G.scrM || []).forEach(m => m.color.set(0x000000)); $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true;
+  }
+  function outTick(dt) {
+    const O = G.out; if (!O) return; O.t += dt;
+    if (!O.boss && O.t > O.show) {
+      const C = ENC.dzik; O.boss = C ? { k: 'dzik', name: EN_NAME.dzik, g: C.g, r: C.r, fm: C.fm, node: 'drzwi', t: 0 } : { name: EN_NAME.dzik, none: true };
+      O.end = O.t + 7 + Math.random() * 10;
+      if (C) { scene.add(C.g); C.g.visible = true; C.g.position.set(20.5, 0, 5.0); C.g.rotation.y = 0; pose(C.r, AN.stand(0)); if (!O.eyes) { O.eyes = new T.Group(); for (const x of [-.033, .033]) { const s = new T.Mesh(new T.SphereGeometry(.016, 8, 6), new T.MeshBasicMaterial({ color: 0xfff1a8 })); s.position.set(x, 1.715, .095); O.eyes.add(s); } const fl = new T.PointLight(0xffe6b0, 0, 2.2, 1.6); fl.position.set(0, 1.75, .35); O.eyes.add(fl); O.fl = fl; } C.g.add(O.eyes); face(O.boss, 'wykrzywienie', .8); face(O.boss, 'oczy_szeroko', .8); } 
+      jingle(O.end - O.t);
+    }
+    if (O.boss && !O.boss.none) { O.boss.t += dt; pose(O.boss.r, AN.stand(O.boss.t)); if (O.eyes) { const on = Math.sin(O.t * 9) > -.2 && Math.random() > .08; O.eyes.children.forEach(c => { if (c.isMesh) c.visible = on; }); O.fl.intensity = on ? 1.6 : 0; } }
+    if (O.boss && O.t > O.end && !O.dark) { O.dark = O.t; if (O.boss.g) O.boss.g.visible = false; if (G.hemi) G.hemi.intensity = 0; }
+    if (O.dark && O.t > O.dark + 2.2) { const b = O.boss; if (b.g) { if (O.eyes) b.g.remove(O.eyes); scare(b); } else scare({ name: b.name, none: true }); }
+  }
+  // jumpscare: postać doskakuje do twarzy, krzyk, ekran gaśnie
+  function scare(e) {
+    if (G.st === 'dead' || G.st === 'end') return; camClose(); G.st = 'dead'; G.inside = null; lightSet(false); if (audio) audio.hum.gain.value = 0;
+    G.sc = { e, t: 0 }; scream(); if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; }
+    if (e.g) {
+      const f = new T.Vector3(); cam.getWorldDirection(f); f.y = 0; f.normalize(); G.sc.f = f; e.run = null;
+      e.g.visible = true; e.g.position.set(cam.position.x + f.x * .8, cam.position.y - 1.66, cam.position.z + f.z * .8); e.g.rotation.y = Math.atan2(-f.x, -f.z);
+      if (!G.redL) { G.redL = new T.PointLight(0xff2a1a, 0, 3, 1.5); scene.add(G.redL); } G.redL.position.set(cam.position.x + f.x * .35, cam.position.y + .1, cam.position.z + f.z * .35);
+    }
+    $('#fnHud').classList.add('off'); $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on');
+  }
+  function scareTick(dt) {
+    const S2 = G.sc; if (!S2) return; S2.t += dt; const e = S2.e, t = S2.t;
+    if (e.g && t < 1.35) {
+      pose(e.r, AN.scare(t)); const fk = Math.min(1, t * 6); face(e, 'usta_krzyk', fk * (.85 + Math.sin(t * 40) * .15)); face(e, 'oczy_szeroko', fk); face(e, 'wykrzywienie', fk); const d = Math.max(.6, .85 - t * 2.2); e.g.position.x = cam.position.x + S2.f.x * d; e.g.position.z = cam.position.z + S2.f.z * d;
+      G.redL.intensity = Math.random() < .7 ? 6 : 0; cam.fov = Math.max(52, 68 - t * 40); cam.updateProjectionMatrix();
+      cam.rotation.x += (Math.random() - .5) * .06; cam.rotation.y += (Math.random() - .5) * .06;
+    } else if (!S2.blk) { S2.blk = true; if (e.g) { e.g.visible = false; ['usta_krzyk', 'oczy_szeroko', 'wykrzywienie'].forEach(k => face(e, k, 0)); } if (G.redL) G.redL.intensity = 0; ov('<div class="fnBig fnDead"></div>'); }
+    if (t > 2.1 && !S2.done) {
+      S2.done = true; if (document.pointerLockElement) document.exitPointerLock(); const h = Math.floor(G.t / HOUR);
+      ov(`<div class="fnBig fnDead">ZWOLNIONY</div><span>${esc(e.name || 'Ktoś')} dorwał cię o ${h === 0 ? 12 : h}:00 AM (noc ${G.night}).</span><button type="button" data-a="retry">Spróbuj jeszcze raz</button><button type="button" data-a="menu">Menu główne</button>`);
+    }
   }
   async function load() { if (T) return; for (const u of URLS) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
   function ctex(w, h, fn) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t; }
@@ -1005,20 +1232,52 @@ const FN = (() => {
   function blip(f = 180) { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f + Math.random() * 40; g.gain.setValueAtTime(.025, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .05); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .06); }
   function click() { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 90; g.gain.setValueAtTime(.3, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .12); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .13); }
 
+  // efekty: kroki, walenie w drzwi, drzwi, lampa, brak prądu, pozytywka, krzyk
+  function thump(t, f = 70, v = .4, len = .16) { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(f * 1.6, t); o.frequency.exponentialRampToValueAtTime(f * .6, t + len); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .008); g.gain.exponentialRampToValueAtTime(.001, t + len); o.connect(g).connect(master); o.start(t); o.stop(t + len + .02); }
+  function noiseHit(t, v, len, freq = 900, q = .8) { if (!audio) return; const { ac, master } = audio, b = ac.createBuffer(1, Math.ceil(ac.sampleRate * len), ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = v; s.buffer = b; s.connect(f).connect(g).connect(master); s.start(t); }
+  function steps(v) { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 4; i++) { thump(t0 + i * .42, 55, .22 * v, .12); noiseHit(t0 + i * .42, .15 * v, .08, 500); } }
+  function knock(v) { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 2; i++) { thump(t0 + i * .2, 95, .35 * v); noiseHit(t0 + i * .2, .3 * v, .1, 1200); } }
+  function bang() { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 4; i++) { thump(t0 + i * .17, 60, .8, .22); noiseHit(t0 + i * .17, .6, .15, 700, .5); } }
+  function doorSfx() { if (!audio) return; const t0 = audio.ac.currentTime; noiseHit(t0, .35, .35, 300, .6); thump(t0 + .22, 48, .7, .3); }
+  function errBeep() { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = 140; g.gain.setValueAtTime(.08, ac.currentTime); g.gain.setValueAtTime(0, ac.currentTime + .25); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .26); }
+  function lightHum() { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = 100; g.gain.setValueAtTime(.025, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .5); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .5); }
+  function sting() { if (!audio) return; const { ac, master } = audio, t0 = ac.currentTime; [311, 330, 466, 622].forEach(f => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.06, t0 + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + 1.1); o.connect(g).connect(master); o.start(t0); o.stop(t0 + 1.2); }); }
+  function powerDown() { if (!audio) return; const { ac, master, hum } = audio, t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(220, t0); o.frequency.exponentialRampToValueAtTime(30, t0 + 1.4); g.gain.setValueAtTime(.12, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + 1.5); o.connect(g).connect(master); o.start(t0); o.stop(t0 + 1.6); hum.gain.setTargetAtTime(0, t0, .3); thump(t0, 40, .8, .5); }
+  function jingle(dur) { // pozytywka
+    if (!audio) return; const { ac } = audio, master = ac.createGain(); master.connect(audio.master); audio.jg = master; const t0 = ac.currentTime + .3, N = [659, 587, 523, 587, 659, 659, 659, 0, 587, 587, 587, 0, 659, 784, 784, 0, 659, 587, 523, 587, 659, 659, 659, 659, 587, 587, 659, 587, 523];
+    for (let i = 0, t = t0; t < t0 + dur; i++, t += .32) { const f = N[i % N.length]; if (!f) continue; const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f * (1 + (Math.random() - .5) * .01); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.09, t + .005); g.gain.exponentialRampToValueAtTime(.001, t + .5); o.connect(g).connect(master); o.start(t); o.stop(t + .55); }
+  }
+  function scream() {
+    if (!audio) return; const { ac, master } = audio, t0 = ac.currentTime, out = ac.createGain(); out.gain.value = .3; out.connect(master);
+    const b = ac.createBuffer(1, ac.sampleRate * 1.3, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(2400, t0); f.frequency.exponentialRampToValueAtTime(700, t0 + 1.2); g.gain.setValueAtTime(1, t0); g.gain.exponentialRampToValueAtTime(.01, t0 + 1.25); s.connect(f).connect(g).connect(out); s.start(t0);
+    [1, 1.06, 1.5].forEach(k => { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(620 * k, t0); o.frequency.exponentialRampToValueAtTime(260 * k, t0 + 1.2); og.gain.setValueAtTime(.35, t0); og.gain.exponentialRampToValueAtTime(.01, t0 + 1.25); o.connect(og).connect(out); o.start(t0); o.stop(t0 + 1.3); });
+  }
+
   // ---------- rozmowa ----------
   const CALL1 = [
     ['Lukas Frozen', 'Halo? Halo, słychać mnie? Tu Lukas Frozen.'],
     ['Lukas Frozen', 'Słuchaj… dzisiaj jest mocno pojebana zmiana.'],
     ['Lukas Frozen', 'Wszyscy na hali wypili przeterminowanego Tropica…'],
     ['Lukas Frozen', '…i zajedli to zgniłym batonem kokosowym.'],
-    ['Lukas Frozen', 'Nie pytaj, skąd to wzięli. Dobra, muszę kończyć. Powodzenia.'],
+    ['Lukas Frozen', 'Nie pytaj, skąd to wzięli. Teraz są… dziwni.'],
+    ['Lukas Frozen', 'Ci przy zgrzewkach, po lewej stronie hali, czasem rzucają robotę i łażą po magazynie.'],
+    ['Lukas Frozen', 'Jak któryś stanie pod drzwiami kanciapy, zamknij drzwi. Czerwony przycisk przy drzwiach albo E.'],
+    ['Lukas Frozen', 'Biały przycisk to lampa nad drzwiami, F. Na zewnątrz jest ciemno, więc sprawdzaj, czy ktoś tam nie stoi.'],
+    ['Lukas Frozen', 'Tylko oszczędzaj prąd. Drzwi, lampa i kamery ciągną z agregatu. Jak prąd siądzie… to siądzie.'],
+    ['Lukas Frozen', 'I ci dwaj na mixach, przy górnej ścianie. Zaglądaj do nich na kamerach. Jak nikt na nich nie patrzy, robią się nerwowi.'],
+    ['Lukas Frozen', 'Dobra, muszę kończyć. Do szóstej rano. Powodzenia.'],
     ['', '*klik*']
   ];
-  const CALLN = [['Lukas Frozen', 'Halo? To znowu ja. Przeżyłeś wczoraj, więc dzisiaj też dasz radę.'], ['Lukas Frozen', 'Tylko nie wychodź z kanciapy. Serio.'], ['', '*klik*']];
+  const CALLS = [null, CALL1,
+    [['Lukas Frozen', 'Halo? To znowu ja. Przeżyłeś wczoraj, więc dzisiaj też dasz radę.'], ['Lukas Frozen', 'Mixy są dzisiaj nerwowe. Jak któryś zniknie ze stołu, od razu zamykaj drzwi, bo oni biegną.'], ['Lukas Frozen', 'Jak walną w drzwi, zjedzą ci trochę prądu. Ale lepsze to niż… no.'], ['Lukas Frozen', 'Tylko nie wychodź z kanciapy. Serio.'], ['', '*klik*']],
+    [['Lukas Frozen', 'Hej… dzisiaj krótko. Słyszałem, że po trzeciej robią się szybsi.'], ['Lukas Frozen', 'Patrz przez okno. Jak ktoś stoi przy szybie, to zaraz będzie przy drzwiach.'], ['', '*klik*']],
+    [['Lukas Frozen', 'Halo… *kaszel* … chyba też się napiłem tego Tropica…'], ['Lukas Frozen', 'Jak zgaśnie prąd i usłyszysz muzykę… to nie jest radio.'], ['Lukas Frozen', '…*szuranie*… kto tam…'], ['', '*klik*']],
+    [['???', 'Zzzzz… *trzaski*… ZGRZEWKI… MIXY… KARTONY…'], ['???', 'KTO ZAMKNĄŁ DRZWI'], ['', '*klik*']]];
   function answer() {
     if (G.st !== 'ring') return; G.st = 'call'; click();
     phone.hs.position.y = .3; phone.hs.position.x = -.2; phone.hs.rotation.z = .6; phone.led.material.color.set(0x330000);
-    G.lines = G.night === 1 ? CALL1 : CALLN; G.li = -1; nextLine();
+    G.lines = CALLS[Math.min(5, G.night)]; G.li = -1; nextLine();
     $('#fnHint').classList.remove('on');
   }
   function nextLine() {
@@ -1030,6 +1289,10 @@ const FN = (() => {
 
   // ---------- pętla ----------
   function update(dt) {
+    if (G.en) G.en.forEach(e => enAnim(e, dt));
+    if (G.st === 'dead') return scareTick(dt);
+    // drzwi: animacja zamykania (otwarte = wychylone na halę)
+    G.dA += ((G.door ? 1 : 0) - G.dA) * Math.min(1, dt * 9); if (phone.door) phone.door.rotation.y = -1.45 * (1 - G.dA);
     // rozglądanie jak w FNAF: kursor przy krawędzi obraca widok
     const edge = G.mx < .3 ? (.3 - G.mx) / .3 : G.mx > .7 ? -(G.mx - .7) / .3 : 0;
     G.yaw = Math.max(-YAWMAX, Math.min(YAWMAX, G.yaw + (edge + G.look) * 1.6 * S.sens * dt));
@@ -1046,15 +1309,18 @@ const FN = (() => {
       if (G.lt > G.lineTxt.length / 32 + 1.6) nextLine();
     }
     if (G.st === 'night' || G.st === 'call') {
+      if (G.en) aiTick(dt); insideTick(dt); if (G.out) outTick(dt); else powTick(dt);
+      if (G.st === 'dead') return;
       G.t += dt; const h = Math.floor(G.t / HOUR);
       $('#fnClk').innerHTML = `${h === 0 ? 12 : h}:00 ${'AM'}<small>Noc ${G.night}</small>`;
       if (G.t >= HOUR * 6) endNight();
     }
   }
   function endNight() {
-    camClose(); $('#fnCamBtn').hidden = true; G.st = 'end'; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
+    camClose(); $('#fnCamBtn').hidden = true; G.st = 'end'; G.inside = null; G.out = null; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } lightSet(false); $('#fnHud').hidden = true; try { localStorage.setItem('w11-fn-night', Math.max(done(), G.night)); } catch (e) {}
     if (document.pointerLockElement) document.exitPointerLock();
-    ov(`<div class="fnBig">6:00 AM</div><span>Koniec zmiany – noc ${G.night} przetrwana.</span><button type="button" data-a="menu">Menu główne</button>`);
+    const last = G.night >= 5;
+    ov(`<div class="fnBig">6:00 AM</div><span>${last ? 'Przetrwałeś cały tydzień na W11. Lukas stawia Tropica (świeżego).' : `Koniec zmiany – noc ${G.night} przetrwana.`}</span>${last ? '' : `<button type="button" data-a="next">Następna noc</button>`}<button type="button" data-a="menu">Menu główne</button>`);
   }
   function loop() {
     if (!G.open) { G.raf = 0; return; }
@@ -1067,20 +1333,20 @@ const FN = (() => {
   function resize() { const r = cv.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height); if (!w || (cv._w === w && cv._h === h)) return; cv._w = w; cv._h = h; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); if (G.cams) G.cams.forEach(c => { c.c.aspect = w / h; c.c.updateProjectionMatrix(); }); }
   // ---------- system kamer (laptop) ----------
   function camOpen(i) {
-    if (!['night', 'call', 'ring'].includes(G.st)) return;
+    if (!['night', 'call', 'ring'].includes(G.st) || G.out) return; if (G.light) lightSet(false);
     G.cam = i == null ? (G.lastCam || 0) : i; G.lastCam = G.cam; click(); camStatic();
     $('#fnWrap').classList.add('cam'); $('#fnCam').hidden = false;
     $('#fnCamN').textContent = `CAM ${G.cam + 1} – ${G.cams[G.cam].n}`;
     document.querySelectorAll('#fnMap [data-c]').forEach(b => b.classList.toggle('on', +b.dataset.c === G.cam));
   }
-  function camClose() { if (G.cam < 0) return; G.cam = -1; click(); $('#fnWrap').classList.remove('cam'); $('#fnCam').hidden = true; }
+  function camClose() { if (G.cam < 0) return; G.cam = -1; click(); if (G.inside) G.insideT = Math.min(G.insideT, .3); $('#fnWrap').classList.remove('cam'); $('#fnCam').hidden = true; }
   function camStatic() { const n = $('#fnCamS'); n.classList.remove('burst'); void n.offsetWidth; n.classList.add('burst'); if (!audio) return; const { ac, master } = audio, b = ac.createBuffer(1, ac.sampleRate * .25, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = .12; s.buffer = b; s.connect(g).connect(master); s.start(); }
   function camNoise() { const c = $('#fnCamS'), x = c.getContext('2d'), w = c.width = 192, h = c.height = 108, im = x.createImageData(w, h), d = im.data; for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } x.putImageData(im, 0, 0); $('#fnCamT').textContent = $('#fnClk').firstChild ? $('#fnClk').firstChild.textContent : ''; }
 
   // ---------- menu ----------
   const ov = h => { const o = $('#fnOv'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function menu() {
-    camClose(); G.st = 'menu'; if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
+    camClose(); G.st = 'menu'; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
     ov(`<div class="fnTitle">FIVE NIGHTS<br>AT <span>DZIK</span></div>
       <nav class="fnMenu">
@@ -1103,15 +1369,28 @@ const FN = (() => {
     $('#fnSens').oninput = e => { S.sens = +e.target.value; save(); };
     $('#fnSubs').onchange = e => { S.subs = e.target.checked; save(); };
   }
-  function startNight(n) {
+  async function startNight(n) {
+    if (G.loading) return; audioInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
+    const pick = shuf(EN_POOL.slice()).slice(0, 5);
+    if (pick.some(k => !ENC[k])) { G.loading = true; G.st = 'menu'; ov('<div class="fnH">Ładowanie…</div><span>Pracownicy wracają na halę</span>'); try { await enLoad(pick); } catch (e) { console.warn(e); } G.loading = false; if (!G.open) return; }
+    enLoad(['dzik']).catch(() => {}); // szef zmiany – potrzebny dopiero, gdy zabraknie prądu
     G.night = n; G.t = 0; G.yaw = 0; G.st = 'ring'; G.ringFor = 0; ringT = .8; ov('');
-    audioInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
-    phone.door.rotation.y = 0; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
+    // reset stanu nocy
+    G.pow = 100; G.door = false; G.dA = 0; G.light = false; G.inside = null; G.out = null; G.sc = null; G.stung = false;
+    cam.fov = 68; cam.updateProjectionMatrix(); if (G.redL) G.redL.intensity = 0; if (phone.spot) phone.spot.intensity = 0; btnUpd();
+    (G.L || []).forEach(l => { if (l.userData.i0 != null) l.intensity = l.userData.i0; }); if (G.hemi) G.hemi.intensity = .22; (G.scrM || []).forEach(m => m.color.set(0xffffff));
+    if (ENC.dzik) { ENC.dzik.g.visible = false; scene.remove(ENC.dzik.g); }
+    if (audio) { audio.hum.gain.cancelScheduledValues(0); audio.hum.gain.value = .02; if (audio.jg) { audio.jg.disconnect(); audio.jg = null; } }
+    if (FNM) enSpawn(pick, n);
+    $('#fnHud').hidden = false; $('#fnHud').classList.remove('off');
+    phone.door.rotation.y = -1.45; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
     $('#fnHint').classList.add('on'); $('#fnClk').innerHTML = `12:00 AM<small>Noc ${n}</small>`; $('#fnCamBtn').hidden = false;
   }
   async function act(a) {
     if (a === 'new') startNight(1);
     else if (a === 'cont') startNight(Math.min(5, done() + 1));
+    else if (a === 'retry') startNight(G.night);
+    else if (a === 'next') startNight(Math.min(5, G.night + 1));
     else if (a === 'set') settings();
     else if (a === 'menu') menu();
     else if (a === 'quit') { $('#fn').close(); hubOpen(); }
@@ -1155,6 +1434,8 @@ const FN = (() => {
       if (!ray || G.cam >= 0) return; const r = cv.getBoundingClientRect();
       ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), cam);
       if (G.st === 'ring' && ray.intersectObjects(phone.hit.concat(phone.hs.children), false).length) return answer();
+      if (phone.bD && ray.intersectObject(phone.bD, false).length) return doorToggle();
+      if (phone.bL && ray.intersectObject(phone.bL, false).length) return lightSet(!G.light);
       if (ray.intersectObjects(phone.lap, false).length) camOpen();
     });
     $('#fnCamX').onclick = camClose; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
@@ -1165,7 +1446,8 @@ const FN = (() => {
       if (k === 'arrowleft' || k === 'a') { G.look = 1; e.preventDefault(); } if (k === 'arrowright' || k === 'd') { G.look = -1; e.preventDefault(); }
       if (k === 'escape' && G.cam >= 0) { e.preventDefault(); return camClose(); }
       if ((k === 'tab' || k === 'q') && ['night', 'call', 'ring'].includes(G.st)) { e.preventDefault(); G.cam >= 0 ? camClose() : camOpen(); }
-      if (G.cam >= 0 && /^[1-6]$/.test(k)) camOpen(+k - 1);
+      if (G.cam >= 0 && /^[1-7]$/.test(k)) camOpen(+k - 1);
+      if (k === 'e' && !e.repeat) doorToggle(); if (k === 'f' && !e.repeat) lightSet(!G.light);
       if (k === 'escape' && (G.st === 'night' || G.st === 'call' || G.st === 'ring')) { e.preventDefault(); menu(); } });
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'a', 'd'].includes(k)) G.look = 0; });
     $('#fn').addEventListener('cancel', e => { if (G.cam >= 0) { e.preventDefault(); camClose(); } else if (G.st !== 'menu') { e.preventDefault(); menu(); } });
@@ -1180,7 +1462,7 @@ const FN = (() => {
     menu(); if (audio) audio.ac.resume();
     if (!G.raf) { clock.getDelta(); G.raf = requestAnimationFrame(loop); }
   }
-  return { open, G, _dbg: () => ({ scene, cam, R, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
+  return { open, G, _dbg: () => ({ scene, cam, R, ENC, enLoad, enSpawn, enPlace, scare, blackout, pose, AN, mixGo, doorToggle, lightSet, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
 })();
 
 const SL_FACE = 'data:image/jpeg;base64,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';

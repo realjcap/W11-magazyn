@@ -475,6 +475,13 @@ dialog[open]{opacity:1;transform:none}
 #fnSub b{color:#ffd34d}
 #fnOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:14px;padding:0 7%;background:linear-gradient(90deg,rgba(0,0,0,.92) 0,rgba(0,0,0,.75) 45%,rgba(0,0,0,.25) 100%);color:#ddd;font-family:'Courier New',monospace}
 #fnOv[hidden]{display:none}
+#fnHud{position:absolute;left:14px;bottom:12px;color:#eee;font:700 clamp(12px,1.6vw,17px)/1.45 'Courier New',monospace;text-shadow:0 0 4px #000,0 0 2px #000;pointer-events:none;z-index:4}
+#fnHud[hidden],#fnHud.off{display:none}
+#fnHud small{font-size:.72em;color:#aaa}
+#fnUse i{display:inline-block;width:.6em;height:1em;margin-left:3px;background:#3c3;vertical-align:-.15em}
+#fnUse i.y{background:#e3c52b}#fnUse i.r{background:#e33}
+#fnOv .fnDead{color:#e22;text-shadow:0 0 18px rgba(255,0,0,.6)}
+#fnMap.hall .z.zg{background:rgba(26,184,255,.18);border-color:rgba(26,184,255,.6);color:#9fdcff}
 #fnOv .fnTitle{font:900 clamp(28px,5.5vw,62px)/1 'Courier New',monospace;color:#f2f2f2;letter-spacing:.04em;text-shadow:3px 3px 0 #000;animation:fnFlick 4s infinite}
 #fnOv .fnTitle span{color:#1ab8ff}
 @keyframes fnFlick{0%,92%,100%{opacity:1}93%{opacity:.4}95%{opacity:.9}96%{opacity:.3}}
@@ -1008,7 +1015,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
         <button type="button" data-c="0" style="left:44%;top:6%">1</button><button type="button" data-c="1" style="left:6%;top:30%">2</button><button type="button" data-c="2" style="left:82%;top:30%">3</button>
         <button type="button" data-c="3" style="left:82%;top:4%">4</button><button type="button" data-c="4" style="left:4%;top:72%">5</button><button type="button" data-c="5" style="left:64%;top:66%">6</button></div>
       <button type="button" id="fnCamX">▼ Zamknij kamery</button></div>
-    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnOv"></div><div id="fnCur"></div></div>
+    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnHud" hidden><div>Prąd: <b id="fnPw">100</b>%</div><div>Zużycie: <span id="fnUse"></span></div><small>E – drzwi · F – lampa · Q – kamery</small></div><div id="fnOv"></div><div id="fnCur"></div></div>
 </dialog>
 <dialog id="sl">
   <div class="gh"><h2>Slender: Magazyn</h2><span class="mu slh">Shift – sprint · F – latarka · E – podnieś</span><button type="button" id="slSnd" class="e" title="Dźwięk">🔊</button></div>
@@ -3557,7 +3564,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '31fea59d55'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '9a7fd4b43d'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
