@@ -565,9 +565,9 @@ const SL3 = (() => {
     }
   }
   function scream() { // zniekształcony krzyk: szum przez przesuwany filtr + rozstrojone piły + uderzenie basu
-    boom(1.2, .8, 38);
+    boom(1.2, .35, 38);
     if (!audio || G.mute) return; const { ac, master, sb } = audio, t = ac.currentTime, out = ac.createGain();
-    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(.7, t + .03); out.gain.setValueAtTime(.7, t + 1.1); out.gain.exponentialRampToValueAtTime(.001, t + 1.5); out.connect(master);
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(.22, t + .03); out.gain.setValueAtTime(.22, t + 1.1); out.gain.exponentialRampToValueAtTime(.001, t + 1.5); out.connect(master);
     const ws = ac.createWaveShaper(), cv2 = new Float32Array(512); for (let i = 0; i < 512; i++) { const x = i / 256 - 1; cv2[i] = Math.tanh(x * 6); } ws.curve = cv2; ws.connect(out);
     for (const [f0, f1] of [[180, 95], [187, 90], [360, 170]]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + 1.4); const g = ac.createGain(); g.gain.value = .22; o.connect(g).connect(ws); o.start(t); o.stop(t + 1.5); }
     const nb = ac.createBuffer(1, ac.sampleRate * 1.5, ac.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
