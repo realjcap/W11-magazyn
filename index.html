@@ -360,7 +360,9 @@ dialog[open]{opacity:1;transform:none}
 .brpick .brstar{font-size:24px;padding:2px 6px;border-radius:6px}
 .brpick .brstar:hover{background:color-mix(in srgb,var(--tx) 8%,transparent)}
 .brbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;border:1px solid var(--ac);border-radius:10px;background:var(--card)}
-.brbar span{font-weight:600;margin-right:auto}
+.brbar #brBarN{font-weight:600;margin-right:auto}
+.brms{display:inline-flex;gap:2px;padding:2px 4px;border:1px solid var(--bd);border-radius:8px}
+.brms .brstar{padding:2px 5px!important;font-size:17px}
 .brbar button{padding:6px 12px;font-size:13px}
 .brord .brsel{width:auto!important;height:auto;margin:0 8px 0 0!important;vertical-align:-2px;cursor:pointer}
 .brord.brsl{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 8%,var(--card))}
@@ -619,7 +621,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <section id="vBr" hidden>
   <div class="brhead"><b>BRAK – do weryfikacji</b><span id="brAt" class="mu"></span><label class="brgr" title="Zamówienia, które w BaseLinkerze mają już zieloną gwiazdkę"><input type="checkbox" id="brGreen"> pokaż też z zieloną ★</label></div>
   <div id="brSum"></div>
-  <div id="brBar" class="brbar" hidden><span id="brBarN"></span><button type="button" id="brAll" class="e">Zaznacz wszystkie</button><button type="button" id="brNone" class="e">Odznacz</button><button type="button" id="brMove" class="p">Przenieś do „BOK - brak towaru”</button></div>
+  <div id="brBar" class="brbar" hidden><span id="brBarN"></span><button type="button" id="brAll" class="e">Zaznacz wszystkie</button><button type="button" id="brNone" class="e">Odznacz</button><span id="brMS" class="brms" title="Daj gwiazdkę wszystkim zaznaczonym"></span><button type="button" id="brMove" class="p">Przenieś do „BOK - brak towaru”</button></div>
   <div id="brFlt" class="brflt" hidden></div>
   <div id="brList"></div>
 </section>
@@ -3788,7 +3790,8 @@ function brChip(pid, z) {
 }
 function renderBraki() {
   const n = brOrders().length, os = brOrders(brShowGreen);
-  $('#brBadge').hidden = !n; $('#brBadge').textContent = n;
+  const nb = brOrders().filter(o => o.star !== 'red').length; // licznik przy zakładce: bez zielonych i czerwonych gwiazdek
+  $('#brBadge').hidden = !nb; $('#brBadge').textContent = nb;
   if (view !== 'br') return;
   $('#brGreen').checked = brShowGreen;
   const at = BR && Number(BR.at) || 0, old = at && Date.now() - at > BR_STALE;
@@ -3831,6 +3834,17 @@ $('#vBr').addEventListener('change', e => {
   const c = e.target.closest('.brsel'); if (!c) return;
   c.checked ? brSel.add(c.dataset.id) : brSel.delete(c.dataset.id);
   c.closest('.brord').classList.toggle('brsl', c.checked); brBarRender();
+});
+$('#brMS').innerHTML = ['', ...BR_STARS].map(c => `<button type="button" data-mc="${c}" class="brstar ${c}" title="${c ? 'Daj gwiazdkę: ' + c : 'Usuń gwiazdkę'} – wszystkim zaznaczonym">${c ? '★' : '☆'}</button>`).join('');
+$('#brMS').addEventListener('click', async e => {
+  e.stopPropagation();
+  const b = e.target.closest('[data-mc]'); if (!b || !canEdit()) return;
+  const ids = [...brSel].filter(id => !brMoving.has(id)); if (!ids.length) return;
+  const c = b.dataset.mc;
+  if (ids.length > 1 && !await ask((c ? 'Dać gwiazdkę „' + c + '”' : 'Usunąć gwiazdkę') + ' dla ' + ids.length + ' zam.?\n\n' + ids.join(', '))) return;
+  brSel.clear();
+  ids.forEach((id, i) => brSetStar(id, c, i + 1)); // polecenia idą w kolejce, rozszerzenie wykonuje je po kolei
+  toast((c ? 'Gwiazdka ' + c : 'Usuwanie gwiazdki') + ' – ' + ids.length + ' zam. w kolejce do BaseLinkera');
 });
 $('#brAll').onclick = () => { brOrders(brShowGreen).forEach(o => { if (!brMoving.has(o.id)) brSel.add(o.id); }); renderBraki(); };
 $('#brNone').onclick = () => { brSel.clear(); renderBraki(); };
