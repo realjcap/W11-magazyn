@@ -780,6 +780,7 @@ const SL3 = (() => {
 // ===== FN – kanciapa brygadzistów (Three.js, ten sam silnik co Slender) =====
 // Na razie: menu główne, kanciapa, telefon od Lukasa Frozena, zegar 00:00→06:00 (koniec zmiany zapisuje postęp).
 const FN = (() => {
+  const FN_V = 'c5fea99875'; // wersja modelu hali (omija cache)
   const URLS = ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js', 'https://unpkg.com/three@0.160.0/build/three.module.min.js'];
   const HOUR = 60; // 1 godzina w grze = 60 s
   let T, R, scene, cam, clock, cv, built = false, ray, phone = {}, audio, ringT = 0;
@@ -788,6 +789,36 @@ const FN = (() => {
   const G = { cam: -1, open: false, st: 'menu', night: 1, t: 0, yaw: 0, look: 0, mx: .5, my: .5, call: null, lines: [], li: 0, lt: 0 };
   const done = () => { try { return +localStorage.getItem('w11-fn-night') || 0; } catch (e) { return 0; } };
 
+  let YAWMAX = 1.05, FNM = null; // model hali z Blendera (gry/modele/fnad_magazyn.glb), ładowany dopiero przy otwarciu gry
+  async function loadFnModel() {
+    try {
+      const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js');
+      FNM = (await new GLTFLoader().loadAsync('gry/modele/fnad_magazyn.glb?v=' + FN_V)).scene;
+    } catch (e) { console.warn('fnad_magazyn.glb', e); FNM = null; }
+  }
+  // podmiana sceny: prawdziwa hala i kanciapa z modelu zamiast brył z kodu; telefon zostaje (przeniesiony na biurko pod oknem)
+  function useModel() {
+    const keep = new Set([cam, phone.g]);
+    [...scene.children].forEach(o => { if (!keep.has(o)) scene.remove(o); });
+    scene.add(FNM); FNM.traverse(o => { if (o.isMesh) { o.frustumCulled = true; } });
+    scene.add(new T.HemisphereLight(0xb8c4d8, 0x2a2622, .22));
+    // nocne oświetlenie hali: przygaszone lampy pod oprawami
+    for (const x of [-20, -12, -4, 4, 12, 20]) for (const z of [-5.2, -.4, 4.8]) { const l = new T.PointLight(0xffe6c4, 3.2, 11, 1.6); l.position.set(x, 5.9, z); scene.add(l); }
+    const kl = new T.PointLight(0xf4f8ff, 5.5, 7, 1.4); kl.position.set(18.4, 2.6, 6.9); scene.add(kl); // lampa w kanciapie
+    cam.position.set(18.1, 1.22, 7.0); YAWMAX = 1.4; // gracz na krześle przy biurku pod oknem, przodem do okna (−z)
+    phone.g.position.set(18.95, .75, 6.12); phone.g.rotation.y = -.25;
+    // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
+    const hit = new T.Mesh(new T.BoxGeometry(.48, .36, .42), new T.MeshBasicMaterial({ visible: false })); hit.position.set(16.4, .92, 5.98); scene.add(hit); phone.lap = [hit];
+    phone.door = FNM.getObjectByName('fn_kanciapa_drzwi') || phone.door;
+    G.cams = [
+      ['Hala – widok wzdłuż', [24, 5.5, 0], [-20, .8, 0]],
+      ['Regały – alejka', [2.5, 4.5, -.75], [-18, .5, -.75]],
+      ['Pakowanie', [-14, 4.5, 6], [-21, .4, -1]],
+      ['Wysyłki INPOST / GLS', [5, 4.5, -2], [16, .8, -5.4]],
+      ['Stanowiska', [-1, 4, 4], [12, .8, 7.7]],
+      ['Pod kanciapą', [14, 3.2, 3], [20.7, 1.1, 5.65]]
+    ].map(([n, p, l]) => { const c = new T.PerspectiveCamera(62, cam.aspect, .05, 90); c.position.set(...p); c.lookAt(...l); return { n, c }; });
+  }
   async function load() { if (T) return; for (const u of URLS) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
   function ctex(w, h, fn) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return t; }
 
@@ -948,7 +979,7 @@ const FN = (() => {
   function update(dt) {
     // rozglądanie jak w FNAF: kursor przy krawędzi obraca widok
     const edge = G.mx < .3 ? (.3 - G.mx) / .3 : G.mx > .7 ? -(G.mx - .7) / .3 : 0;
-    G.yaw = Math.max(-1.05, Math.min(1.05, G.yaw + (edge + G.look) * 1.6 * S.sens * dt));
+    G.yaw = Math.max(-YAWMAX, Math.min(YAWMAX, G.yaw + (edge + G.look) * 1.6 * S.sens * dt));
     cam.rotation.set(-.12 + (G.my - .5) * -.12, G.yaw, 0);
     if (G.st === 'ring') {
       ringT -= dt; if (ringT <= 0) { ringBurst(); ringT = 2.6; }
@@ -1043,7 +1074,7 @@ const FN = (() => {
     $('#fnWrap').addEventListener('mouseleave', () => { G.mx = .5; });
     // dotyk: przeciąganie obraca widok
     let tx = null; $('#fnWrap').addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') tx = e.clientX; });
-    $('#fnWrap').addEventListener('pointermove', e => { if (tx === null || e.pointerType === 'mouse') return; G.yaw = Math.max(-1.05, Math.min(1.05, G.yaw + (e.clientX - tx) * .004 * S.sens)); tx = e.clientX; });
+    $('#fnWrap').addEventListener('pointermove', e => { if (tx === null || e.pointerType === 'mouse') return; G.yaw = Math.max(-YAWMAX, Math.min(YAWMAX, G.yaw + (e.clientX - tx) * .004 * S.sens)); tx = e.clientX; });
     $('#fnWrap').addEventListener('pointerup', () => tx = null);
     // klik w telefon = odbierz
     cv.addEventListener('click', e => {
@@ -1068,8 +1099,10 @@ const FN = (() => {
   async function open() {
     initUI(); $('#fn').showModal(); G.open = true;
     if (!T) { ov('<div class="fnH">Ładowanie…</div>'); try { await load(); } catch (e) { ov(`<div class="fnH">Błąd</div><span>${esc(e.message)}</span><button type="button" data-a="quit">Wyjdź</button>`); return; } }
-    if (!R) { R = new T.WebGLRenderer({ canvas: cv, antialias: false }); R.setPixelRatio(.8); }
-    build(); menu(); if (audio) audio.ac.resume();
+    if (!R) { R = new T.WebGLRenderer({ canvas: cv, antialias: false }); R.setPixelRatio(.8); R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.1; }
+    if (!built) { ov('<div class="fnH">Ładowanie…</div><span>Pobieranie modelu magazynu</span>'); await loadFnModel(); }
+    const first = !built; build(); if (first && FNM) useModel();
+    menu(); if (audio) audio.ac.resume();
     if (!G.raf) { clock.getDelta(); G.raf = requestAnimationFrame(loop); }
   }
   return { open, G, _dbg: () => ({ scene, cam, R, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
