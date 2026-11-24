@@ -461,9 +461,10 @@ const SL3 = (() => {
     const sameArea = (G.sl.z > -15.2) === (G.z > -15.2) || (G.gateY > 3.6 && Math.abs(G.z + 15) < 12);
     const seen = sameArea && dist < range && ang < .62 && !segBlocked(G.x, G.z, G.sl.x, G.sl.z);
     const agg = Math.max(0, G.got - 4) / 4; // agresja rośnie z przedmiotami z lasu
-    if (seen) G.stat += dt * (.16 + agg * .25 + Math.max(0, 7 - dist) * .09);
+    const NEAR = 12; // szum dopiero z bliska: od 12 m, im bliżej tym mocniej
+    if (seen && dist < NEAR) G.stat += dt * (NEAR - dist) / NEAR * (.28 + agg * .22);
     else G.stat = Math.max(0, G.stat - dt * .22);
-    if (dist < 6 && !seen) G.stat += dt * .05;
+    if (dist < 4 && !seen) G.stat += dt * .03;
     if (dist < 1.6 || G.stat >= 1) return caught();
     G.slT -= dt;
     const v = .9 + agg * 2.4; // m/s: na początku chód, z kolejnymi etykietami szybciej
@@ -533,11 +534,11 @@ const SL3 = (() => {
     if (G.lightsOut && G.gateY < 4.2) { G.gateY = Math.min(4.2, G.gateY + dt * .7); gateMesh.position.y = GATE.h / 2 + G.gateY; }
     if (G.lightsOut) emerg.intensity = 6 + Math.sin(t * 6) * 3;
     slUpdate(dt);
-    if (audio) { audio.ng.gain.value = G.mute ? 0 : Math.min(.6, G.stat * G.stat * .7); audio.drone.gain.value = G.mute ? 0 : (G.lightsOut ? .05 + G.got / G.total * .1 : 0); }
+    if (audio) { audio.ng.gain.value = G.mute ? 0 : Math.min(.3, G.stat * G.stat * .35); audio.drone.gain.value = G.mute ? 0 : (G.lightsOut ? .05 + G.got / G.total * .1 : 0); }
     // HUD
     $('#slHud').textContent = `${G.got}/${G.total}`;
     $('#slSt').style.width = (G.stam * 100) + '%';
-    $('#slNs').style.opacity = Math.min(.85, G.stat * 1.1).toFixed(2);
+    $('#slNs').style.opacity = Math.min(.45, G.stat * .5).toFixed(2);
     G.msgT -= dt; $('#slMsg').classList.toggle('on', G.msgT > 0);
   }
   function takeList() {
