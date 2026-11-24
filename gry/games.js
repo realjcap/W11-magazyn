@@ -238,9 +238,21 @@ const SL3 = (() => {
 
   // ---------- ładowanie Three.js ----------
   // model Długiego/Slendera (slender.glb w repo: siatka + animacje idle / walk / run), ładowany dopiero przy otwarciu gry
-  const ASSET_V = '8d3ecca270'; // wersja grafik w gry/img (omija cache)
+  const ASSET_V = '2b6be0d387'; // wersja grafik w gry/img (omija cache)
   const MODEL_URL = 'gry/slender.glb?v=f540b68bb1';
   let mixer = null, acts = {}, curAct = '', modelP = null;
+  // zestaw modeli i tekstur (gry/modele): magazyn.glb (regały, kartony, biurka, lampy, brama…), drzewa.glb, tekstury podłogi i ścian
+  let KIT = null;
+  async function loadKit() {
+    try {
+      const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js');
+      const L = new GLTFLoader(), TL = new T.TextureLoader();
+      const [wh, tr, fl, wl] = await Promise.all([L.loadAsync('gry/modele/magazyn.glb?v=' + ASSET_V), L.loadAsync('gry/modele/drzewa.glb?v=' + ASSET_V), TL.loadAsync('gry/modele/wh_floor.jpg?v=' + ASSET_V), TL.loadAsync('gry/modele/wh_wall.jpg?v=' + ASSET_V)]);
+      const get = (g, n) => g.scene.getObjectByName(n);
+      [fl, wl].forEach(t => { t.colorSpace = T.SRGBColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; });
+      KIT = { wh: n => get(wh, n), tr: n => get(tr, n), floor: fl, wall: wl };
+    } catch (e) { console.warn('modele', e); KIT = null; } // bez zestawu gra używa prostych brył
+  }
   function loadModel() {
     return modelP || (modelP = (async () => {
       const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js');
@@ -281,15 +293,18 @@ const SL3 = (() => {
     flash = new T.SpotLight(0xfff1d0, 0, 32, .42, .45, 1.4); flash.position.set(.15, -.1, 0); flash.target.position.set(0, 0, -1); cam.add(flash); cam.add(flash.target);
 
     const M = (o) => new T.MeshLambertMaterial(o);
+    const put = (n, x, y, z, ry = 0) => { const o = KIT.wh(n); if (!o) return null; const c = o.clone(); c.position.set(x, y, z); c.rotation.set(0, ry, 0); scene.add(c); return c; };
     const box = (w, h, d, mat, x, y, z, solid = true) => { const m = new T.Mesh(new T.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); scene.add(m); if (solid) boxes.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, m }); return m; };
 
     // --- magazyn ---
     const concrete = ctex(256, 256, (g, w, h) => { noise(g, w, h, '#8a8c8f', 60, 6000); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.strokeRect(0, 0, w, h); }, 10, 8);
+    if (KIT) { const ft = KIT.floor.clone(); ft.repeat.set(10, 7.5); ft.needsUpdate = true; concrete.dispose(); concrete.image = ft.image; concrete.repeat.set(10, 7.5); concrete.magFilter = T.LinearFilter; concrete.needsUpdate = true; }
     const floor = new T.Mesh(new T.PlaneGeometry(40, 30), M({ map: concrete })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
     // żółte linie na podłodze
     const yl = M({ color: 0xe8c020 });
     for (const x of [-3.2, 3.2]) { const l = new T.Mesh(new T.PlaneGeometry(.15, 28), yl); l.rotation.x = -Math.PI / 2; l.position.set(x, .01, 0); scene.add(l); }
     const metal = ctex(128, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, 0); for (let i = 0; i <= 8; i++) gr.addColorStop(i / 8, i % 2 ? '#6d7884' : '#8793a0'); g.fillStyle = gr; g.fillRect(0, 0, w, h); noise(g, w, h, 'rgba(0,0,0,0)', 30, 800); }, 12, 2);
+    if (KIT) { metal.image = KIT.wall.image; metal.repeat.set(8, 1.4); metal.magFilter = T.LinearFilter; metal.needsUpdate = true; }
     const wallM = M({ map: metal });
     const ceil = new T.Mesh(new T.PlaneGeometry(40, 30), M({ color: 0x3b4048 })); ceil.rotation.x = Math.PI / 2; ceil.position.y = WH.h; scene.add(ceil);
     box(40, WH.h, .4, wallM, 0, WH.h / 2, 15.2);                 // ściana południowa
@@ -302,41 +317,57 @@ const SL3 = (() => {
     const gateTex = ctex(128, 128, (g, w, h) => { g.fillStyle = '#5a6470'; g.fillRect(0, 0, w, h); g.fillStyle = '#48515c'; for (let y = 0; y < h; y += 10) g.fillRect(0, y, w, 3); g.fillStyle = '#e8c020'; g.fillRect(0, h - 10, w, 10); g.fillStyle = '#111'; for (let x = 0; x < w; x += 20) g.fillRect(x, h - 10, 10, 10); });
     gateMesh = box(6, GATE.h, .3, M({ map: gateTex }), 0, GATE.h / 2, -15.15);
     gateMesh.userData.col = boxes[boxes.length - 1];
+    if (KIT) { const sh = KIT.wh('gate_shutter'); if (sh) { gateMesh.material.visible = false; const c = sh.clone(); c.position.set(0, 0, 0); gateMesh.add(c); } put('gate_frame', 0, 0, -15.0); }
     // regały: niebieskie słupy, pomarańczowe belki, kartony
     const blue = M({ color: 0x2f5fa8 }), orange = M({ color: 0xe0701e });
     const cartonTex = ctex(64, 64, (g, w, h) => { g.fillStyle = '#b8854a'; g.fillRect(0, 0, w, h); g.fillStyle = '#e3c48f'; g.fillRect(w / 2 - 4, 0, 8, h); g.strokeStyle = 'rgba(0,0,0,.3)'; g.strokeRect(1, 1, w - 2, h - 2); });
-    const cartonG = new T.BoxGeometry(1, 1, 1), cartonM = M({ map: cartonTex });
+    let cartonG = new T.BoxGeometry(1, 1, 1), cartonM = M({ map: cartonTex });
+    if (KIT && KIT.wh('carton_a')) { cartonG = KIT.wh('carton_a').geometry; cartonM = KIT.wh('carton_a').material; }
+    const LV = KIT && KIT.wh('rack_12m') ? [.24, 1.48, 2.74, 3.98] : null; // półki modelu regału (wysokość blatu)
     const cartons = new T.InstancedMesh(cartonG, cartonM, 900); let ci = 0; const mtx = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), pos = new T.Vector3();
     const rack = (x0, x1, z) => {
       const len = x1 - x0, cx = (x0 + x1) / 2;
       boxes.push({ x0: x0 - .1, x1: x1 + .1, z0: z - .65, z1: z + .65 });
-      for (let x = x0; x <= x1 + .01; x += 3) for (const dz of [-.55, .55]) { const p = new T.Mesh(new T.BoxGeometry(.12, 5, .12), blue); p.position.set(x, 2.5, z + dz); scene.add(p); }
-      for (const y of [.15, 1.4, 2.65, 3.9]) {
-        for (const dz of [-.55, .55]) { const b = new T.Mesh(new T.BoxGeometry(len, .14, .1), orange); b.position.set(cx, y, z + dz); scene.add(b); }
-        const sh = new T.Mesh(new T.BoxGeometry(len, .04, 1.1), M({ color: 0x6b6f75 })); sh.position.set(cx, y + .07, z); scene.add(sh);
+      if (LV) put('rack_12m', cx, 0, z);
+      else for (let x = x0; x <= x1 + .01; x += 3) for (const dz of [-.55, .55]) { const p = new T.Mesh(new T.BoxGeometry(.12, 5, .12), blue); p.position.set(x, 2.5, z + dz); scene.add(p); }
+      for (const y0 of [.15, 1.4, 2.65, 3.9]) {
+        const y = LV ? LV[[.15, 1.4, 2.65, 3.9].indexOf(y0)] - .09 : y0; // kartony stoją na półkach modelu
+        if (!LV) { for (const dz of [-.55, .55]) { const b = new T.Mesh(new T.BoxGeometry(len, .14, .1), orange); b.position.set(cx, y, z + dz); scene.add(b); }
+        const sh = new T.Mesh(new T.BoxGeometry(len, .04, 1.1), M({ color: 0x6b6f75 })); sh.position.set(cx, y + .07, z); scene.add(sh); }
         for (let x = x0 + .3; x < x1 - .5 && ci < 900;) { const w = .6 + rnd() * .5, hh = .5 + rnd() * .55, d = .7 + rnd() * .3; if (rnd() > .18) { pos.set(x + w / 2, y + .09 + hh / 2, z + (rnd() - .5) * .15); sc.set(w, hh, d); q.setFromAxisAngle(new T.Vector3(0, 1, 0), (rnd() - .5) * .15); mtx.compose(pos, q, sc); cartons.setMatrixAt(ci++, mtx); } x += w + .08; }
       }
     };
     for (const z of [-9, -4, 1, 6]) { rack(-17, -5, z); rack(5, 17, z); }
+    if (KIT) { // słupki odbojowe przy końcach regałów, słupy i cokoły przy ścianach, kratownice pod dachem
+      for (const z of [-9, -4, 1, 6]) for (const x of [-4.6, 4.6]) for (const dz of [-.5, .5]) put('bollard', x, 0, z + dz);
+      for (let x = -17.5; x <= 17.5; x += 5) { put('wall_column', x, 0, 14.8); put('wall_plinth_5m', x, 0, 14.94); if (Math.abs(x) > 4) { put('wall_column', x, 0, -14.8); put('wall_plinth_5m', x, 0, -14.94); } }
+      for (let z = -12.5; z <= 12.5; z += 5) { put('wall_column', -19.8, 0, z); put('wall_column', 19.8, 0, z); put('wall_plinth_5m', -19.94, 0, z, Math.PI / 2); put('wall_plinth_5m', 19.94, 0, z, Math.PI / 2); }
+      for (let x = -17.5; x <= 17.5; x += 5) put('roof_truss_30m', x, WH.h, 0);
+    }
     cartons.count = ci; scene.add(cartons);
     // biuro: biurka z komputerami (wschodni róg), palety
     const desk = M({ color: 0x8a6a48 }), dark = M({ color: 0x1c1f24 });
     for (const [x, z] of [[13, 11], [16.5, 11], [13, 13.6], [16.5, 13.6]]) {
-      box(2.6, .08, 1.1, desk, x, .76, z); for (const dx of [-1.2, 1.2]) for (const dz of [-.45, .45]) box(.06, .76, .06, desk, x + dx, .38, z + dz, false);
+      if (KIT && KIT.wh('desk')) { put('desk', x, 0, z); if (!(x === NPC.x && z === 11)) put('office_chair', x, 0, z + .85, Math.PI); }
+      else { box(2.6, .08, 1.1, desk, x, .76, z); for (const dx of [-1.2, 1.2]) for (const dz of [-.45, .45]) box(.06, .76, .06, desk, x + dx, .38, z + dz, false); }
       boxes.push({ x0: x - 1.3, x1: x + 1.3, z0: z - .55, z1: z + .55 });
       box(.9, .55, .05, dark, x, 1.15, z - .3, false); box(.08, .25, .08, dark, x, .9, z - .3, false);
       const scr = new T.Mesh(new T.PlaneGeometry(.82, .47), new T.MeshBasicMaterial({ map: ctex(64, 40, (g, w, h) => { g.fillStyle = '#0d3a6e'; g.fillRect(0, 0, w, h); g.fillStyle = '#5fb4ff'; for (let y = 6; y < h - 4; y += 6) g.fillRect(4, y, 10 + rnd() * 40, 2); g.fillStyle = '#ffd34d'; g.fillRect(w - 16, 4, 12, 8); }) }));
       scr.position.set(x, 1.15, z - .27); scene.add(scr); monitors.push(scr);
       box(.5, .03, .18, dark, x, .81, z + .1, false);
     }
-    for (const [x, z] of [[-14, 12], [-10, 12.5], [7, -13], [-8, -13]]) { box(1.2, .15, 1.0, M({ color: 0xa07848 }), x, .08, z, false); box(1.1, .9 + rnd() * .5, .9, cartonM, x, .6, z); }
+    for (const [x, z] of [[-14, 12], [-10, 12.5], [7, -13], [-8, -13]]) { if (KIT && KIT.wh('pallet')) put('pallet', x, 0, z); else box(1.2, .15, 1.0, M({ color: 0xa07848 }), x, .08, z, false); const hh = .9 + rnd() * .5, cb = box(1.1, hh, .9, cartonM, x, .14 + hh / 2, z); if (KIT) { cb.geometry.dispose(); cb.geometry = cartonG; cb.scale.set(1.1, hh, .9); } }
     // lampy pod sufitem + światła
     const lampM = new T.MeshBasicMaterial({ color: 0xfff6d8 });
     for (const x of [-12, 0, 12]) for (const z of [-9, 0, 9]) {
-      const l = new T.Mesh(new T.BoxGeometry(2.2, .08, .3), lampM); l.position.set(x, WH.h - .3, z); scene.add(l); lamps.push(l);
+      const l = KIT && KIT.wh('lamp_fixture') ? put('lamp_fixture', x, WH.h - .36, z) : new T.Mesh(new T.BoxGeometry(2.2, .08, .3), lampM);
+      if (!KIT || !KIT.wh('lamp_fixture')) { l.position.set(x, WH.h - .3, z); scene.add(l); } lamps.push(l);
       const pl = new T.PointLight(0xfff1d6, 38, 20, 1.6); pl.position.set(x, WH.h - .6, z); scene.add(pl); whLights.push(pl);
     }
     lamps.mat = lampM;
+    if (KIT && KIT.wh('lamp_fixture')) { // świecąca część lampy z modelu: wspólny materiał, gaszony przy zgaszeniu świateł
+      const lm = new T.MeshBasicMaterial({ color: 0xfff6d8 }); lamps.forEach(l => l.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(mm => mm.name === 'wh_lamp_light' ? lm : mm) : (o.material.name === 'wh_lamp_light' ? lm : o.material); })); lamps.mat = lm;
+    }
     // światło awaryjne przy bramie (czerwone, po zgaszeniu)
     emerg = new T.PointLight(0xff2a2a, 0, 12, 1.5); emerg.position.set(0, 5.2, -14.2); scene.add(emerg);
     const eb = new T.Mesh(new T.BoxGeometry(.5, .2, .15), new T.MeshBasicMaterial({ color: 0x551111 })); eb.position.set(0, 5.2, -14.95); scene.add(eb); emerg.userData.m = eb;
@@ -361,7 +392,12 @@ const SL3 = (() => {
       pos.set(x, 4.5 * s, z); sc.set(s, s, s); q.identity(); mtx.compose(pos, q, sc); trunks.setMatrixAt(ti, mtx);
       pos.set(x, (6.5 + rnd() * 1.5) * s, z); mtx.compose(pos, q, sc); crowns.setMatrixAt(ti, mtx); ti++;
     }
-    scene.add(trunks, crowns);
+    if (KIT && KIT.tr('spruce_a_trunk')) { // drzewa z modelu: 3 świerki + suche drzewo, każde jako InstancedMesh
+      const VAR = [['spruce_a_trunk', 'spruce_a_foliage'], ['spruce_b_trunk', 'spruce_b_foliage'], ['spruce_c_trunk', 'spruce_c_foliage'], ['dead_a_trunk']];
+      const mats = VAR.map(() => []);
+      trees.forEach((t, i) => { const v = (i * 7 + 3) % 11 === 0 ? 3 : i % 3; const s2 = .75 + ((i * 37) % 40) / 100; t.r = .38 * s2; pos.set(t.x, 0, t.z); sc.set(s2, s2, s2); q.setFromAxisAngle(new T.Vector3(0, 1, 0), (i * 1.7) % 6.28); mats[v].push(new T.Matrix4().compose(pos, q, sc)); });
+      VAR.forEach((names, v) => names.forEach(n => { const src = KIT.tr(n); if (!src || !mats[v].length) return; const im = new T.InstancedMesh(src.geometry, src.material, mats[v].length); mats[v].forEach((m, k) => im.setMatrixAt(k, m)); scene.add(im); }));
+    } else scene.add(trunks, crowns);
     // charakterystyczne miejsca w lesie (przy przedmiotach): kontener, wiata, auto, kamień
     box(6, 2.6, 2.4, M({ color: 0x8a2d22 }), -34, 1.3, -50.5);
     box(3, 2.2, 3, M({ color: 0x55504a }), 31, 1.1, -42.2);
@@ -635,6 +671,7 @@ const SL3 = (() => {
       try { await loadThree(); } catch (e) { ov(`<b>Błąd</b><span>${esc(e.message)}</span>`); return; }
     }
     if (!R) { R = new T.WebGLRenderer({ canvas: cv, antialias: false, powerPreference: 'high-performance' }); R.setPixelRatio(PIX); R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.15; } // tone mapping: latarka z bliska nie przepala etykiet na biało
+    if (!built) { ov('<b>Ładowanie…</b><span>Pobieranie modeli magazynu i lasu</span>'); await loadKit(); }
     build();
     if (!mixer) { ov('<b>Ładowanie…</b><span>Pobieranie modelu postaci</span>'); await loadModel(); }
     reset(); G.run = false; G.st = 'menu';
