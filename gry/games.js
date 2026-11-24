@@ -1122,7 +1122,7 @@ const FN = (() => {
   function initUI() {
     if (inited) return; inited = true; cv = $('#fnC');
     $('#fnOv').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && !b.disabled) { act(b.dataset.a); } });
-    const pos = e => { const r = cv.getBoundingClientRect(); G.mx = (e.clientX - r.left) / r.width; G.my = (e.clientY - r.top) / r.height; };
+    const pos = e => { if (document.pointerLockElement === $('#fnWrap')) return; const r = cv.getBoundingClientRect(); G.mx = (e.clientX - r.left) / r.width; G.my = (e.clientY - r.top) / r.height; };
     $('#fnWrap').addEventListener('pointermove', e => { if (e.pointerType === 'mouse') pos(e); });
     $('#fnWrap').addEventListener('mouseleave', () => { if (document.pointerLockElement !== $('#fnWrap')) G.mx = .5; });
     // blokada kursora: w trakcie zmiany myszka nie wychodzi poza ekran gry (własny kursor w środku)
@@ -1160,6 +1160,7 @@ const FN = (() => {
     $('#fnCamX').onclick = camClose; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
     $('#fnMap').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) camOpen(+b.dataset.c); });
     document.addEventListener('keydown', e => { if (!G.open) return; const k = e.key.toLowerCase();
+      if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'pageup', 'pagedown', 'home', 'end'].includes(k) && !e.target.closest('input,select,textarea')) e.preventDefault(); // bez przewijania strony w tle
       if (k === ' ' && G.st === 'ring') { e.preventDefault(); answer(); }
       if (k === 'arrowleft' || k === 'a') { G.look = 1; e.preventDefault(); } if (k === 'arrowright' || k === 'd') { G.look = -1; e.preventDefault(); }
       if (k === 'escape' && G.cam >= 0) { e.preventDefault(); return camClose(); }
