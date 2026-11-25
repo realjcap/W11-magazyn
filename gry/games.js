@@ -1349,7 +1349,7 @@ const FN = (() => {
     if (G.en) G.en.forEach(e => enAnim(e, dt));
     if (G.st === 'dead') return scareTick(dt);
     // drzwi: animacja zamykania (otwarte = wychylone na halę)
-    G.dA += ((G.door ? 1 : 0) - G.dA) * Math.min(1, dt * 9); if (phone.door) phone.door.rotation.y = 1.5 * (1 - G.dA); // jak w prawdziwej kanciapie: otwarte do środka, pod prawą ścianę
+    G.dA += ((G.door ? 1 : 0) - G.dA) * Math.min(1, dt * 9); if (phone.door) phone.door.rotation.y = -1.45 * (1 - G.dA);
     prnTick(dt);
     if (G.turn) turnTick(dt); else {
     // rozglądanie jak w FNAF: kursor przy krawędzi obraca widok
@@ -1442,7 +1442,7 @@ const FN = (() => {
     if (audio) { audio.hum.gain.cancelScheduledValues(0); audio.hum.gain.value = .02; if (audio.jg) { audio.jg.disconnect(); audio.jg = null; } }
     if (FNM) enSpawn(pick, n);
     $('#fnHud').hidden = false; $('#fnHud').classList.remove('off'); $('#fnPrnBtn').hidden = false;
-    phone.door.rotation.y = 1.5; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
+    phone.door.rotation.y = -1.45; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
     $('#fnHint').classList.add('on'); $('#fnClk').innerHTML = `12:00 AM<small>Noc ${n}</small>`; $('#fnCamBtn').hidden = false;
   }
   async function act(a) {
