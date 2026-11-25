@@ -3919,7 +3919,7 @@ const brHits = o => {
 let BRM = new Map(), brMapSig = '';
 function brMapUpdate() {
   const m = new Map();
-  if (slUser()) brOrders().forEach(o => { const { hs, unsure } = brHits(o); hs.forEach(h => h.sizes.forEach(z => { const k = h.p.id + '|' + z, x = m.get(k) || { n: 0, u: 0 }; unsure ? x.u++ : x.n++; m.set(k, x); })); });
+  if (slUser()) brOrders().filter(o => o.star !== 'red').forEach(o => { const { hs, unsure } = brHits(o); // czerwona gwiazdka = pomijamy hs.forEach(h => h.sizes.forEach(z => { const k = h.p.id + '|' + z, x = m.get(k) || { n: 0, u: 0 }; unsure ? x.u++ : x.n++; m.set(k, x); })); });
   const sig = JSON.stringify([...m]); if (sig === brMapSig) return;
   brMapSig = sig; BRM = m; render();
 }
@@ -3940,7 +3940,7 @@ function renderBraki() {
   const need = new Map();
   const per = os.map(o => {
     const { hs, src, unsure } = brHits(o);
-    if (o.star !== 'green') hs.forEach(h => { const zs = h.sizes.size ? [...h.sizes] : ['']; zs.forEach(z => { const k = h.p.id + '|' + z; const x = need.get(k) || { p: h.p, z, n: 0, u: 0 }; unsure ? x.u++ : x.n++; need.set(k, x); }); });
+    if (o.star !== 'green' && o.star !== 'red') hs.forEach(h => { const zs = h.sizes.size ? [...h.sizes] : ['']; zs.forEach(z => { const k = h.p.id + '|' + z; const x = need.get(k) || { p: h.p, z, n: 0, u: 0 }; unsure ? x.u++ : x.n++; need.set(k, x); }); });
     const keys = new Set(); hs.forEach(h => (h.sizes.size ? [...h.sizes] : ['']).forEach(z => keys.add(h.p.id + '|' + z)));
     return { o, hs, src, unsure, keys };
   });
