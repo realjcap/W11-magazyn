@@ -1232,7 +1232,10 @@ const FN = (() => {
     const n = ac.createBufferSource(); n.buffer = buf; n.loop = true; n.connect(hum); n.start();
     const o = ac.createOscillator(); o.frequency.value = 120; const og = ac.createGain(); og.gain.value = .15; o.connect(og).connect(hum); o.start();
     audio = { ac, master, hum };
+    // krzyk do jumpscare z pliku (ładowany dopiero przy otwarciu gry), głośność 20%
+    fetch('gry/fn_krzyk.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))).then(b => { audio.scr = b; }).catch(() => {});
   }
+  function screamStop() { if (audio && audio.scrSrc) { try { audio.scrSrc.stop(); } catch (e) {} audio.scrSrc = null; } }
   function ringBurst() { // elektroniczny dzwonek telefonu biurowego
     if (!audio) return; const { ac, master } = audio, t0 = ac.currentTime;
     for (let i = 0; i < 16; i++) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = i % 2 ? 1320 : 1050; const t = t0 + i * .06; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.05, t + .005); g.gain.setValueAtTime(.05, t + .05); g.gain.linearRampToValueAtTime(0, t + .06); o.connect(g).connect(master); o.start(t); o.stop(t + .07); }
@@ -1256,7 +1259,8 @@ const FN = (() => {
     for (let i = 0, t = t0; t < t0 + dur; i++, t += .32) { const f = N[i % N.length]; if (!f) continue; const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f * (1 + (Math.random() - .5) * .01); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.09, t + .005); g.gain.exponentialRampToValueAtTime(.001, t + .5); o.connect(g).connect(master); o.start(t); o.stop(t + .55); }
   }
   function scream() {
-    if (!audio) return; const { ac, master } = audio, t0 = ac.currentTime, out = ac.createGain(); out.gain.value = .3; out.connect(master);
+    if (!audio) return;
+    if (audio.scr) { screamStop(); const { ac, master } = audio, s2 = ac.createBufferSource(), g = ac.createGain(); g.gain.value = .2; s2.buffer = audio.scr; s2.connect(g).connect(master); s2.start(); audio.scrSrc = s2; return; } const { ac, master } = audio, t0 = ac.currentTime, out = ac.createGain(); out.gain.value = .3; out.connect(master);
     const b = ac.createBuffer(1, ac.sampleRate * 1.3, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
     const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(2400, t0); f.frequency.exponentialRampToValueAtTime(700, t0 + 1.2); g.gain.setValueAtTime(1, t0); g.gain.exponentialRampToValueAtTime(.01, t0 + 1.25); s.connect(f).connect(g).connect(out); s.start(t0);
     [1, 1.06, 1.5].forEach(k => { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(620 * k, t0); o.frequency.exponentialRampToValueAtTime(260 * k, t0 + 1.2); og.gain.setValueAtTime(.35, t0); og.gain.exponentialRampToValueAtTime(.01, t0 + 1.25); o.connect(og).connect(out); o.start(t0); o.stop(t0 + 1.3); });
@@ -1406,7 +1410,7 @@ const FN = (() => {
   // ---------- menu ----------
   const ov = h => { const o = $('#fnOv'); if (h) { o.innerHTML = h; o.hidden = false; } else o.hidden = true; };
   function menu() {
-    camClose(); G.st = 'menu'; if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnPrnBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
+    camClose(); G.st = 'menu'; screamStop(); if (audio && audio.jg) { audio.jg.disconnect(); audio.jg = null; } if (document.pointerLockElement) document.exitPointerLock(); $('#fnCamBtn').hidden = true; $('#fnHud').hidden = true; $('#fnPrnBtn').hidden = true; $('#fnSub').classList.remove('on'); $('#fnHint').classList.remove('on'); $('#fnClk').innerHTML = '';
     const d = done();
     ov(`<div class="fnTitle">5 NOCEK<br>W <span>KANCIAPIE</span></div>
       <nav class="fnMenu">
@@ -1440,7 +1444,7 @@ const FN = (() => {
     cam.fov = 68; cam.updateProjectionMatrix(); if (G.redL) G.redL.intensity = 0; if (phone.spot) phone.spot.intensity = 0; btnUpd();
     (G.L || []).forEach(l => { if (l.userData.i0 != null) l.intensity = l.userData.i0; }); if (G.hemi) G.hemi.intensity = .22; (G.scrM || []).forEach(m => m.color.set(0xffffff));
     if (ENC.dzik) { ENC.dzik.g.visible = false; scene.remove(ENC.dzik.g); }
-    if (audio) { audio.hum.gain.cancelScheduledValues(0); audio.hum.gain.value = .02; if (audio.jg) { audio.jg.disconnect(); audio.jg = null; } }
+    screamStop(); if (audio) { audio.hum.gain.cancelScheduledValues(0); audio.hum.gain.value = .02; if (audio.jg) { audio.jg.disconnect(); audio.jg = null; } }
     if (FNM) enSpawn(pick, n);
     $('#fnHud').hidden = false; $('#fnHud').classList.remove('off'); $('#fnPrnBtn').hidden = false;
     phone.door.rotation.y = -1.45; phone.hs.position.set(-.04, .065, 0); phone.hs.rotation.z = 0;
