@@ -1854,7 +1854,7 @@ function pickItem(p) {
         <input type="number" inputmode="numeric" min="0" placeholder="${st ? n : 0}" data-s="${esc(s)}" data-t="n" aria-label="${esc(s)} nowe SKU">
         <input type="number" inputmode="numeric" min="0" placeholder="${st ? o : 0}" data-s="${esc(s)}" data-t="o" aria-label="${esc(s)} stare SKU"></span></div>`;
     }).join('') + (st || opKind ? '' : sewHtml(p));
-    return;
+    wzUpd(); return;
   }
   const wzOn = mode === 'in' && !opKind;
   $('#opF').innerHTML = (wzOn ? '<div class="rh"><span class="wzc">wg WZ</span><span>przyjechało</span></div>' : '') + (mode === 'sewin' ? Object.keys(p.sew || {}).sort(bySize) : sizesOf(p)).map(s => {
@@ -1866,6 +1866,7 @@ function pickItem(p) {
     return `<label class="row"><span>${esc(s)} <small class="${mode === 'sewin' ? 'sw' : 'mu'}">${mode === 'evin' ? 'na evencie' : mode === 'sewin' ? 'w szwalni' : mode === 'set' ? 'teraz' : 'stan'} ${av}</small></span>
       <input type="number" inputmode="numeric" min="0"${lim} placeholder="${mode === 'set' ? av : 0}" data-s="${esc(s)}"></label>`;
   }).join('') + (mode === 'in' && !opKind ? sewHtml(p) : '');
+  wzUpd();
 }
 // dostawa: część sztuk „bez naklejki” jedzie od razu do szwalni (fioletowe, nie liczą się do stanu)
 function sewHtml(p) {
@@ -1876,7 +1877,8 @@ function sewHtml(p) {
 const mSum = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const lnGot = L => mSum(L.d) + mSum(L.s);
 function wzAll() { const c = mode === 'in' && cur && !$('#opSel').hidden ? collectCurrent() : null, ls = c ? [...lines.filter(l => l.id !== c.id), c] : lines; return { wz: ls.reduce((a, L) => a + mSum(L.w), 0), got: ls.reduce((a, L) => a + lnGot(L), 0), ls }; }
-function wzUpd() {
+function wzUpd() { try { wzUpd0(); } catch (e) { console.warn('wz', e); } }
+function wzUpd0() {
   if ($('#opWzW').hidden) return; const { wz, got } = wzAll(), d = $('#opWzD'); $('#opWz').textContent = wz; $('#opGot').textContent = got;
   // podświetlenie rozmiarów, które nie zgadzają się z WZ
   $('#opF').querySelectorAll('input[data-t="w"]').forEach(i => { const s = i.dataset.s, w = parseInt(i.value) || 0; let g = 0; $('#opF').querySelectorAll('input[data-s="' + CSS.escape(s) + '"]:not([data-t="w"])').forEach(x => { g += parseInt(x.value) || 0; }); i.closest('.row').classList.toggle('wzbad', i.value !== '' && w !== g); });
@@ -1904,7 +1906,7 @@ function collectBase() {
   if (mode === 'in' && cur.oldSku) {
     const o = {};
     sizesOf(cur).forEach(s => {
-      const v = t => Math.max(0, parseInt($('#opF').querySelector('input[data-t="' + t + '"][data-s="' + CSS.escape(s) + '"]').value) || 0);
+      const v = t => { const i = $('#opF').querySelector('input[data-t="' + t + '"][data-s="' + CSS.escape(s) + '"]'); return i ? Math.max(0, parseInt(i.value) || 0) : 0; };
       const nv = v('n'), ov = v('o');
       if (nv + ov > 0) d[s] = nv + ov;
       if (ov > 0) o[s] = ov;
