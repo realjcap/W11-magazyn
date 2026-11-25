@@ -3358,10 +3358,11 @@ function labelHtml(name, sku, size, w, h) {
   return `<div class="lab" style="width:${w}mm;height:${h}mm;font-size:${fs.toFixed(2)}mm">${all.map(l => `<div>${esc(l)}</div>`).join('')}</div>`;
 }
 let prP = null;
+const prSz = v => { const z = v.replace(/^o:/, ''); return z === '-' ? '' : z; }; // „-” = formatka bez rozmiaru
 function prSkuFor(p, v) { return v.startsWith('o:') ? p.oldSku : p.sku; }
 function prRender() {
   const p = prP; if (!p) return;
-  const v = $('#prS').value || '', sz = v.replace(/^o:/, '');
+  const v = $('#prS').value || '', sz = prSz(v);
   $('#prV').innerHTML = labelHtml(p.name, prSkuFor(p, v), sz, LBL.w, LBL.h);
   const box = $('.lblwrap').clientWidth - 22, px = LBL.w * 3.78, k = Math.min(1, box / px);
   $('#prV').style.transform = 'scale(' + k + ')'; $('#prV').style.width = px + 'px'; $('#prV').style.height = LBL.h * 3.78 + 'px'; $('#prV').style.marginLeft = Math.max(0, (box - px * k) / 2) + 'px';
@@ -3372,7 +3373,7 @@ function openPrint(id) {
   const p = S.products.find(x => x.id === id); if (!p) return;
   prP = p;
   $('#prN').textContent = p.name; $('#prK').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare ' + p.oldSku : '');
-  $('#prS').innerHTML = sizesOf(p).map(z => `<option value="${esc(z)}">${esc(z)}</option>`).join('') + (p.oldSku ? sizesOf(p).map(z => `<option value="o:${esc(z)}">${esc(z)} (stare SKU ${esc(p.oldSku)})</option>`).join('') : '');
+  $('#prS').innerHTML = sizesOf(p).map(z => `<option value="${esc(z)}">${esc(z)}</option>`).join('') + '<option value="-">Bez rozmiaru</option>' + (p.oldSku ? sizesOf(p).map(z => `<option value="o:${esc(z)}">${esc(z)} (stare SKU ${esc(p.oldSku)})</option>`).join('') + `<option value="o:-">Bez rozmiaru (stare SKU ${esc(p.oldSku)})</option>` : '');
   if (lastScanHit && lastScanHit.pid === p.id && lastScanHit.size && lastScanHit.size !== '*') $('#prS').value = (lastScanHit.old ? 'o:' : '') + lastScanHit.size;
   $('#prQ').value = 1; $('#prInfo').textContent = '';
   $('#prd').showModal(); prRender();
@@ -3382,7 +3383,7 @@ $('#prX').onclick = () => $('#prd').close();
 $('#prGo').onclick = async () => {
   const p = prP; if (!p || !online()) return;
   const v = $('#prS').value || '', q = Math.max(1, Math.min(50, parseInt($('#prQ').value) || 1));
-  const job = { t: firebase.database.ServerValue.TIMESTAMP, st: 'new', pid: p.id, name: p.name, sku: prSkuFor(p, v), size: v.replace(/^o:/, ''), qty: q, by: user || '' };
+  const job = { t: firebase.database.ServerValue.TIMESTAMP, st: 'new', pid: p.id, name: p.name, sku: prSkuFor(p, v), size: prSz(v), qty: q, by: user || '' };
   try {
     const ref = R.child('print').push(job); await ref;
     SFX.play('print');
@@ -3396,7 +3397,7 @@ function watchJob(key) {
   const off = () => { try { ref.off(); } catch (e) {} };
   ref.on('value', s => {
     const j = s.val(); if (!j || done) return;
-    if (j.st === 'done') { done = true; off(); toast('Wydrukowano: ' + j.name + ' ' + j.size + (j.qty > 1 ? ' × ' + j.qty : '')); if ($('#prd').open) $('#prInfo').textContent = 'Wydrukowano.'; }
+    if (j.st === 'done') { done = true; off(); toast('Wydrukowano: ' + j.name + (j.size ? ' ' + j.size : '') + (j.qty > 1 ? ' × ' + j.qty : '')); if ($('#prd').open) $('#prInfo').textContent = 'Wydrukowano.'; }
     else if (j.st === 'err') { done = true; off(); say('Drukowanie nie powiodło się: ' + (j.msg || 'błąd drukarki')); }
   }, () => {});
   setTimeout(() => { if (!done) { off(); if ($('#prd').open) $('#prInfo').textContent = 'Brak potwierdzenia od komputera z etykieciarką. Czy jest na nim włączony „Tryb drukarki”?'; } }, 45000);
