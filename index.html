@@ -3919,7 +3919,7 @@ const brHits = o => {
 let BRM = new Map(), brMapSig = '';
 function brMapUpdate() {
   const m = new Map();
-  if (slUser()) brOrders().filter(o => o.star !== 'red').forEach(o => { const { hs, unsure } = brHits(o); // czerwona gwiazdka = pomijamy hs.forEach(h => h.sizes.forEach(z => { const k = h.p.id + '|' + z, x = m.get(k) || { n: 0, u: 0 }; unsure ? x.u++ : x.n++; m.set(k, x); })); });
+  if (slUser()) brOrders().filter(o => o.star !== 'red').forEach(o => { const { hs, unsure } = brHits(o); /* czerwona gwiazdka = pomijamy */ hs.forEach(h => h.sizes.forEach(z => { const k = h.p.id + '|' + z, x = m.get(k) || { n: 0, u: 0 }; unsure ? x.u++ : x.n++; m.set(k, x); })); });
   const sig = JSON.stringify([...m]); if (sig === brMapSig) return;
   brMapSig = sig; BRM = m; render();
 }
