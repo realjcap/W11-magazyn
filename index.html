@@ -1012,7 +1012,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
-    <button type="button" class="hubt" data-g="fn" id="hubFn" hidden><span class="hubi fnic">5</span><b>5 nocek w kanciapie</b><small>Nocna zmiana w kanciapie</small><small class="hubs">tylko dla Ciebie (wersja testowa)</small></button>
+    <button type="button" class="hubt" data-g="fn" id="hubFn"><span class="hubi fnic">5</span><b>5 nocek w kanciapie</b><small>Nocna zmiana w kanciapie</small></button>
   </div>
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
 </dialog>
@@ -3572,7 +3572,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '797cf2fad0'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = 'cf026fbd1b'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

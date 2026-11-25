@@ -198,7 +198,6 @@ function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
   if (!$('#hubCan').src) $('#hubCan').src = FL_CAN;
-  $('#hubFn').hidden = lbMe() !== DELMA_UID; // gra FN – na razie tylko dla delmy
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
   $('#hubBest').textContent = GM.best ? 'Twój rekord: ' + GM.best : 'Jeszcze nie grałeś';
   $('#hub').showModal();
@@ -225,12 +224,12 @@ function playsShow() {
 }
 $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
-  SFX.play('tick'); if (t.dataset.g !== 'fn' || lbMe() === DELMA_UID) playRec(t.dataset.g);
+  SFX.play('tick'); playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
   if (t.dataset.g === 'fl') { $('#hub').close(); FL.open(); }
   if (t.dataset.g === 'sl') { $('#hub').close(); SL3.open(); }
-  if (t.dataset.g === 'fn' && lbMe() === DELMA_UID) { $('#hub').close(); FN.open(); }
+  if (t.dataset.g === 'fn') { $('#hub').close(); FN.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
 $('#gmHub').onclick = () => { $('#gm').close(); hubOpen(); };
