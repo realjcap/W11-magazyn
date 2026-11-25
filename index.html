@@ -115,6 +115,11 @@ button:hover,.btn:hover{border-color:var(--ac)}
 .sw{color:var(--sw)}
 .stk{color:var(--am)}
 .lgpv{font-size:11px;padding:1px 6px;border-radius:9px;border:1px dashed var(--am);color:var(--am);white-space:nowrap}
+.wzt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.wzt label{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1.5px solid var(--bd,#d0d7de);border-radius:10px;background:var(--bg2,rgba(127,127,127,.06))}
+.wzt small{font-size:12px;color:var(--mu,#777)}.wzt input{font-size:20px;font-weight:700;width:100%;box-sizing:border-box}
+.wzd{grid-column:1/-1;font-size:13px;font-weight:600;min-height:1em}.wzd.ok{color:#1a7f37}.wzd.bad{color:#cf222e}.wzd.plus{color:#9a6700}
+.wzh.bad{color:#cf222e;font-weight:600}.wzh.plus{color:#9a6700;font-weight:600}.wzh.ok{color:#1a7f37}
 .swb{margin-top:10px;width:100%;border:1.5px dashed var(--sw);color:var(--sw);background:transparent;font-weight:600}
 .swb[aria-expanded=true]{background:color-mix(in srgb,var(--sw) 12%,transparent)}
 #opSewF{margin-top:8px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--sw) 8%,transparent);border:1px solid color-mix(in srgb,var(--sw) 35%,transparent)}
@@ -889,6 +894,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <div class="sel"><div><div class="nm" id="opN"></div><div class="sku" id="opS"></div></div><button type="button" id="opBack">Zmień</button></div>
     <div id="opF"></div>
   </div>
+  <div class="wzt" id="opWzW" hidden>
+    <label><small>Według WZ (szt.)</small><input type="number" id="opWz" min="0" inputmode="numeric" placeholder="0"></label>
+    <label><small>Przyjechało (szt.)</small><input type="number" id="opGot" min="0" inputmode="numeric" placeholder="0"></label>
+    <div class="wzd" id="opWzD"></div>
+  </div>
   <label class="f" id="opNoteW" hidden><small>Notatka do całej listy (opcjonalnie)</small><input id="opNote" maxlength="80" placeholder="np. numer dostawy, zamówienie"></label>
   <form method="dialog" class="btns">
     <button value="x">Anuluj</button>
@@ -1200,6 +1210,7 @@ const okId = id => /^[A-Za-z0-9_-]{1,40}$/.test(id);
 const safePhoto = u => (typeof u === 'string' && u.length < 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(u)) ? u : null;
 const posMap = o => Object.fromEntries(Object.entries(numMap(o)).filter(x => x[1] > 0));
 const numMap = o => Object.fromEntries(Object.entries(toObj(o)).map(([k, v]) => [txt(k, 30), num(v)]));
+function wzTxt(l) { const r = l.wz != null && l.got != null ? l.got - l.wz : null; return `<span class="wzh${r === null ? '' : r < 0 ? ' bad' : r > 0 ? ' plus' : ' ok'}">${l.wz != null ? 'WZ ' + l.wz + ' szt.' : ''}${l.wz != null && l.got != null ? ' · ' : ''}${l.got != null ? 'przyjechało ' + l.got + ' szt.' : ''}${r ? ' (' + (r < 0 ? 'brak ' + -r : '+' + r) + ')' : r === 0 ? ' ✔' : ''}</span>`; }
 function cleanLogEntry(l) {
   const o = { t: Number(l.t) || 0, name: txt(l.name, 120), sku: txt(l.sku, 60), m: LOGT[l.m] ? l.m : 'in', d: numMap(l.d), by: txt(l.by, 40), note: txt(l.note, 200) };
   const lost = numMap(l.lost);
@@ -1207,6 +1218,7 @@ function cleanLogEntry(l) {
   const ol = numMap(l.o); if (Object.keys(ol).length) { o.o = ol; o.osku = txt(l.osku, 60); }
   const sw = numMap(l.s); if (Object.keys(sw).length) o.s = sw;
   if (o.m === 'in' && l.kind === 'cnt') o.kind = 'cnt';
+  if (o.m === 'in' && l.wz != null && Number(l.wz) >= 0) o.wz = Math.floor(Number(l.wz)); if (o.m === 'in' && l.got != null && Number(l.got) >= 0) o.got = Math.floor(Number(l.got));
   if (typeof l.ref === 'string' && okId(l.ref)) o.ref = l.ref;
   if (typeof l.pid === 'string' && okId(l.pid)) o.pid = l.pid;
   const its = Object.values(toObj(l.items)).slice(0, 60).filter(it => it && typeof it === 'object');
@@ -1503,7 +1515,7 @@ function setStep(step) {
   $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
   $('#opMore').hidden = step !== 'sizes';
   const can = step === 'sizes' || lines.length > 0;
-  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can || mode === 'set';
+  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can || mode === 'set'; $('#opWzW').hidden = !can || mode !== 'in' || !!opKind; wzUpd();
   renderLines();
 }
 // --- kody kreskowe: rozpoznanie, skaner USB (szybkie wpisywanie + Enter) i aparat telefonu
@@ -1809,7 +1821,7 @@ function openOp(m, id, kind) {
   $('#opT').textContent = opKind ? 'Liczenie / korekta' : MODES[m].t;
   $('#opOk').className = MODES[m].c;
   $('#opOk').textContent = MODES[m].ok;
-  $('#opNote').value = '';
+  $('#opNote').value = ''; $('#opWz').value = ''; $('#opGot').value = '';
   $('#opQ').value = '';
   const p = id ? S.products.find(x => x.id === id) : null;
   if (p) pickItem(p); else showPick();
@@ -1852,6 +1864,16 @@ function pickItem(p) {
 function sewHtml(p) {
   return `<button type="button" class="swb" id="opSewB" aria-expanded="false">＋ Bez naklejki (do szwalni)</button><div id="opSewF" hidden><small class="sw" style="display:block;margin-bottom:6px">Ile sztuk przyszło bez naklejki – jadą do szwalni i nie liczą się do stanu, dopóki nie wrócą.</small>${sizesOf(p).map(s => `<label class="row"><span>${esc(s)} <small>w szwalni ${(p.sew && p.sew[s]) || 0}</small></span><input type="number" inputmode="numeric" min="0" placeholder="0" data-s="${esc(s)}" data-t="s" aria-label="${esc(s)} bez naklejki"></label>`).join('')}</div>`;
 }
+// dostawa: kafelki „według WZ” i „przyjechało” (puste „przyjechało” = suma wpisanych sztuk)
+const lnSum = L => Object.values(L.d || {}).reduce((a, b) => a + b, 0) + Object.values(L.s || {}).reduce((a, b) => a + b, 0);
+function wzGot() { const c = mode === 'in' && cur && !$('#opSel').hidden ? collectCurrent() : null; return lines.reduce((a, L) => a + lnSum(L), 0) + (c ? lnSum(c) : 0); }
+function wzVals() { const wz = parseInt($('#opWz').value), gi = parseInt($('#opGot').value); return { wz: wz >= 0 ? wz : null, got: gi >= 0 ? gi : wzGot() }; }
+function wzUpd() {
+  if ($('#opWzW').hidden) return; const auto = wzGot(); $('#opGot').placeholder = auto; const { wz, got } = wzVals(), d = $('#opWzD');
+  if (wz === null) { d.textContent = ''; d.className = 'wzd'; return; }
+  const r = got - wz; d.textContent = r === 0 ? '✔ Zgadza się z WZ' : r < 0 ? '⚠ Brakuje ' + -r + ' szt. względem WZ' : '＋ ' + r + ' szt. więcej niż na WZ'; d.className = 'wzd ' + (r === 0 ? 'ok' : r < 0 ? 'bad' : 'plus');
+}
+$('#opWz').oninput = wzUpd; $('#opGot').oninput = wzUpd; $('#opF').addEventListener('input', wzUpd);
 $('#opF').addEventListener('click', e => {
   const b = e.target.closest('#opSewB'); if (!b) return;
   const box = $('#opSewF'), open = box.hidden; box.hidden = !open; b.setAttribute('aria-expanded', open);
@@ -1988,6 +2010,7 @@ async function applyBatch(m, items, note, opt = {}) {
   if (m === 'in' && opKind === 'cnt') entry.kind = 'cnt';
   if (user) entry.by = user;
   if (note) entry.note = note;
+  if (m === 'in' && opt.wz != null) entry.wz = opt.wz; if (m === 'in' && opt.got != null) entry.got = opt.got;
   await R.child('log').push(entry);
   return true;
 }
@@ -2021,6 +2044,7 @@ $('#opOk').onclick = async e => {
   busy = true; $('#opOk').disabled = true; $('#opMore').disabled = true;
   let ok = false;
   const shipped = mode === 'out' ? lines.map(l => ({ id: l.id, d: { ...l.d } })) : null;
+  if (mode === 'in' && !opKind) { const v = wzVals(); if (v.wz !== null) { opt.wz = v.wz; opt.got = v.got; } else if ($('#opGot').value.trim() !== '') opt.got = v.got; }
   try { ok = await applyBatch(mode, lines, $('#opNote').value.trim(), opt); }
   catch (x) { await say('Nie udało się zapisać w bazie.'); }
   busy = false; $('#opOk').disabled = false; $('#opMore').disabled = false;
@@ -2435,7 +2459,7 @@ function renderLog() {
   // na raz rysujemy najwyżej logShow wpisów (duża lista potrafiła wysypać przeglądarkę na telefonie)
   const more = list.length - logShow;
   $('#logL').innerHTML = list.slice(0, logShow).map((l, i) => {
-    const parts = [fmtD(l.d), l.s ? '<span class="sw">bez naklejki (do szwalni): ' + fmtD(l.s) + '</span>' : '', l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? (l.m === 'sewin' ? 'zostało na głównym magazynie: ' : 'nie wróciło: ') + fmtD(l.lost) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
+    const parts = [fmtD(l.d), l.s ? '<span class="sw">bez naklejki (do szwalni): ' + fmtD(l.s) + '</span>' : '', l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? (l.m === 'sewin' ? 'zostało na głównym magazynie: ' : 'nie wróciło: ') + fmtD(l.lost) : '', l.wz != null || l.got != null ? wzTxt(l) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
     const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.s ? (Object.keys(it.d || {}).length ? ', ' : '') + '<span class="sw">bez naklejki: ' + fmtD(it.s) + '</span>' : '') + (it.lost ? (l.m === 'sewin' ? ', zostało na głównym magazynie: ' : ', nie wróciło: ') + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
     return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canDel && l.k && UNM.includes(l.m) ? `<button type="button" class="lge" data-k="${esc(l.k)}" aria-label="Edytuj wpis" title="Edytuj wpis (widoczne tylko dla delmy)">✎</button>` : ''}${canEdit() && l.k && UNM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${l.m === 'stock' ? 'stk' : LOGC[l.m] || 'out'}">${l.m === 'stock' ? '✎ Korekta stanu' : logT(l)}</b> ${esc(l.sku)} ${esc(l.name)}${l.priv ? ' <span class="lgpv" title="Nie ma tego w historii innych osób ani w eksporcie">tylko delma</span>' : ''}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}${canDel && l.k && AUD[l.k] ? ` <button type="button" class="lged" data-k="${esc(l.k)}" title="Pokaż, co zmieniono">edytowano</button>` : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}${canDel && l.k && AUD[l.k] && audOpen.has(l.k) ? audHtml(l.k) : ''}</div>`;
