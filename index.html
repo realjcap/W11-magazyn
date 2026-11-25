@@ -117,7 +117,8 @@ button:hover,.btn:hover{border-color:var(--ac)}
 .lgpv{font-size:11px;padding:1px 6px;border-radius:9px;border:1px dashed var(--am);color:var(--am);white-space:nowrap}
 .wzt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .wzt label{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1.5px solid var(--bd,#d0d7de);border-radius:10px;background:var(--bg2,rgba(127,127,127,.06))}
-.wzt small{font-size:12px;color:var(--mu,#777)}.wzt input{font-size:20px;font-weight:700;width:100%;box-sizing:border-box}
+.wzt small{font-size:12px;color:var(--mu,#777)}.wzt b{font-size:20px}
+.row2 input.wzi{border-color:#8c959f;background:rgba(127,127,127,.08)}.rh span.wzc{color:#57606a;font-weight:600}.row.wzbad input.wzi{border-color:#cf222e;color:#cf222e}
 .wzd{grid-column:1/-1;font-size:13px;font-weight:600;min-height:1em}.wzd.ok{color:#1a7f37}.wzd.bad{color:#cf222e}.wzd.plus{color:#9a6700}
 .wzh.bad{color:#cf222e;font-weight:600}.wzh.plus{color:#9a6700;font-weight:600}.wzh.ok{color:#1a7f37}
 .swb{margin-top:10px;width:100%;border:1.5px dashed var(--sw);color:var(--sw);background:transparent;font-weight:600}
@@ -895,8 +896,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <div id="opF"></div>
   </div>
   <div class="wzt" id="opWzW" hidden>
-    <label><small>Według WZ (szt.)</small><input type="number" id="opWz" min="0" inputmode="numeric" placeholder="0"></label>
-    <label><small>Przyjechało (szt.)</small><input type="number" id="opGot" min="0" inputmode="numeric" placeholder="0"></label>
+    <label><small>Według WZ – razem</small><b id="opWz">0</b></label>
+    <label><small>Przyjechało – razem</small><b id="opGot">0</b></label>
     <div class="wzd" id="opWzD"></div>
   </div>
   <label class="f" id="opNoteW" hidden><small>Notatka do całej listy (opcjonalnie)</small><input id="opNote" maxlength="80" placeholder="np. numer dostawy, zamówienie"></label>
@@ -1217,12 +1218,13 @@ function cleanLogEntry(l) {
   if (Object.keys(lost).length) o.lost = lost;
   const ol = numMap(l.o); if (Object.keys(ol).length) { o.o = ol; o.osku = txt(l.osku, 60); }
   const sw = numMap(l.s); if (Object.keys(sw).length) o.s = sw;
+  const lw = numMap(l.w); if (Object.keys(lw).length) o.w = lw;
   if (o.m === 'in' && l.kind === 'cnt') o.kind = 'cnt';
   if (o.m === 'in' && l.wz != null && Number(l.wz) >= 0) o.wz = Math.floor(Number(l.wz)); if (o.m === 'in' && l.got != null && Number(l.got) >= 0) o.got = Math.floor(Number(l.got));
   if (typeof l.ref === 'string' && okId(l.ref)) o.ref = l.ref;
   if (typeof l.pid === 'string' && okId(l.pid)) o.pid = l.pid;
   const its = Object.values(toObj(l.items)).slice(0, 60).filter(it => it && typeof it === 'object');
-  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; const io = numMap(it.o); if (Object.keys(io).length) { x.o = io; x.osku = txt(it.osku, 60); } if (typeof it.pid === 'string' && okId(it.pid)) x.pid = it.pid; const is = numMap(it.s); if (Object.keys(is).length) x.s = is; return x; });
+  if (its.length) o.items = its.map(it => { const x = { name: txt(it.name, 120), sku: txt(it.sku, 60), d: numMap(it.d) }; const lo = numMap(it.lost); if (Object.keys(lo).length) x.lost = lo; const io = numMap(it.o); if (Object.keys(io).length) { x.o = io; x.osku = txt(it.osku, 60); } if (typeof it.pid === 'string' && okId(it.pid)) x.pid = it.pid; const is = numMap(it.s); if (Object.keys(is).length) x.s = is; const iw = numMap(it.w); if (Object.keys(iw).length) x.w = iw; return x; });
   return o;
 }
 const zval = v => { if (v === 1 || v === true) return 1; if (typeof v !== 'string') return null; const t = [...new Set(v.split(',').filter(x => /^\d{1,2}:\d{1,2}$/.test(x)))]; return t.length ? t.sort().join(',') : null; };
@@ -1509,7 +1511,7 @@ function renderLines() {
   const box = $('#opLines');
   box.hidden = !lines.length;
   box.innerHTML = lines.length ? '<div class="lh">Na liście: ' + plural(lines.length) + '</div>' + lines.map((l, i) =>
-    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d, mode === 'set' ? ' = ' : ' × ')}${l.o ? ' (w tym stare: ' + fmtD(l.o, mode === 'set' ? ' = ' : ' × ') + ')' : ''}${l.s ? '<span class="sw">' + (Object.keys(l.d).length ? ' + ' : '') + 'bez naklejki: ' + fmtD(l.s) + '</span>' : ''}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
+    `<div class="ln"><div><b>${esc(l.name)}</b> <small class="mu">SKU ${esc(l.sku)}</small><br><small>${fmtD(l.d, mode === 'set' ? ' = ' : ' × ')}${l.o ? ' (w tym stare: ' + fmtD(l.o, mode === 'set' ? ' = ' : ' × ') + ')' : ''}${l.s ? '<span class="sw">' + (Object.keys(l.d).length ? ' + ' : '') + 'bez naklejki: ' + fmtD(l.s) + '</span>' : ''}${l.w ? ' <span class="mu">· WZ: ' + fmtD(l.w) + '</span>' : ''}</small></div><button type="button" data-i="${i}" aria-label="Usuń z listy">✕</button></div>`).join('') : '';
 }
 function setStep(step) {
   $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
@@ -1599,7 +1601,7 @@ function handleScan(code) {
   beep();
   let inp = null;
   if (r.size !== '*') {
-    const sel = mode === 'in' && cur.oldSku ? `input[data-t="${r.old ? 'o' : 'n'}"][data-s="${CSS.escape(r.size)}"]` : `input[data-s="${CSS.escape(r.size)}"]`;
+    const sel = mode === 'in' && cur.oldSku ? `input[data-t="${r.old ? 'o' : 'n'}"][data-s="${CSS.escape(r.size)}"]` : `input[data-s="${CSS.escape(r.size)}"]:not([data-t])`;
     inp = $('#opF').querySelector(sel);
   }
   if (inp) {
@@ -1610,7 +1612,7 @@ function handleScan(code) {
     inp.focus();
   } else {
     stopCam();
-    const f = $('#opF').querySelector(r.old && mode === 'in' && cur.oldSku ? 'input[data-t="o"]' : 'input'); if (f) f.focus();
+    const f = $('#opF').querySelector(r.old && mode === 'in' && cur.oldSku ? 'input[data-t="o"]' : 'input:not([data-t="w"])'); if (f) f.focus();
   }
 }
 function showUnknown(code, pre) {
@@ -1808,7 +1810,7 @@ $('#pd').addEventListener('close', () => { if (scanTarget === 'code') { stopCam(
     if ((r && !S.products.some(p => p.name.toLowerCase() === v.toLowerCase())) || (fast && CODE_RE.test(v))) { e.preventDefault(); searchScan(v); }
   });
 }
-$('#scanX').onclick = () => { stopCam(); if (scanTarget === 'search') { $('#scanD').close(); return; } if (scanTarget === 'code') return; const f = cur && $('#opF').querySelector('input'); if (f) f.focus(); };
+$('#scanX').onclick = () => { stopCam(); if (scanTarget === 'search') { $('#scanD').close(); return; } if (scanTarget === 'code') return; const f = cur && $('#opF').querySelector('input:not([data-t="w"])'); if (f) f.focus(); };
 $('#op').addEventListener('close', stopCam);
 // opKind: 'cnt' = liczenie / korekta (dostawa, która nie jest dostawą: bez arkusza i statystyk)
 let opKind = '';
@@ -1821,7 +1823,7 @@ function openOp(m, id, kind) {
   $('#opT').textContent = opKind ? 'Liczenie / korekta' : MODES[m].t;
   $('#opOk').className = MODES[m].c;
   $('#opOk').textContent = MODES[m].ok;
-  $('#opNote').value = ''; $('#opWz').value = ''; $('#opGot').value = '';
+  $('#opNote').value = '';
   $('#opQ').value = '';
   const p = id ? S.products.find(x => x.id === id) : null;
   if (p) pickItem(p); else showPick();
@@ -1844,18 +1846,23 @@ function pickItem(p) {
   setStep('sizes');
   $('#opN').textContent = p.name; $('#opS').textContent = 'SKU ' + p.sku + (p.oldSku ? ' · stare SKU ' + p.oldSku + ' (wydawane najpierw)' : '');
   if ((mode === 'set' || mode === 'in') && p.oldSku) {
-    const st = mode === 'set';
-    $('#opF').innerHTML = '<div class="rh"><span>' + esc(p.sku) + '</span><span>stare ' + esc(p.oldSku) + '</span></div>' + sizesOf(p).map(s => {
+    const st = mode === 'set', wz = !st && !opKind;
+    $('#opF').innerHTML = '<div class="rh">' + (wz ? '<span class="wzc">wg WZ</span>' : '') + '<span>' + esc(p.sku) + '</span><span>stare ' + esc(p.oldSku) + '</span></div>' + sizesOf(p).map(s => {
       const o = (p.old && p.old[s]) || 0, n = (p.sizes[s] || 0) - o;
-      return `<div class="row row2"><span>${esc(s)} <small class="mu">${st ? 'teraz' : 'stan'} ${n} + ${o}</small></span><span class="ins">
+      return `<div class="row row2"><span>${esc(s)} <small class="mu">${st ? 'teraz' : 'stan'} ${n} + ${o}</small></span><span class="ins">${wz ? `
+        <input type="number" inputmode="numeric" min="0" placeholder="0" data-s="${esc(s)}" data-t="w" class="wzi" aria-label="${esc(s)} według WZ">` : ''}
         <input type="number" inputmode="numeric" min="0" placeholder="${st ? n : 0}" data-s="${esc(s)}" data-t="n" aria-label="${esc(s)} nowe SKU">
         <input type="number" inputmode="numeric" min="0" placeholder="${st ? o : 0}" data-s="${esc(s)}" data-t="o" aria-label="${esc(s)} stare SKU"></span></div>`;
     }).join('') + (st || opKind ? '' : sewHtml(p));
     return;
   }
-  $('#opF').innerHTML = (mode === 'sewin' ? Object.keys(p.sew || {}).sort(bySize) : sizesOf(p)).map(s => {
+  const wzOn = mode === 'in' && !opKind;
+  $('#opF').innerHTML = (wzOn ? '<div class="rh"><span class="wzc">wg WZ</span><span>przyjechało</span></div>' : '') + (mode === 'sewin' ? Object.keys(p.sew || {}).sort(bySize) : sizesOf(p)).map(s => {
     const n = p.sizes[s] || 0, e = (p.ev && p.ev[s]) || 0, w = (p.sew && p.sew[s]) || 0, av = mode === 'evin' ? e : mode === 'sewin' ? w : n;
     const lim = mode === 'in' || mode === 'set' ? '' : ' max="' + av + '"';
+    if (wzOn) return `<div class="row row2"><span>${esc(s)} <small class="mu">stan ${av}</small></span><span class="ins">
+      <input type="number" inputmode="numeric" min="0" placeholder="0" data-s="${esc(s)}" data-t="w" class="wzi" aria-label="${esc(s)} według WZ">
+      <input type="number" inputmode="numeric" min="0" placeholder="0" data-s="${esc(s)}" aria-label="${esc(s)} przyjechało"></span></div>`;
     return `<label class="row"><span>${esc(s)} <small class="${mode === 'sewin' ? 'sw' : 'mu'}">${mode === 'evin' ? 'na evencie' : mode === 'sewin' ? 'w szwalni' : mode === 'set' ? 'teraz' : 'stan'} ${av}</small></span>
       <input type="number" inputmode="numeric" min="0"${lim} placeholder="${mode === 'set' ? av : 0}" data-s="${esc(s)}"></label>`;
   }).join('') + (mode === 'in' && !opKind ? sewHtml(p) : '');
@@ -1865,15 +1872,18 @@ function sewHtml(p) {
   return `<button type="button" class="swb" id="opSewB" aria-expanded="false">＋ Bez naklejki (do szwalni)</button><div id="opSewF" hidden><small class="sw" style="display:block;margin-bottom:6px">Ile sztuk przyszło bez naklejki – jadą do szwalni i nie liczą się do stanu, dopóki nie wrócą.</small>${sizesOf(p).map(s => `<label class="row"><span>${esc(s)} <small>w szwalni ${(p.sew && p.sew[s]) || 0}</small></span><input type="number" inputmode="numeric" min="0" placeholder="0" data-s="${esc(s)}" data-t="s" aria-label="${esc(s)} bez naklejki"></label>`).join('')}</div>`;
 }
 // dostawa: kafelki „według WZ” i „przyjechało” (puste „przyjechało” = suma wpisanych sztuk)
-const lnSum = L => Object.values(L.d || {}).reduce((a, b) => a + b, 0) + Object.values(L.s || {}).reduce((a, b) => a + b, 0);
-function wzGot() { const c = mode === 'in' && cur && !$('#opSel').hidden ? collectCurrent() : null; return lines.reduce((a, L) => a + lnSum(L), 0) + (c ? lnSum(c) : 0); }
-function wzVals() { const wz = parseInt($('#opWz').value), gi = parseInt($('#opGot').value); return { wz: wz >= 0 ? wz : null, got: gi >= 0 ? gi : wzGot() }; }
+// WZ wpisywane przy każdym rozmiarze; przyjechało = na stan + bez naklejki
+const mSum = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
+const lnGot = L => mSum(L.d) + mSum(L.s);
+function wzAll() { const c = mode === 'in' && cur && !$('#opSel').hidden ? collectCurrent() : null, ls = c ? [...lines.filter(l => l.id !== c.id), c] : lines; return { wz: ls.reduce((a, L) => a + mSum(L.w), 0), got: ls.reduce((a, L) => a + lnGot(L), 0), ls }; }
 function wzUpd() {
-  if ($('#opWzW').hidden) return; const auto = wzGot(); $('#opGot').placeholder = auto; const { wz, got } = wzVals(), d = $('#opWzD');
-  if (wz === null) { d.textContent = ''; d.className = 'wzd'; return; }
+  if ($('#opWzW').hidden) return; const { wz, got } = wzAll(), d = $('#opWzD'); $('#opWz').textContent = wz; $('#opGot').textContent = got;
+  // podświetlenie rozmiarów, które nie zgadzają się z WZ
+  $('#opF').querySelectorAll('input[data-t="w"]').forEach(i => { const s = i.dataset.s, w = parseInt(i.value) || 0; let g = 0; $('#opF').querySelectorAll('input[data-s="' + CSS.escape(s) + '"]:not([data-t="w"])').forEach(x => { g += parseInt(x.value) || 0; }); i.closest('.row').classList.toggle('wzbad', i.value !== '' && w !== g); });
+  if (!wz) { d.textContent = ''; d.className = 'wzd'; return; }
   const r = got - wz; d.textContent = r === 0 ? '✔ Zgadza się z WZ' : r < 0 ? '⚠ Brakuje ' + -r + ' szt. względem WZ' : '＋ ' + r + ' szt. więcej niż na WZ'; d.className = 'wzd ' + (r === 0 ? 'ok' : r < 0 ? 'bad' : 'plus');
 }
-$('#opWz').oninput = wzUpd; $('#opGot').oninput = wzUpd; $('#opF').addEventListener('input', wzUpd);
+$('#opF').addEventListener('input', wzUpd);
 $('#opF').addEventListener('click', e => {
   const b = e.target.closest('#opSewB'); if (!b) return;
   const box = $('#opSewF'), open = box.hidden; box.hidden = !open; b.setAttribute('aria-expanded', open);
@@ -1882,10 +1892,11 @@ $('#opF').addEventListener('click', e => {
 function collectCurrent() {
   let L = collectBase();
   if (mode !== 'in' || !cur || $('#opSel').hidden) return L;
-  const sw = {}; $('#opF').querySelectorAll('input[data-t="s"]').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) sw[i.dataset.s] = n; });
-  if (!Object.keys(sw).length) return L;
+  const sw = {}, wz = {}; $('#opF').querySelectorAll('input[data-t="s"]').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) sw[i.dataset.s] = n; });
+  $('#opF').querySelectorAll('input[data-t="w"]').forEach(i => { const n = parseInt(i.value) || 0; if (n > 0) wz[i.dataset.s] = n; });
+  if (!Object.keys(sw).length && !Object.keys(wz).length) return L;
   L = L || { id: cur.id, name: cur.name, sku: cur.sku, d: {} };
-  L.s = sw; return L;
+  if (Object.keys(sw).length) L.s = sw; if (Object.keys(wz).length) L.w = wz; return L;
 }
 function collectBase() {
   if (!cur || $('#opSel').hidden) return null;
@@ -1911,7 +1922,7 @@ function collectBase() {
     });
     return Object.keys(d).length ? { id: cur.id, name: cur.name, sku: cur.sku, d, o } : null;
   }
-  $('#opF').querySelectorAll('input:not([data-t="s"])').forEach(i => {
+  $('#opF').querySelectorAll('input:not([data-t])').forEach(i => {
     if (mode === 'set') { if (i.value.trim() === '') return; const n = Math.max(0, parseInt(i.value) || 0); if (n !== (cur.sizes[i.dataset.s] || 0)) d[i.dataset.s] = n; return; }
     const n = parseInt(i.value) || 0; if (n > 0) d[i.dataset.s] = n;
   });
@@ -1919,7 +1930,7 @@ function collectBase() {
 }
 function addLine(L) {
   const x = lines.find(l => l.id === L.id);
-  if (x) { for (const k in L.d) x.d[k] = mode === 'set' ? L.d[k] : (x.d[k] || 0) + L.d[k]; if (L.o) { x.o = x.o || {}; for (const k in L.o) x.o[k] = mode === 'set' ? L.o[k] : (x.o[k] || 0) + L.o[k]; } if (L.s) { x.s = x.s || {}; for (const k in L.s) x.s[k] = (x.s[k] || 0) + L.s[k]; } } else lines.push(L);
+  if (x) { for (const k in L.d) x.d[k] = mode === 'set' ? L.d[k] : (x.d[k] || 0) + L.d[k]; if (L.o) { x.o = x.o || {}; for (const k in L.o) x.o[k] = mode === 'set' ? L.o[k] : (x.o[k] || 0) + L.o[k]; } if (L.s) { x.s = x.s || {}; for (const k in L.s) x.s[k] = (x.s[k] || 0) + L.s[k]; } if (L.w) { x.w = x.w || {}; for (const k in L.w) x.w[k] = (x.w[k] || 0) + L.w[k]; } } else lines.push(L);
 }
 $('#opQ').oninput = fillList;
 $('#opQ').onkeydown = e => {
@@ -2000,17 +2011,18 @@ async function applyBatch(m, items, note, opt = {}) {
   if (!res.committed) { if (err) await say(err); return false; }
   if (!res.snapshot.val()) { await say('Nie udało się zapisać zmian. Spróbuj ponownie.'); return false; }
   if (m === 'set') return true; // stan początkowy: celowo bez wpisu w historii
-  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d, pid: L.id }; if (m === 'in' && L.s) it.s = L.s; if (lostBy[L.id]) it.lost = lostBy[L.id]; if (oldBy[L.id]) { it.o = oldBy[L.id]; it.osku = oskuBy[L.id]; } return it; });
+  const its = items.map(L => { const it = { name: L.name, sku: L.sku, d: L.d, pid: L.id }; if (m === 'in' && L.s) it.s = L.s; if (m === 'in' && L.w && opKind !== 'cnt') it.w = L.w; if (lostBy[L.id]) it.lost = lostBy[L.id]; if (oldBy[L.id]) { it.o = oldBy[L.id]; it.osku = oskuBy[L.id]; } return it; });
   const entry = its.length === 1 ? { t: firebase.database.ServerValue.TIMESTAMP, name: its[0].name, sku: its[0].sku, m, d: its[0].d }
     : { t: firebase.database.ServerValue.TIMESTAMP, name: plural(its.length), sku: '', m, items: its };
   if (its.length === 1 && its[0].lost) entry.lost = its[0].lost;
   if (its.length === 1 && its[0].s) entry.s = its[0].s;
+  if (its.length === 1 && its[0].w) entry.w = its[0].w;
   if (its.length === 1 && its[0].o) { entry.o = its[0].o; entry.osku = its[0].osku; }
   if (its.length === 1) entry.pid = its[0].pid;
   if (m === 'in' && opKind === 'cnt') entry.kind = 'cnt';
   if (user) entry.by = user;
   if (note) entry.note = note;
-  if (m === 'in' && opt.wz != null) entry.wz = opt.wz; if (m === 'in' && opt.got != null) entry.got = opt.got;
+  if (its.some(it => it.w)) { entry.wz = its.reduce((a, it) => a + mSum(it.w), 0); entry.got = its.reduce((a, it) => a + lnGot(it), 0); }
   await R.child('log').push(entry);
   return true;
 }
@@ -2044,7 +2056,6 @@ $('#opOk').onclick = async e => {
   busy = true; $('#opOk').disabled = true; $('#opMore').disabled = true;
   let ok = false;
   const shipped = mode === 'out' ? lines.map(l => ({ id: l.id, d: { ...l.d } })) : null;
-  if (mode === 'in' && !opKind) { const v = wzVals(); if (v.wz !== null) { opt.wz = v.wz; opt.got = v.got; } else if ($('#opGot').value.trim() !== '') opt.got = v.got; }
   try { ok = await applyBatch(mode, lines, $('#opNote').value.trim(), opt); }
   catch (x) { await say('Nie udało się zapisać w bazie.'); }
   busy = false; $('#opOk').disabled = false; $('#opMore').disabled = false;
@@ -2459,8 +2470,8 @@ function renderLog() {
   // na raz rysujemy najwyżej logShow wpisów (duża lista potrafiła wysypać przeglądarkę na telefonie)
   const more = list.length - logShow;
   $('#logL').innerHTML = list.slice(0, logShow).map((l, i) => {
-    const parts = [fmtD(l.d), l.s ? '<span class="sw">bez naklejki (do szwalni): ' + fmtD(l.s) + '</span>' : '', l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? (l.m === 'sewin' ? 'zostało na głównym magazynie: ' : 'nie wróciło: ') + fmtD(l.lost) : '', l.wz != null || l.got != null ? wzTxt(l) : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
-    const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.s ? (Object.keys(it.d || {}).length ? ', ' : '') + '<span class="sw">bez naklejki: ' + fmtD(it.s) + '</span>' : '') + (it.lost ? (l.m === 'sewin' ? ', zostało na głównym magazynie: ' : ', nie wróciło: ') + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
+    const parts = [fmtD(l.d), l.s ? '<span class="sw">bez naklejki (do szwalni): ' + fmtD(l.s) + '</span>' : '', l.o ? 'w tym stare SKU ' + esc(l.osku) + ': ' + fmtD(l.o) : '', l.lost ? (l.m === 'sewin' ? 'zostało na głównym magazynie: ' : 'nie wróciło: ') + fmtD(l.lost) : '', l.wz != null || l.got != null ? wzTxt(l) + (l.w ? ' <small class="mu">(WZ: ' + fmtD(l.w) + ')</small>' : '') : '', l.note ? esc(l.note) : ''].filter(Boolean).map((x, i) => (i ? ', ' : ': ') + x).join('');
+    const its = l.items && l.items.length ? '<ul class="its">' + l.items.map(it => '<li><b>' + esc(it.sku) + '</b> ' + esc(it.name) + ': ' + fmtD(it.d) + (it.o ? ', w tym stare SKU ' + esc(it.osku) + ': ' + fmtD(it.o) : '') + (it.s ? (Object.keys(it.d || {}).length ? ', ' : '') + '<span class="sw">bez naklejki: ' + fmtD(it.s) + '</span>' : '') + (it.w ? ' <small class="mu">(WZ: ' + fmtD(it.w) + ')</small>' : '') + (it.lost ? (l.m === 'sewin' ? ', zostało na głównym magazynie: ' : ', nie wróciło: ') + fmtD(it.lost) : '') + '</li>').join('') + '</ul>' : '';
     return `<div class="lg${i < 15 ? ' an' : ''}${l.k && undone.has(l.k) ? ' undone' : ''}" style="--i:${Math.min(i, 12)}">${canDel && l.k ? `<button type="button" class="lgx" data-k="${esc(l.k)}" aria-label="Usuń wpis" title="Usuń wpis z historii">✕</button>` : ''}${canDel && l.k && UNM.includes(l.m) ? `<button type="button" class="lge" data-k="${esc(l.k)}" aria-label="Edytuj wpis" title="Edytuj wpis (widoczne tylko dla delmy)">✎</button>` : ''}${canEdit() && l.k && UNM.includes(l.m) && !undone.has(l.k) ? `<button type="button" class="lgu" data-k="${esc(l.k)}" title="Cofnij tę operację (stany wrócą do poprzednich)">↶ Cofnij</button>` : ''}<b class="${l.m === 'stock' ? 'stk' : LOGC[l.m] || 'out'}">${l.m === 'stock' ? '✎ Korekta stanu' : logT(l)}</b> ${esc(l.sku)} ${esc(l.name)}${l.priv ? ' <span class="lgpv" title="Nie ma tego w historii innych osób ani w eksporcie">tylko delma</span>' : ''}${l.k && undone.has(l.k) ? ' <span class="lgud">cofnięte</span>' : ''}${canDel && l.k && AUD[l.k] ? ` <button type="button" class="lged" data-k="${esc(l.k)}" title="Pokaż, co zmieniono">edytowano</button>` : ''}<br>
     <small class="mu">${new Date(l.t).toLocaleString('pl-PL')}${l.by ? ' · <b>' + esc(cap(l.by)) + '</b>' : ''}${parts}</small>${its}${canDel && l.k && AUD[l.k] && audOpen.has(l.k) ? audHtml(l.k) : ''}</div>`;
   }).join('') + (more > 0 ? `<button type="button" id="logMore" class="logmore">Pokaż kolejne ${Math.min(LOG_STEP, more)} (zostało ${more})</button>` : '') || '<p class="mu">' + (f || q ? 'Nic nie pasuje.' : 'Brak zapisanych zmian.') + '</p>';
