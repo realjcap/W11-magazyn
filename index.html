@@ -475,6 +475,14 @@ dialog[open]{opacity:1;transform:none}
 #fnSub b{color:#ffd34d}
 #fnOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:14px;padding:0 7%;background:linear-gradient(90deg,rgba(0,0,0,.92) 0,rgba(0,0,0,.75) 45%,rgba(0,0,0,.25) 100%);color:#ddd;font-family:'Courier New',monospace}
 #fnOv[hidden]{display:none}
+#dbgP{position:fixed;left:10px;top:10px;z-index:99;width:min(420px,calc(100vw - 20px));max-height:calc(100dvh - 20px);overflow:auto;background:rgba(12,14,18,.93);color:#dfe6ee;border:1px solid #3a4a5c;border-radius:8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.6);text-align:left;cursor:auto}
+#dbgP[hidden]{display:none}
+#dbgP .dh{display:flex;align-items:center;gap:8px;margin-bottom:6px}#dbgP .dh b{flex:1;color:#ffcf4a}#dbgP .dh span{color:#7fd08a;font-family:monospace}
+#dbgP button{all:unset;cursor:pointer;display:inline-block;margin:2px 3px 2px 0;padding:3px 7px;border:1px solid #445468;border-radius:4px;background:#1d2530;color:#dfe6ee;font:12px system-ui,sans-serif}
+#dbgP button:hover{background:#2b3747}#dbgP button.on{background:#2f6b3a;border-color:#5fbf6f}
+#dbgP .db{margin-bottom:5px}#dbgP .dr{border-top:1px solid #263140;padding:4px 0}#dbgP .dr small{display:block;color:#9fb3c8;margin-bottom:2px}
+#dbgP .ds{display:flex;flex-wrap:wrap;gap:3px 10px;border-top:1px solid #263140;padding-top:5px;font-family:monospace;font-size:11px}#dbgP .ds i{color:#7f93a8;font-style:normal;margin-right:4px}
+#dbgP .dn{margin-top:6px;color:#e0a05a;font-size:11px}
 #fnPrn{position:absolute;right:14px;bottom:52px;display:flex;align-items:center;gap:10px;pointer-events:none;opacity:0;z-index:4}
 #fnPrn.on{opacity:1}
 #fnPrn i{display:block;width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:conic-gradient(#fff var(--p,360deg),rgba(0,0,0,.45) 0);box-shadow:0 0 6px rgba(0,0,0,.6)}
@@ -3572,7 +3580,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '578b3f6282'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '99d1508f6c'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
