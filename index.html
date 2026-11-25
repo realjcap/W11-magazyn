@@ -3526,6 +3526,12 @@ function presTick() {
 function presStop() { if (presRef && auth && auth.currentUser) db.ref(ROOT + '-presence/' + auth.currentUser.uid + '/_last/at').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
   if (presRef) { try { presRef.onDisconnect().cancel(); } catch (e) {} presRef.remove().catch(() => {}); presRef = null; } presLast = ''; }
 setInterval(presTick, 2500); document.addEventListener('visibilitychange', presTick);
+// kilka kart/urządzeń jednego konta: pokazujemy jeden status (aktywna karta, a z nich najświeższa), resztę jako licznik
+function presMain(ss) {
+  if (!ss.length) return ''; const bg = x => /\(karta w tle\)/.test(x.where);
+  const m = ss.slice().sort((a, b) => (bg(a) - bg(b)) || b.at - a.at)[0], rest = ss.length - 1;
+  return `<span class="wh">${esc(m.where)}</span>` + (rest ? `<span class="wh mu" style="font-size:11px">+ ${rest} ${rest === 1 ? 'inna karta' : rest < 5 ? 'inne karty' : 'innych kart'}</span>` : '');
+}
 function presRender() {
   const ACT = 150000, now = Date.now(), list = [];
   const ago = t => { const s = Math.max(0, (now - t) / 1000 | 0); return s < 90 ? 'teraz' : s < 3600 ? Math.round(s / 60) + ' min temu' : s < 86400 ? Math.round(s / 3600) + ' h temu' : s < 7 * 86400 ? Math.round(s / 86400) + ' dni temu' : new Date(t).toLocaleDateString('pl-PL'); };
@@ -3547,7 +3553,7 @@ function presRender() {
   $('#presN').textContent = list.length ? '· online ' + list.filter(r => r.on).length + '/' + list.length : '';
   const me = auth && auth.currentUser && auth.currentUser.uid;
   $('#presL').innerHTML = list.length ? list.map(r => r.on
-    ? `<div class="pr"><i class="dot"></i><b>${esc(r.name)}${r.uid === me ? ' <span class="mu">(Ty)</span>' : ''}</b><small>teraz</small>${r.sess.map(x => `<span class="wh">${esc(x.where)}</span>`).join('')}</div>`
+    ? `<div class="pr"><i class="dot"></i><b>${esc(r.name)}${r.uid === me ? ' <span class="mu">(Ty)</span>' : ''}</b><small>teraz</small>${presMain(r.sess)}</div>`
     : `<div class="pr off"><i class="dot"></i><b>${esc(r.name)}</b><small>${r.at ? ago(r.at) : '—'}</small><span class="wh">${r.where ? 'ostatnio: ' + esc(r.where) : r.auth ? 'logowanie: ' + new Date(r.auth).toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jeszcze nie był'}</span></div>`).join('') : '<p class="mu">Nikogo jeszcze nie było.</p>';
 }
 // panel „Aktywni” po prawej (między stroną a przyciskiem Slacka) – stale widoczny, tylko dla delmy, tylko na szerokim ekranie
