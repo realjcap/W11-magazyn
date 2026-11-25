@@ -815,7 +815,7 @@ const FN = (() => {
     cam.position.set(17.3, 1.15, 6.9); YAWMAX = 1.45;
     // GLTFLoader usuwa kropki z nazw węzłów
     const byName = n => FNM.getObjectByName(n) || FNM.getObjectByName(n.replace(/\./g, '')); G.byName = byName;
-    ['fn_gaming_chair.i', 'fn_gaming_chair.i.001'].forEach(n => { const c = byName(n); if (c) c.visible = false; });
+    ['fn_gaming_chair.i', 'fn_gaming_chair.i.001', 'fn_bin_rack.i.005'].forEach(n => { const c = byName(n); if (c) c.visible = false; }); // .005 = regał na kuwety najbliżej drzwi
     phone.g.position.set(18.75, .75, 6.15); phone.g.rotation.y = -.35;
     fnScreens(); prnInit();
     // laptop na biurku pod oknem (lewa strona) – niewidzialny obszar do klikania = system kamer
@@ -875,7 +875,7 @@ const FN = (() => {
     const zone = (n, x0, x1, z0, z1, cls = '') => `<div class="z ${cls}" style="left:${U(x0)};top:${V(z0)};width:${((x1 - x0) / 50.3 * 100).toFixed(1)}%;height:${((z1 - z0) / 16.3 * 100).toFixed(1)}%">${n}</div>`;
     const cams = G.cams.map(c => [c.c.position.x, c.c.position.z]);
     $('#fnMap').classList.add('hall');
-    $('#fnMap').innerHTML = zone('REGAŁ', -24.6, 24.2, -8.1, -6.9) + zone('REGAŁY', -18.2, .9, -4.94, -2.56) + zone('', -18.2, .9, 1.06, 3.44) + zone('KUWETY', 9.9, 21, -.15, 4.15)
+    $('#fnMap').innerHTML = zone('REGAŁ', -24.6, 24.2, -8.1, -6.9) + zone('REGAŁY', -18.2, .9, -4.94, -2.56) + zone('', -18.2, .9, 1.06, 3.44) + zone('KUWETY', 9.9, 19.5, -.15, 4.15)
       + zone('WYSYŁKI', 8, 20, -6.6, -4.2) + zone('ZGRZEWKI', -22.8, -18.65, -5.2, 3.65, 'zg') + zone('MIXY', -14.3, -9.1, -6.85, -5.1, 'zg') + zone('STANOWISKA', 1, 15.7, 7.2, 8.15) + zone('KANCIAPA', 15.75, 21.2, 5.57, 8.15, 'kan') + zone('', -25.1, -23.9, -6.9, 7.5)
       + `<i class="you" style="left:${U(17.3)};top:${V(6.9)}"></i>`
       + cams.map(([x, z], i) => `<button type="button" data-c="${i}" style="left:${U(x)};top:${V(z)}">${i + 1}</button>`).join('');
