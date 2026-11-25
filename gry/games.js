@@ -206,7 +206,8 @@ function hubOpen() {
 // kto w co grał: ROOT-plays/<gra>/<uid> = { name, n, last }. Zapis: każdy swój licznik; odczyt i podgląd w hubie: tylko delma
 function playRec(g) {
   const me = lbMe(); if (!db || !me || !user) return;
-  db.ref(ROOT + '-plays/' + g + '/' + me).transaction(v => ({ name: cap(user), n: Math.min(100000, ((v && Number(v.n)) || 0) + 1), last: Date.now() })).catch(() => {});
+  // bez odczytu (tylko delma może czytać -plays), więc licznik przez increment po stronie serwera
+  db.ref(ROOT + '-plays/' + g + '/' + me).update({ name: cap(user), n: firebase.database.ServerValue.increment(1), last: Date.now() }).catch(e => console.warn('plays', e));
 }
 function playsShow() {
   document.querySelectorAll('#hub .hubpl').forEach(e => e.remove());
