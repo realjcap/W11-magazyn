@@ -1327,14 +1327,16 @@ const FN = (() => {
   function prnTick(dt) {
     if (!phone.prnL) return;
     if (!G.out && (G.st === 'night' || G.st === 'call')) { G.prn -= dt; if (G.prn <= 0) prnJam(); }
-    const left = G.prn, warn = left < 12 && !G.out && PLAY.includes(G.st);
+    const left = G.prn, warn = left < 10 && !G.out && PLAY.includes(G.st);
     // im mniej czasu, tym szybciej miga (wykrzyknik, czerwone światło drukarki) i piszczy
-    G.prnPh = (G.prnPh || 0) + dt * (warn ? 1.2 + (12 - left) * .55 : .6);
+    G.prnPh = (G.prnPh || 0) + dt * (warn ? 1.4 + (10 - left) * .65 : .6);
     const on = warn && (G.prnPh % 1) < .5;
     if (on && !G.prnOn && audio) { const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = 2500 + (12 - left) * 60; g.gain.setValueAtTime(.025 + (12 - left) * .004, ac.currentTime); g.gain.setValueAtTime(0, ac.currentTime + .09); o.connect(g).connect(master); o.start(); o.stop(ac.currentTime + .1); }
     G.prnOn = on; phone.prnL.intensity = on ? 2 + (12 - left) * .4 : 0;
-    const box = $('#fnPrn'), show = left < 20 && !G.out && PLAY.includes(G.st);
-    box.classList.toggle('on', show); const ph2 = (G.prnPh2 = (G.prnPh2 || 0) + dt * (.8 + Math.max(0, 20 - left) * .4)); box.classList.toggle('blink', show && ph2 % 1 < .5);
+    // białe koło = czas, jaki został ukraince; wykrzyknik obok dopiero pod koniec
+    const box = $('#fnPrn'), act = !G.out && PLAY.includes(G.st), show = act && left < 10;
+    box.classList.toggle('on', act); box.style.setProperty('--p', Math.max(0, Math.min(1, left / PRN_T)) * 360 + 'deg');
+    box.classList.toggle('warn', show); const ph2 = (G.prnPh2 = (G.prnPh2 || 0) + dt * (1 + Math.max(0, 10 - left) * .7)); box.classList.toggle('blink', show && ph2 % 1 < .5);
     if (phone.prn && PRN0) { if (G.prnS > 0) { G.prnS -= dt; phone.prn.position.set(PRN0.x + (Math.random() - .5) * .03, PRN0.y + Math.random() * .02, PRN0.z + (Math.random() - .5) * .03); } else phone.prn.position.copy(PRN0); }
   }
   // zacięta ukrainka piszczy na cały magazyn: wszyscy się zbliżają, ucieka trochę prądu
