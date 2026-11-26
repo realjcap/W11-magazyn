@@ -197,7 +197,7 @@ window.gmLaunch = async () => {
 const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
-  $('#hubVc').hidden = !VC_OK(); // Vice City – tylko konto delma
+  $('#hubVc').hidden = !VC_OK(); // Vice City – konta delma i rudy
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
@@ -244,7 +244,7 @@ $('#hub').addEventListener('click', e => {
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: silnik w ramce (ładowany dopiero po otwarciu, czyszczony po zamknięciu), na wierzchu własny ekran startowy
 const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
-const VC_OK = () => lbMe() === DELMA_UID; // tylko konto delma
+const VC_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function vcOpen() {
   $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL;
   $('#vcP').hidden = false; VCS.dl = ''; vcUi(); $('#vc').showModal();
@@ -269,7 +269,7 @@ function vcUi() {
   $('#vcBar').hidden = bar === null; if (bar !== null) $('#vcBar i').style.width = Math.max(2, bar) + '%';
   const e = err && err.style.display === 'block' ? err.textContent.trim() : ''; $('#vcErr').hidden = !e; $('#vcErr').textContent = e ? 'Błąd: ' + e : '';
   $('#vcPlay').disabled = !ready;
-  const dm = lbMe() === DELMA_UID; $('#vcCloud').hidden = ready || !dm; $('#vcZip').hidden = ready || dm; $('#vcNote').hidden = ready;
+  const dm = VC_OK(); $('#vcCloud').hidden = ready || !dm; $('#vcZip').hidden = ready || dm; $('#vcNote').hidden = ready;
   $('#vcCloud').disabled = $('#vcZip').disabled = !!(VCS.dl || busy);
 }
 $('#vcPlay').onclick = () => {
@@ -281,7 +281,7 @@ $('#vcPlay').onclick = () => {
 async function vcCloud() {
   const doc = $('#vcF').contentDocument, inp = doc && doc.getElementById('game-zip-input');
   if (!inp) return say('Poczekaj, aż okno gry się wczyta.');
-  if (!auth || !auth.currentUser || lbMe() !== DELMA_UID || !SL.url) return say('Chmura działa tylko na koncie delma z ustawionym workerem.');
+  if (!auth || !auth.currentUser || !VC_OK() || !SL.url) return say('Chmura działa tylko na kontach delma i rudy z ustawionym workerem.');
   VCS.dl = 'Łączenie z chmurą…'; VCS.dlp = 0; vcUi();
   try {
     const tok = await auth.currentUser.getIdToken();
@@ -2923,4 +2923,3 @@ $('#gmPad').addEventListener('pointerdown', e => { const b = e.target.closest('[
   });
   const end = () => { on = false; }; $('#gmWrap').addEventListener('pointerup', end); $('#gmWrap').addEventListener('pointercancel', end);
 })();
-
