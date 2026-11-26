@@ -196,6 +196,7 @@ window.gmLaunch = async () => {
 };
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
+  $('#hubVc').hidden = lbMe() !== DELMA_UID; // Vice City – tylko konto delma
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
   if (!$('#hubCan').src) $('#hubCan').src = FL_CAN;
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
@@ -227,7 +228,7 @@ $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
   SFX.play('tick');
   // Vice City: zewnętrzna strona (port reVC na DOS.Zone), otwierana w nowej karcie – bez plików gry w repo
-  if (t.dataset.g === 'vc') { window.open('https://dos.zone/grand-theft-auto-vice-city/', '_blank', 'noopener'); return; }
+  if (t.dataset.g === 'vc') { if (lbMe() === DELMA_UID) window.open('https://dos.zone/grand-theft-auto-vice-city/', '_blank', 'noopener'); return; }
   playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
