@@ -225,7 +225,10 @@ function playsShow() {
 }
 $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
-  SFX.play('tick'); playRec(t.dataset.g);
+  SFX.play('tick');
+  // Vice City: zewnętrzna strona (port reVC na DOS.Zone), otwierana w nowej karcie – bez plików gry w repo
+  if (t.dataset.g === 'vc') { window.open('https://dos.zone/grand-theft-auto-vice-city/', '_blank', 'noopener'); return; }
+  playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
   if (t.dataset.g === 'fl') { $('#hub').close(); FL.open(); }

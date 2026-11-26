@@ -518,6 +518,7 @@ dialog[open]{opacity:1;transform:none}
 #fnOv .dang{color:#ff7070!important;font-size:16px!important}
 .hubt .hubpl{display:block;margin-top:4px;padding-top:4px;border-top:1px dashed var(--bd);font-size:11px;color:var(--mu);line-height:1.35}
 .hubt .hubpl b{color:var(--tx);font-weight:600}
+.hubi.vcic{font:900 italic 34px/1 'Trebuchet MS',sans-serif;color:#ff4fb6;text-shadow:2px 2px 0 #2ad4ff}
 .hubi.fnic{font:900 40px/1 'Courier New',monospace;color:#1ab8ff;text-shadow:2px 2px 0 #000}
 #sl{width:min(1100px,calc(100vw - 16px));max-width:none;padding:12px;text-align:center}
 #sl .gh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -1022,6 +1023,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
+    <button type="button" class="hubt" data-g="vc"><span class="hubi vcic">VC</span><b>GTA: Vice City</b><small>Port w przeglądarce (DOS.Zone) – otwiera się w nowej karcie</small></button>
     <button type="button" class="hubt" data-g="fn" id="hubFn"><span class="hubi fnic">5</span><b>5 nocek w kanciapie</b><small>Nocna zmiana w kanciapie</small></button>
   </div>
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
@@ -3589,7 +3591,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'd86dd886e9'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '8079e10ba0'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
