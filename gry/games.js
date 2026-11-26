@@ -197,7 +197,7 @@ window.gmLaunch = async () => {
 const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
-  $('#hubVc').hidden = !VC_OK(); // Vice City – delma i rudy
+  $('#hubVc').hidden = !VC_OK(); // Vice City – tylko konto delma
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
@@ -244,7 +244,7 @@ $('#hub').addEventListener('click', e => {
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: silnik w ramce (ładowany dopiero po otwarciu, czyszczony po zamknięciu), na wierzchu własny ekran startowy
 const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
-const VC_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma i rudy; gra z chmury tylko dla delmy
+const VC_OK = () => lbMe() === DELMA_UID; // tylko konto delma
 function vcOpen() {
   $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL;
   $('#vcP').hidden = false; VCS.dl = ''; vcUi(); $('#vc').showModal();
