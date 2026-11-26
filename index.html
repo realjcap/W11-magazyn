@@ -562,6 +562,22 @@ dialog[open]{opacity:1;transform:none}
 #sl .gbt{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px}
 .slic{display:block;width:16px;height:56px;margin:0 auto;background:linear-gradient(#f4f4f0 0 22%,#0b0b0d 22% 100%);border-radius:8px 8px 2px 2px;box-shadow:0 0 0 2px #333}
 #fl{width:min(420px,calc(100vw - 16px));padding:12px;text-align:center}
+#dz{width:min(1200px,calc(100vw - 16px));max-width:none;padding:12px;text-align:center}
+#dzWrap{position:relative;width:min(100%,calc((100dvh - 140px) * 16 / 10));aspect-ratio:16/10;margin:0 auto;border-radius:14px;overflow:hidden;background:#070a12;user-select:none;-webkit-user-select:none;cursor:crosshair;touch-action:none}
+#dzC{display:block;width:100%;height:100%}
+#dzTop{position:absolute;right:12px;top:12px;min-width:170px;padding:10px 12px;border-radius:12px;background:rgba(18,24,40,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);color:#e8ecf6;font:500 13px/1.5 system-ui,sans-serif;text-align:left;pointer-events:none}
+#dzTop h4{margin:0 0 4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8ea2c8}#dzTop div{display:flex;justify-content:space-between;gap:12px}#dzTop div.me{color:#6ef2b0;font-weight:700}#dzTop small{display:block;margin-top:4px;color:#6f7f9f;font-size:11px}
+#dzMe{position:absolute;left:16px;bottom:14px;color:#fff;font:800 34px/1 system-ui,sans-serif;text-shadow:0 2px 12px rgba(0,0,0,.6);pointer-events:none;display:flex;align-items:baseline;gap:8px}#dzMe span{font-size:12px;font-weight:600;color:#9fb0d0;letter-spacing:.1em;text-transform:uppercase}
+#dzMini{position:absolute;right:14px;bottom:14px;width:110px;height:110px;pointer-events:none;opacity:.9}
+#dzOv{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(30,40,70,.55),rgba(5,7,12,.82));padding:16px;overflow:auto}
+#dzOv[hidden]{display:none}
+.dzcard{width:min(420px,100%);padding:26px 24px;border-radius:20px;background:rgba(20,26,44,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 60px rgba(0,0,0,.5);color:#dfe6f5;font:14px/1.5 system-ui,sans-serif;text-align:center}
+.dzcard h1{margin:0 0 6px;font:900 54px/1 system-ui,sans-serif;letter-spacing:-.03em;background:linear-gradient(90deg,#6ef2b0,#4fb3ff 55%,#c06bff);-webkit-background-clip:text;background-clip:text;color:transparent}.dzcard h1 span{opacity:.8}
+.dzcard p{margin:8px 0;color:#aab6d3}.dzcard .dzr{color:#ff8fa3;font-weight:700}.dzcard .dzk{font-size:12px;color:#7d8aa8}
+.dzhue{display:flex;justify-content:center;gap:10px;margin:14px 0}.dzhue button{all:unset;cursor:pointer;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,hsl(var(--h),95%,72%),hsl(var(--h),85%,40%));box-shadow:0 0 0 2px rgba(255,255,255,.08)}.dzhue button.on{box-shadow:0 0 0 3px #fff,0 0 16px hsl(var(--h),100%,60%)}
+.dzgo{all:unset;cursor:pointer;display:block;margin:12px auto 6px;padding:12px 42px;border-radius:999px;font:800 17px system-ui,sans-serif;color:#05110b;background:linear-gradient(90deg,#6ef2b0,#4fd1ff);box-shadow:0 8px 26px rgba(80,220,200,.35);transition:transform .15s}.dzgo:hover{transform:translateY(-2px) scale(1.03)}
+.dzcard .gmlb{margin-top:12px;text-align:left}
+.hubi.dzic{font:900 30px/1 system-ui,sans-serif;background:linear-gradient(90deg,#6ef2b0,#4fb3ff,#c06bff);-webkit-background-clip:text;background-clip:text;color:transparent}.hubi.dzic i{font-style:normal;font-size:18px}
 #wz{width:min(1200px,calc(100vw - 16px));max-width:none;padding:12px;text-align:center}
 #wzWrap{position:relative;width:min(100%,calc((100dvh - 140px) * 16 / 10));aspect-ratio:16/10;margin:0 auto;border-radius:8px;overflow:hidden;background:#15181d;user-select:none;-webkit-user-select:none}
 #wzC{display:block;width:100%;height:100%}
@@ -1039,6 +1055,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="hubg">
     <button type="button" class="hubt" data-g="snake"><span class="hubi"><img id="hubImg" alt=""></span><b>Dzik na batonach</b><small>Snake z power-upami</small><small id="hubBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
+    <button type="button" class="hubt" data-g="dz" id="hubDz" hidden><span class="hubi dzic">dz<i>.io</i></span><b>dzik.io</b><small>Rośnij na wspólnej arenie</small></button>
     <button type="button" class="hubt" data-g="wz" id="hubWz" hidden><span class="hubi wzic">🚜</span><b>Wózkowa pierdoła</b><small>Rozwożenie palet – razem z każdym, kto wejdzie</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
@@ -1072,6 +1089,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gh"><h2>Wózkowa pierdoła</h2><span class="mu">W/S – gaz · A/D – skręt · Spacja – widły · H – klakson</span></div>
   <div id="wzWrap"><canvas id="wzC"></canvas><div id="wzHud"></div><div id="wzOrd"></div><div id="wzMsg"></div><div id="wzOv"></div></div>
   <div class="gbt"><button type="button" id="wzHub" class="e">← Game Hub</button><span></span><button type="button" id="wzX">Zamknij</button></div>
+</dialog>
+<dialog id="dz">
+  <div class="gh"><h2>dzik.io</h2><span class="mu">Mysz – kierunek · klik / spacja – przyspieszenie</span></div>
+  <div id="dzWrap"><canvas id="dzC"></canvas><div id="dzTop"></div><div id="dzMe"></div><canvas id="dzMini" width="140" height="140"></canvas><div id="dzOv"></div></div>
+  <div class="gbt"><button type="button" id="dzHub" class="e">← Game Hub</button><span></span><button type="button" id="dzX">Zamknij</button></div>
 </dialog>
 <dialog id="fl">
   <div class="gh"><h2>Flappy Dzik</h2><span class="mu">Spacja / ↑ / klik – podskok</span></div>
@@ -3508,7 +3530,7 @@ async function presLoadUsers() { // lista kont z datą ostatniego logowania – 
   try { presUsers = (await slApi('/users')).users || []; presRender(); } catch (e) { presUsers = null; clearTimeout(presLoadUsers.r); presLoadUsers.r = setTimeout(presLoadUsers, 20000); }
 }
 function presWhere() {
-  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: 5 nocek w kanciapie', wz: 'Gra: Wózkowa pierdoła', vc: 'Gra: GTA Vice City', hub: 'Game Hub' };
+  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: 5 nocek w kanciapie', wz: 'Gra: Wózkowa pierdoła', dz: 'Gra: dzik.io', vc: 'Gra: GTA Vice City', hub: 'Game Hub' };
   for (const [id, n] of Object.entries(games)) { const d = document.getElementById(id); if (d && d.open) return n; }
   const dl = { log: 'Historia', op: 'Dostawa / wysyłka / event', pd: 'Dodawanie / edycja modelu', scanD: 'Skaner kodów', exm: 'Eksport', prd: 'Druk etykiet', led: 'Edycja historii' };
   const base = { wh: 'Magazyn', st: 'Statystyki', br: 'Braki', map: 'Mapa' }[view] || 'Magazyn';
@@ -3625,7 +3647,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '21889839e1'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '4a57bb81a9'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

@@ -199,6 +199,7 @@ function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
   $('#hubVc').hidden = lbMe() !== DELMA_UID; // Vice City – tylko konto delma
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
+  $('#hubDz').hidden = !DZ_OK(); // dzik.io – na razie delma i rudy
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
   if (!$('#hubCan').src) $('#hubCan').src = FL_CAN;
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
@@ -238,6 +239,7 @@ $('#hub').addEventListener('click', e => {
   if (t.dataset.g === 'sl') { $('#hub').close(); SL3.open(); }
   if (t.dataset.g === 'fn') { $('#hub').close(); FN.open(); }
   if (t.dataset.g === 'wz' && WZ_OK()) { $('#hub').close(); WZ.open(); }
+  if (t.dataset.g === 'dz' && DZ_OK()) { $('#hub').close(); DZ.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
@@ -2609,6 +2611,218 @@ const WZ = (() => {
   const dbg = { name: 'Wózkowa pierdoła', G, acts: [['+5 palet', () => { G.score += 5; }], ['+60 s zmiany', () => { G.left += 60; }], ['Koniec zmiany', () => { G.left = .01; }], ['Nowe zlecenie', () => { hostT = 0; const n = MAXO; spawnOrders(0); }]] };
   return { open, G, dbg, _me: () => me, _O: () => O, _g: () => ({ GW, GH, W, H, g: Array.from(GRID || []), R: RAMPS.map(q => [q.x, q.y]), S: ST.map(q => [q.x, q.y]), sp: SPAWN }) };
 })();
+// ---------- dzik.io: wąż na wspólnej arenie (jak slither.io); boty dopełniają, gdy graczy jest mało ----------
+// Firebase (ROOT-dz): p/<id> – głowy graczy i botów, eat/<i> – pokolenie jedzenia, drop/<id> – resztki po zgonie. Bez bazy – tryb solo.
+const DZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // na razie delma i rudy
+const DZ = (() => {
+  const AR = 1500, NF = 340, SEG = 11, SPD = 155, BST = 300, TURN = 3.4, BOTS = 4;
+  const HUES = [150, 190, 265, 320, 25, 50];
+  const G = { open: false, st: 'menu', hue: 150, best: 0, god: false, online: false };
+  const LB = LBX('dzlb', '#dzOv');
+  let cv, cx, mm, mx, raf = 0, last = 0, me = null, R = {}, BOT = {}, EAT = {}, DROP = {}, ref = null, sendT = 0, mouse = { x: 0, y: 0, down: false }, keys = {}, tile = null, t0 = 0, zoom = 1, cam = { x: 0, y: 0 }, fx = [];
+  const uid = () => lbMe() || 'solo';
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const rad = L => 9 + Math.min(15, L / 140);
+  // jedzenie: pozycja z (numer, pokolenie) – u wszystkich ta sama, bez przesyłania
+  function hash(n) { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3) | 0; n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; }
+  function food(i) { const g = EAT[i] | 0, a = hash(i * 7919 + g * 104729 + 1) * Math.PI * 2, r = Math.sqrt(hash(i * 3571 + g * 2903 + 7)) * (AR - 40); return { x: Math.cos(a) * r, y: Math.sin(a) * r, big: i % 11 === 0, h: Math.floor(hash(i * 131 + g) * 360) }; }
+  // ciało: punkty co SEG px wzdłuż ścieżki głowy, do długości L
+  function body(e) {
+    const out = [[e.x, e.y]], p = e.path; let need = SEG, acc = 0, px = e.x, py = e.y;
+    for (let k = 0; k < p.length && out.length * SEG < e.L; k++) {
+      const [qx, qy] = p[k]; let d = Math.hypot(qx - px, qy - py);
+      while (d >= need && out.length * SEG < e.L) { const t = need / d; px += (qx - px) * t; py += (qy - py) * t; out.push([px, py]); d = Math.hypot(qx - px, qy - py); need = SEG; }
+      need -= d; px = qx; py = qy;
+    }
+    return out;
+  }
+  function trim(e) { let d = 0; for (let k = 0; k < e.path.length; k++) { const a = k ? e.path[k - 1] : [e.x, e.y], b = e.path[k]; d += Math.hypot(b[0] - a[0], b[1] - a[1]); if (d > e.L + 80) { e.path.length = k + 1; break; } } }
+  function stepE(e, dt, ta, boost) {
+    let d = ta - e.a; d = Math.atan2(Math.sin(d), Math.cos(d)); e.a += Math.max(-TURN * dt, Math.min(TURN * dt, d));
+    const b = boost && e.L > 140, s = (b ? BST : SPD) * dt; e.boost = b; if (b) e.L = Math.max(120, e.L - 45 * dt);
+    e.x += Math.cos(e.a) * s; e.y += Math.sin(e.a) * s;
+    const l = e.path[0]; if (!l || Math.hypot(l[0] - e.x, l[1] - e.y) > 3) { e.path.unshift([e.x, e.y]); trim(e); }
+  }
+  const newSnake = (id, n, h) => { const a = rnd(0, 6.28), r = rnd(0, AR * .6); return { id, n, h, x: Math.cos(a) * r, y: Math.sin(a) * r, a: rnd(0, 6.28), L: 160, path: [], boost: false, dead: 0 }; };
+  // ---------- sieć ----------
+  const humans = () => Object.keys(R).filter(k => !k.startsWith('bot')).length + (me ? 1 : 0);
+  const isHost = () => !G.online || Object.keys(R).filter(k => !k.startsWith('bot') && Date.now() - R[k].lt < 6000).concat(uid()).sort()[0] === uid();
+  function netOpen() {
+    G.online = false; if (!db || !lbMe()) return; ref = db.ref(ROOT + '-dz');
+    ref.child('p').on('value', s => {
+      G.online = true; const v = s.val() || {}, now = Date.now();
+      for (const k in v) {
+        if (k === uid() || BOT[k]) continue; const n = v[k]; if (!n || typeof n.x !== 'number') continue;
+        const e = R[k] || (R[k] = { id: k, x: n.x, y: n.y, a: n.a || 0, L: n.l, path: [], dx: n.x, dy: n.y });
+        if (Math.hypot(n.x - e.dx, n.y - e.dy) > 400) { e.path = []; e.x = n.x; e.y = n.y; } // przeskok (nowe życie)
+        Object.assign(e, { tx: n.x, ty: n.y, a: n.a || 0, L: n.l, h: n.h | 0, n: String(n.n || '?').slice(0, 20), boost: !!n.b, lt: now, dx: n.x, dy: n.y });
+      }
+      for (const k in R) if (!v[k]) delete R[k];
+    }, () => { G.online = false; });
+    ref.child('eat').on('value', s => { EAT = s.val() || {}; }, () => {});
+    ref.child('drop').on('value', s => { DROP = s.val() || {}; }, () => {});
+    try { ref.child('p/' + uid()).onDisconnect().remove(); } catch (e) {}
+  }
+  function netClose() { if (ref) { ref.child('p').off(); ref.child('eat').off(); ref.child('drop').off(); try { ref.child('p/' + uid()).remove(); for (const k in BOT) ref.child('p/' + k).remove(); } catch (e) {} } ref = null; G.online = false; R = {}; BOT = {}; }
+  function eatFood(i) { const g = (EAT[i] | 0) + 1; EAT[i] = g; if (G.online) ref.child('eat/' + i).set(g).catch(() => {}); }
+  function dropBody(e) {
+    const b = body(e), pts = []; for (let k = 0; k < b.length && pts.length < 70; k += 2) pts.push([Math.round(b[k][0] + rnd(-6, 6)), Math.round(b[k][1] + rnd(-6, 6))]);
+    const d = { t: Date.now(), h: e.h | 0, p: pts }, id = 'd' + Date.now().toString(36) + Math.floor(Math.random() * 999);
+    DROP[id] = d; if (G.online) ref.child('drop/' + id).set(d).catch(() => {});
+  }
+  function eatDrop(id, k) { const d = DROP[id]; if (!d) return; d.e = d.e || {}; d.e[k] = 1; if (G.online) ref.child('drop/' + id + '/e/' + k).set(1).catch(() => {}); }
+  // ---------- gra ----------
+  function start() {
+    me = newSnake(uid(), cap(user || 'gracz').slice(0, 20), G.hue); G.st = 'run'; ov(''); playRec('dz'); t0 = performance.now();
+  }
+  function die(why) {
+    if (G.god) return; dropBody(me); boom(me); const sc = Math.floor(me.L / 10); G.best = Math.max(G.best, sc); LB.save(sc);
+    if (G.online) ref.child('p/' + uid()).remove().catch(() => {});
+    me = null; G.st = 'dead';
+    setTimeout(() => { if (G.open && G.st === 'dead') ov(`<div class="dzcard"><h1>dzik<span>.io</span></h1><p class="dzr">${esc(why)}</p><p>Długość: <b>${sc}</b> · rekord sesji: ${G.best}</p><button type="button" class="dzgo" data-go="1">Jeszcze raz</button>${LB.html()}</div>`); }, 900);
+  }
+  function boom(e) { for (let k = 0; k < 26; k++) { const a = rnd(0, 6.28), s = rnd(60, 260); fx.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 1, h: e.h }); } }
+  // kolizja głowy z ciałami innych (bez kilku pierwszych segmentów własnej głowy)
+  function hits(e, others) {
+    const r = rad(e.L) * .55;
+    if (Math.hypot(e.x, e.y) > AR - r) return 'Uderzyłeś w ścianę areny';
+    for (const o of others) { if (o === e || o.dead) continue; const ob = o.bodyC || body(o), orr = rad(o.L); if (Math.hypot(ob[0][0] - e.x, ob[0][1] - e.y) > o.L + 80) continue; for (let k = 0; k < ob.length; k++) if (Math.hypot(ob[k][0] - e.x, ob[k][1] - e.y) < r + orr) return 'Wjechałeś w ' + (o.n || 'innego dzika'); }
+    return null;
+  }
+  function eatAround(e) {
+    const r = rad(e.L) + 10;
+    for (let i = 0; i < NF; i++) { const f = food(i); if (Math.abs(f.x - e.x) < r + 8 && Math.abs(f.y - e.y) < r + 8 && Math.hypot(f.x - e.x, f.y - e.y) < r + (f.big ? 10 : 4)) { eatFood(i); e.L += f.big ? 22 : 7; if (e === me) blip(f.big ? 2 : 1); } }
+    for (const id in DROP) { const d = DROP[id]; if (!d || !d.p) continue; d.p.forEach((q, k) => { if (d.e && d.e[k]) return; if (Math.hypot(q[0] - e.x, q[1] - e.y) < r + 6) { eatDrop(id, k); e.L += 9; if (e === me) blip(1); } }); }
+  }
+  // boty: jedzą najbliższe jedzenie, omijają ciała i ścianę
+  function botStep(b, dt, all) {
+    if (b.dead) { if ((b.dead -= dt) <= 0) Object.assign(b, newSnake(b.id, b.n, b.h)); return; }
+    let ta = b.a, best = 1e9;
+    for (let i = 0; i < NF; i += 2) { const f = food(i), d = Math.hypot(f.x - b.x, f.y - b.y); if (d < best && d < 520) { best = d; ta = Math.atan2(f.y - b.y, f.x - b.x); } }
+    for (const id in DROP) { const d0 = DROP[id]; if (d0 && d0.p) for (const q of d0.p) { const d = Math.hypot(q[0] - b.x, q[1] - b.y) * .7; if (d < best) { best = d; ta = Math.atan2(q[1] - b.y, q[0] - b.x); } } }
+    const ahead = (ang, dist) => { const x = b.x + Math.cos(ang) * dist, y = b.y + Math.sin(ang) * dist; if (Math.hypot(x, y) > AR - 60) return true; for (const o of all) { if (o === b || o.dead) continue; const ob = o.bodyC || body(o); for (const q of ob) if (Math.hypot(q[0] - x, q[1] - y) < rad(o.L) + 18) return true; } return false; };
+    if (ahead(b.a, 70) || ahead(ta, 70)) { for (const off of [.8, -.8, 1.6, -1.6, 2.4, -2.4]) if (!ahead(b.a + off, 70)) { ta = b.a + off; break; } }
+    stepE(b, dt, ta, false); eatAround(b);
+    const why = hits(b, all); if (why) { dropBody(b); boom(b); b.dead = 2.5; }
+  }
+  function update(dt) {
+    const all = []; for (const k in R) { const e = R[k]; e.x += (e.tx - e.x) * Math.min(1, dt * 12); e.y += (e.ty - e.y) * Math.min(1, dt * 12); const l = e.path[0]; if (!l || Math.hypot(l[0] - e.x, l[1] - e.y) > 3) { e.path.unshift([e.x, e.y]); trim(e); } all.push(e); }
+    // boty prowadzi jeden gracz (gospodarz); reszta widzi je jak zwykłych graczy
+    if (isHost()) {
+      const want = Math.max(0, BOTS - humans() + 1); let have = Object.keys(BOT).length;
+      while (have < want) { const id = 'bot' + have; BOT[id] = newSnake(id, ['Agenciak', 'Wózkowy', 'Brygadzista', 'Dzik Tropic', 'Kreatyna'][have % 5], HUES[(have + 2) % HUES.length] + 7 * have); have++; }
+      while (have > want) { const id = 'bot' + (have - 1); delete BOT[id]; if (G.online) ref.child('p/' + id).remove().catch(() => {}); have--; }
+      for (const k in BOT) delete R[k];
+    } else if (Object.keys(BOT).length) BOT = {};
+    for (const k in BOT) all.push(BOT[k]);
+    if (me) all.push(me);
+    all.forEach(e => { e.bodyC = e.dead ? null : body(e); });
+    for (const k in BOT) botStep(BOT[k], dt, all);
+    if (me && G.st === 'run') {
+      const r = cv.getBoundingClientRect(); let ta = Math.atan2(mouse.y - r.height / 2, mouse.x - r.width / 2);
+      if (keys.a || keys.arrowleft) ta = me.a - 1; if (keys.d || keys.arrowright) ta = me.a + 1;
+      stepE(me, dt, ta, mouse.down || keys[' '] || keys.shift || keys.w || keys.arrowup); me.bodyC = body(me); eatAround(me);
+      const why = hits(me, all); if (why) die(why);
+    }
+    // stare resztki znikają po 40 s
+    const now = Date.now(); for (const id in DROP) if (!DROP[id] || now - DROP[id].t > 40000) { delete DROP[id]; if (G.online && isHost()) ref.child('drop/' + id).remove().catch(() => {}); }
+    fx = fx.filter(p => (p.l -= dt * 1.3) > 0); fx.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .93; p.vy *= .93; });
+    if (G.online && (sendT -= dt) <= 0) {
+      sendT = .1; const up = {};
+      if (me) up[uid()] = { n: me.n, x: Math.round(me.x), y: Math.round(me.y), a: +me.a.toFixed(2), l: Math.round(me.L), h: me.h, b: me.boost ? 1 : 0, t: firebase.database.ServerValue.TIMESTAMP };
+      for (const k in BOT) { const b = BOT[k]; up[k] = b.dead ? null : { n: b.n, x: Math.round(b.x), y: Math.round(b.y), a: +b.a.toFixed(2), l: Math.round(b.L), h: b.h, b: 0, t: firebase.database.ServerValue.TIMESTAMP }; }
+      if (Object.keys(up).length) ref.child('p').update(up).catch(() => {});
+    }
+    G.all = all;
+  }
+  // ---------- dźwięk (krótkie „bip” przy jedzeniu) ----------
+  let ac = null; function blip(v) { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(520 + v * 180 + Math.random() * 60, t); o.frequency.exponentialRampToValueAtTime(980 + v * 200, t + .07); g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.001, t + .1); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .12); } catch (e) {} }
+  // ---------- rysowanie ----------
+  function hexTile() {
+    const c = document.createElement('canvas'), s = 56, h = s * Math.sqrt(3); c.width = s * 3; c.height = Math.round(h); const g = c.getContext('2d');
+    g.strokeStyle = 'rgba(120,160,255,.07)'; g.lineWidth = 1.5;
+    const hx = (x, y) => { g.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; g.lineTo(x + Math.cos(a) * s * .55, y + Math.sin(a) * s * .55); } g.closePath(); g.stroke(); };
+    for (const [x, y] of [[0, 0], [s * 1.5, h / 2], [s * 3, 0], [0, h], [s * 3, h]]) hx(x, y);
+    return c;
+  }
+  function drawSnake(g, e, self) {
+    const b = e.bodyC || body(e), r = rad(e.L), t = performance.now() / 1000;
+    g.save();
+    if (e.boost) { g.shadowColor = `hsl(${e.h},100%,60%)`; g.shadowBlur = 24; }
+    for (let k = b.length - 1; k >= 0; k--) {
+      const [x, y] = b[k], s = r * (k === 0 ? 1.12 : 1 - Math.min(.35, k / b.length * .35)), l = 50 + (k % 6 < 3 ? 8 : 0) + Math.sin(t * 6 - k * .4) * (e.boost ? 6 : 0);
+      const gr = g.createRadialGradient(x - s * .35, y - s * .35, s * .1, x, y, s); gr.addColorStop(0, `hsl(${e.h},95%,${l + 18}%)`); gr.addColorStop(1, `hsl(${e.h},85%,${l - 14}%)`);
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, s, 0, 7); g.fill();
+    }
+    g.restore();
+    // głowa: ryjek, kły, oczy patrzące w kierunku jazdy
+    const [hx, hy] = b[0], a = e.a, ca = Math.cos(a), sa = Math.sin(a), hr = r * 1.12;
+    g.fillStyle = `hsl(${e.h},60%,78%)`; g.beginPath(); g.ellipse(hx + ca * hr * .85, hy + sa * hr * .85, hr * .42, hr * .34, a, 0, 7); g.fill();
+    g.fillStyle = `hsl(${e.h},50%,30%)`; for (const s of [-1, 1]) { g.beginPath(); g.arc(hx + ca * hr * 1.05 - sa * s * hr * .14, hy + sa * hr * 1.05 + ca * s * hr * .14, hr * .07, 0, 7); g.fill(); }
+    g.fillStyle = '#fffbe6'; for (const s of [-1, 1]) { g.beginPath(); const bx = hx + ca * hr * .7 - sa * s * hr * .5, by = hy + sa * hr * .7 + ca * s * hr * .5; g.moveTo(bx, by); g.lineTo(bx + ca * hr * .55 - sa * s * hr * .12, by + sa * hr * .55 + ca * s * hr * .12); g.lineTo(bx + ca * hr * .1, by + sa * hr * .1); g.fill(); }
+    for (const s of [-1, 1]) { const ex = hx + ca * hr * .25 - sa * s * hr * .45, ey = hy + sa * hr * .25 + ca * s * hr * .45; g.fillStyle = '#fff'; g.beginPath(); g.arc(ex, ey, hr * .26, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(ex + ca * hr * .1, ey + sa * hr * .1, hr * .13, 0, 7); g.fill(); }
+    g.font = '600 13px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = self ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.75)'; g.fillText(e.n || '', hx, hy + hr + 18);
+  }
+  function draw() {
+    const rc = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(rc.width * dpr), h = Math.round(rc.height * dpr); if (!w) return;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cx, tz = me ? Math.max(.55, 1 / (1 + (me.L - 160) / 2600)) : .8; zoom += (tz - zoom) * .05;
+    if (me) { cam.x += (me.x - cam.x) * .25; cam.y += (me.y - cam.y) * .25; }
+    const z = zoom * dpr * 1.35 * Math.min(1, rc.width / 900 + .25);
+    g.setTransform(1, 0, 0, 1, 0, 0); const bg = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * .75); bg.addColorStop(0, '#141b2d'); bg.addColorStop(1, '#070a12'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.setTransform(z, 0, 0, z, w / 2 - cam.x * z, h / 2 - cam.y * z);
+    // arena: heksy w środku, świecąca krawędź
+    g.save(); g.beginPath(); g.arc(0, 0, AR, 0, 7); g.clip(); tile = tile || hexTile(); g.fillStyle = g.createPattern(tile, 'repeat'); g.fillRect(cam.x - w / z, cam.y - h / z, w * 2 / z, h * 2 / z); g.restore();
+    g.save(); g.shadowColor = '#ff3b5c'; g.shadowBlur = 30; g.strokeStyle = 'rgba(255,59,92,.85)'; g.lineWidth = 8; g.beginPath(); g.arc(0, 0, AR, 0, 7); g.stroke(); g.restore();
+    // jedzenie (tylko w zasięgu kamery)
+    const vx0 = cam.x - w / 2 / z - 40, vx1 = cam.x + w / 2 / z + 40, vy0 = cam.y - h / 2 / z - 40, vy1 = cam.y + h / 2 / z + 40, tt = performance.now() / 1000, im = gmImgs();
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < NF; i++) {
+      const f = food(i); if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue;
+      if (f.big) continue; const s = 5 + Math.sin(tt * 3 + i) * 1.2, gr = g.createRadialGradient(f.x, f.y, 0, f.x, f.y, s * 3); gr.addColorStop(0, `hsla(${f.h},100%,70%,.95)`); gr.addColorStop(.35, `hsla(${f.h},100%,60%,.45)`); gr.addColorStop(1, `hsla(${f.h},100%,50%,0)`); g.fillStyle = gr; g.fillRect(f.x - s * 3, f.y - s * 3, s * 6, s * 6);
+    }
+    for (const id in DROP) { const d = DROP[id]; if (!d || !d.p) continue; d.p.forEach((q, k) => { if (d.e && d.e[k]) return; if (q[0] < vx0 || q[0] > vx1 || q[1] < vy0 || q[1] > vy1) return; const s = 7, gr = g.createRadialGradient(q[0], q[1], 0, q[0], q[1], s * 3); gr.addColorStop(0, `hsla(${d.h},100%,75%,1)`); gr.addColorStop(1, `hsla(${d.h},100%,50%,0)`); g.fillStyle = gr; g.fillRect(q[0] - s * 3, q[1] - s * 3, s * 6, s * 6); }); }
+    g.restore();
+    for (let i = 0; i < NF; i += 11) { const f = food(i); if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue; if (im.bar.complete) { g.save(); g.translate(f.x, f.y); g.rotate(Math.sin(tt + i) * .4); g.shadowColor = '#ffd36b'; g.shadowBlur = 18; g.drawImage(im.bar, -22, -7, 44, 14); g.restore(); } }
+    // węże: najpierw inni, na końcu ja
+    for (const e of (G.all || [])) if (e !== me && !e.dead) drawSnake(g, e, false);
+    if (me) drawSnake(g, me, true);
+    g.save(); g.globalCompositeOperation = 'lighter'; for (const p of fx) { g.fillStyle = `hsla(${p.h},100%,65%,${p.l})`; g.beginPath(); g.arc(p.x, p.y, 4 + p.l * 4, 0, 7); g.fill(); } g.restore();
+    hud();
+  }
+  function hud() {
+    const all = (G.all || []).filter(e => !e.dead).map(e => ({ n: e.n || '?', s: Math.floor(e.L / 10), me: e === me })).sort((a, b) => b.s - a.s);
+    $('#dzTop').innerHTML = `<h4>Ranking areny</h4>` + all.slice(0, 6).map((r, i) => `<div class="${r.me ? 'me' : ''}"><span>${i + 1}. ${esc(r.n)}</span><b>${r.s}</b></div>`).join('') + `<small>${G.online ? '● online' : '○ solo'}</small>`;
+    $('#dzMe').innerHTML = me ? `<b>${Math.floor(me.L / 10)}</b><span>długość</span>` : '';
+    // minimapa
+    const c = mm, g = mx, s = c.width, k = s / 2 / AR; g.clearRect(0, 0, s, s); g.fillStyle = 'rgba(10,14,24,.75)'; g.beginPath(); g.arc(s / 2, s / 2, s / 2 - 1, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,59,92,.7)'; g.lineWidth = 2; g.stroke();
+    for (const e of (G.all || [])) { if (e.dead) continue; g.fillStyle = e === me ? '#fff' : `hsl(${e.h},90%,60%)`; g.beginPath(); g.arc(s / 2 + e.x * k, s / 2 + e.y * k, e === me ? 3.5 : 2.5, 0, 7); g.fill(); }
+  }
+  function loop(t) { raf = requestAnimationFrame(loop); const dt = Math.min(.05, (t - (last || t)) / 1000); last = t; update(dt); draw(); }
+  function ov(h) { const o = $('#dzOv'); o.innerHTML = h; o.hidden = !h; }
+  function menu() {
+    G.st = 'menu';
+    ov(`<div class="dzcard"><h1>dzik<span>.io</span></h1><p>Zjadaj świecące kulki i batony, rośnij i odcinaj innych. Kto wejdzie, gra z Tobą na tej samej arenie.</p>
+      <div class="dzhue">${HUES.map(h => `<button type="button" data-h="${h}" class="${h === G.hue ? 'on' : ''}" style="--h:${h}"></button>`).join('')}</div>
+      <button type="button" class="dzgo" data-go="1">Graj</button><p class="dzk">Mysz – kierunek · przytrzymaj klik / spację – przyspieszenie</p>${LB.html()}</div>`);
+  }
+  let built = false;
+  function build() {
+    built = true; cv = $('#dzC'); cx = cv.getContext('2d'); mm = $('#dzMini'); mx = mm.getContext('2d');
+    const wrap = $('#dzWrap');
+    wrap.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; });
+    wrap.addEventListener('mousedown', e => { if (!e.target.closest('#dzOv')) mouse.down = true; }); document.addEventListener('mouseup', () => { mouse.down = false; });
+    wrap.addEventListener('touchmove', e => { const r = cv.getBoundingClientRect(), t = e.touches[0]; mouse.x = t.clientX - r.left; mouse.y = t.clientY - r.top; e.preventDefault(); }, { passive: false });
+    $('#dzOv').addEventListener('click', e => { const hb = e.target.closest('[data-h]'); if (hb) { G.hue = +hb.dataset.h; menu(); return; } if (e.target.closest('[data-go]')) start(); });
+    document.addEventListener('keydown', e => { if (!G.open) return; const k = e.key.toLowerCase(); if ([' ', 'arrowup', 'arrowleft', 'arrowright', 'arrowdown'].includes(k)) e.preventDefault(); keys[k] = true; if (k === 'enter' && G.st !== 'run') start(); });
+    document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+    $('#dz').addEventListener('close', () => { G.open = false; cancelAnimationFrame(raf); raf = 0; if (me && G.st === 'run') { LB.save(Math.floor(me.L / 10)); } me = null; netClose(); LB.close(); keys = {}; });
+    $('#dzX').onclick = () => $('#dz').close(); $('#dzHub').onclick = () => { $('#dz').close(); hubOpen(); };
+  }
+  function open() { if (!built) build(); G.open = true; $('#dz').showModal(); LB.open(); netOpen(); menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+  const dbg = { name: 'dzik.io', G, acts: [['+100 długości', () => { if (me) me.L += 1000; }], ['Zabij boty', () => { for (const k in BOT) { dropBody(BOT[k]); BOT[k].dead = 2.5; } }]] };
+  return { open, G, dbg };
+})();
 // ---------- debug (tylko konto delma): F2 albo ` w każdej otwartej grze ----------
 const GM_DBG = { name: 'Snake', G: GM, acts: [
   ['+5 pkt', () => { GM.score += 5; gmHud(); }], ['+1 ❤', () => { GM.lives = Math.min(3, GM.lives + 1); gmHud(); }],
@@ -2617,7 +2831,7 @@ const GM_DBG = { name: 'Snake', G: GM, acts: [
 ] };
 const DBG = (() => {
   let el = null, cur = null, tm = 0, fps = 0, fr = 0, ft = 0, raf = 0;
-  const list = () => [['#gm', GM_DBG], ['#w3', W3.dbg], ['#fl', FL.dbg], ['#sl', SL3.dbg], ['#fn', FN.dbg], ['#wz', WZ.dbg]];
+  const list = () => [['#gm', GM_DBG], ['#w3', W3.dbg], ['#fl', FL.dbg], ['#sl', SL3.dbg], ['#fn', FN.dbg], ['#wz', WZ.dbg], ['#dz', DZ.dbg]];
   function which() { for (const [sel, d] of list()) { const dl = $(sel); if (dl && dl.open && d) return { dl, d }; } return null; }
   const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(2)) : typeof v === 'boolean' ? (v ? '✔' : '–') : esc(String(v).slice(0, 24));
   function state(G) { return Object.entries(G).filter(([k, v]) => ['number', 'string', 'boolean'].includes(typeof v) && !/^(raf|last)$/.test(k)).map(([k, v]) => `<span><i>${esc(k)}</i>${fmt(v)}</span>`).join(''); }
