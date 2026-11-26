@@ -238,7 +238,7 @@ $('#hub').addEventListener('click', e => {
 });
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
-const VC_URL = 'https://dos.zone/revcdos';
+const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
 function vcOpen() { $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL; $('#vc').showModal(); setTimeout(() => f.focus(), 300); }
 $('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; });
 $('#vcX').onclick = () => $('#vc').close();
