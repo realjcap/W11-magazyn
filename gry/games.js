@@ -2397,6 +2397,8 @@ const WZ = (() => {
     parts = parts.filter(q => (q.l -= dt * 1.4) > 0); parts.forEach(q => { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= .94; q.vy *= .94; });
     if (G.st !== 'run') return;
     G.left -= dt; if (G.left <= 0) return end();
+    // paleta zapisana jako „wieziona przeze mnie”, a nie mam jej na widłach (np. po nowej zmianie / odświeżeniu) – wraca na podłogę
+    for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by === uid() && me.carry !== k) oSet(k, { ...o, st: 'floor', by: null }); }
     spawnOrders(dt);
     // jazda: wózek skręca tylnymi kołami – na wstecznym skręca „odwrotnie”, jak prawdziwy
     const thr = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), str = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
@@ -2532,7 +2534,7 @@ const WZ = (() => {
     // palety: na podłodze albo na widłach wózka, który je wiezie
     for (const k in O) {
       const o = O[k]; let m = pals[k]; if (!m) { m = pals[k] = palletModel(o.p); scene.add(m); }
-      const carrier = o.st === 'carry' ? (o.by === uid() ? myLift : lifts[o.by]) : null;
+      const carrier = o.st === 'carry' ? (o.by === uid() ? (me && me.carry === k ? myLift : null) : lifts[o.by]) : null;
       if (carrier) { if (m.parent !== carrier.userData.slot) { carrier.userData.slot.add(m); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); } }
       else { if (m.parent !== scene) scene.add(m); m.position.set(X3(o.x), 0, Z3(o.y)); m.rotation.y = 0; }
     }
