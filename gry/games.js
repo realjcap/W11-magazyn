@@ -197,7 +197,7 @@ window.gmLaunch = async () => {
 const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
-  $('#hubVc').hidden = !VC_OK(); // Vice City – konta z VC_OK
+  $('#hubVc').classList.toggle('off', !VC_OK()); // Vice City – widoczne dla wszystkich, otwiera się tylko kontom z VC_OK
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;

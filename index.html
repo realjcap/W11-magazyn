@@ -649,6 +649,9 @@ dialog[open]{opacity:1;transform:none}
 .hubi img{width:110px;transform:rotate(-12deg)}
 .hubt.off{opacity:.45;cursor:default}
 .hubt[hidden]{display:none!important}
+.hubt.hubvc{grid-column:1/-1;min-height:130px;border-color:rgba(255,79,182,.45);background:radial-gradient(circle at 15% 20%,rgba(255,79,182,.28),transparent 55%),radial-gradient(circle at 85% 90%,rgba(42,212,255,.25),transparent 55%),var(--card)}
+.hubt.hubvc .vcic{font-size:44px}
+.hubt .hublk{display:none}.hubt.off .hublk{display:block;font-weight:600}
 #hub .gbt{display:flex;justify-content:space-between;margin-top:12px}
 #gm .gbt{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px}
 /* animacja dzika po zalogowaniu */
@@ -1066,13 +1069,13 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <dialog id="hub">
   <div class="hubh"><b>DZIK</b> GAME HUB</div>
   <div class="hubg">
+    <button type="button" class="hubt hubvc" data-g="vc" id="hubVc"><span class="hubi vcic">VC</span><b>GTA: Vice City</b><small>Silnik w przeglądarce · wskaż własną instalację z PC</small><small class="hublk">🔒 Brak dostępu</small></button>
     <button type="button" class="hubt" data-g="snake"><span class="hubi"><img id="hubImg" alt=""></span><b>Dzik na batonach</b><small>Snake z power-upami</small><small id="hubBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
     <button type="button" class="hubt" data-g="dz" id="hubDz" hidden><span class="hubi dzic">dz<i>.io</i></span><b>dzik.io</b><small>Rośnij na wspólnej arenie</small></button>
     <button type="button" class="hubt" data-g="wz" id="hubWz" hidden><span class="hubi wzic">🚜</span><b>Wózkowa pierdoła</b><small>Rozwożenie palet – razem z każdym, kto wejdzie</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
-    <button type="button" class="hubt" data-g="vc" id="hubVc" hidden><span class="hubi vcic">VC</span><b>GTA: Vice City</b><small>Silnik w przeglądarce · wskaż własną instalację z PC</small></button>
     <button type="button" class="hubt" data-g="fn" id="hubFn"><span class="hubi fnic">5</span><b>5 nocek w kanciapie</b><small>Nocna zmiana w kanciapie</small></button>
   </div>
   <div class="gbt"><span></span><button type="button" id="hubX">Zamknij</button></div>
@@ -3671,7 +3674,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'ccfe3381fd'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '2fb620e0ca'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
