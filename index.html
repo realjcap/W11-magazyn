@@ -475,6 +475,8 @@ dialog[open]{opacity:1;transform:none}
 #fnSub b{color:#ffd34d}
 #fnOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:14px;padding:0 7%;background:linear-gradient(90deg,rgba(0,0,0,.92) 0,rgba(0,0,0,.75) 45%,rgba(0,0,0,.25) 100%);color:#ddd;font-family:'Courier New',monospace}
 #fnOv[hidden]{display:none}
+#fnFl{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);padding:5px 16px;min-height:0;background:rgba(0,0,0,.55);color:#d8ffe0;border:1px solid rgba(216,255,224,.5);font:700 12px 'Courier New',monospace;cursor:pointer;z-index:3}
+#fnFl.on{background:rgba(255,245,200,.25);color:#fff6c8;border-color:#fff2b0;box-shadow:0 0 10px rgba(255,240,180,.5)}
 #dbgP{position:fixed;left:10px;top:10px;z-index:99;width:min(420px,calc(100vw - 20px));max-height:calc(100dvh - 20px);overflow:auto;background:rgba(12,14,18,.93);color:#dfe6ee;border:1px solid #3a4a5c;border-radius:8px;padding:8px 10px;font:12px/1.35 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.6);text-align:left;cursor:auto}
 #dbgP[hidden]{display:none}
 #dbgP .dh{display:flex;align-items:center;gap:8px;margin-bottom:6px}#dbgP .dh b{flex:1;color:#ffcf4a}#dbgP .dh span{color:#7fd08a;font-family:monospace}
@@ -1030,8 +1032,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
       <div id="fnMap"><div class="z kan">KANCIAPA</div><div class="z ram">RAMPA</div><div class="z pak">PAK.</div>
         <button type="button" data-c="0" style="left:44%;top:6%">1</button><button type="button" data-c="1" style="left:6%;top:30%">2</button><button type="button" data-c="2" style="left:82%;top:30%">3</button>
         <button type="button" data-c="3" style="left:82%;top:4%">4</button><button type="button" data-c="4" style="left:4%;top:72%">5</button><button type="button" data-c="5" style="left:64%;top:66%">6</button></div>
-      <button type="button" id="fnCamX">▼ Zamknij kamery</button></div>
-    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnHud" hidden><div>Prąd: <b id="fnPw">100</b>%</div><div>Zużycie: <span id="fnUse"></span></div><small>E – drzwi · F – lampa · Q – kamery</small></div><div id="fnPrn"><i></i><b>!</b></div><button type="button" id="fnPrnBtn" hidden>↻ Ukrainka (R)</button><div id="fnOv"></div><div id="fnCur"></div></div>
+      <button type="button" id="fnFl">🔦 Latarka (F)</button><button type="button" id="fnCamX">▼ Zamknij kamery</button></div>
+    <button type="button" id="fnCamBtn" hidden>▲ KAMERY</button><div id="fnClk"></div><div id="fnHint">📞 Dzwoni telefon – kliknij go albo naciśnij spację</div><div id="fnSub"></div><div id="fnHud" hidden><div>Prąd: <b id="fnPw">100</b>%</div><div>Zużycie: <span id="fnUse"></span></div><small>E – drzwi · F – lampa (na kamerach: latarka) · Q – kamery</small></div><div id="fnPrn"><i></i><b>!</b></div><button type="button" id="fnPrnBtn" hidden>↻ Ukrainka (R)</button><div id="fnOv"></div><div id="fnCur"></div></div>
 </dialog>
 <dialog id="sl">
   <div class="gh"><h2>Slender: Magazyn</h2><span class="mu slh">Shift – sprint · F – latarka · E – podnieś</span><button type="button" id="slSnd" class="e" title="Dźwięk">🔊</button></div>
@@ -3587,7 +3589,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'd060f6350e'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = 'd86dd886e9'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

@@ -1059,10 +1059,10 @@ const FN = (() => {
     else scare(e);
   }
   function powTick(dt) {
-    const use = 1 + (G.door ? 1 : 0) + (G.light ? 1 : 0) + (G.cam >= 0 ? 1 : 0);
+    const use = 1 + (G.door ? 1 : 0) + (G.light ? 1 : 0) + (G.cam >= 0 ? 1 : 0) + (G.fl ? 1 : 0);
     G.pow -= dt * (use * .16 + (G.night - 1) * .015);
     $('#fnPw').textContent = Math.max(0, Math.ceil(G.pow));
-    $('#fnUse').innerHTML = [0, 1, 2, 3].map(i => i < use ? `<i class="${use > 3 ? 'r' : use > 2 ? 'y' : ''}"></i>` : '').join('');
+    $('#fnUse').innerHTML = [0, 1, 2, 3, 4].map(i => i < use ? `<i class="${use > 3 ? 'r' : use > 2 ? 'y' : ''}"></i>` : '').join('');
     if (G.pow <= 0) blackout();
   }
   function doorToggle() {
@@ -1426,9 +1426,16 @@ const FN = (() => {
     G.cam = i == null ? (G.lastCam || 0) : i; G.lastCam = G.cam; click(); camStatic();
     $('#fnWrap').classList.add('cam'); $('#fnCam').hidden = false;
     $('#fnCamN').textContent = `CAM ${G.cam + 1} – ${G.cams[G.cam].n}`;
-    document.querySelectorAll('#fnMap [data-c]').forEach(b => b.classList.toggle('on', +b.dataset.c === G.cam));
+    document.querySelectorAll('#fnMap [data-c]').forEach(b => b.classList.toggle('on', +b.dataset.c === G.cam)); flAim();
   }
-  function camClose() { if (G.cam < 0) return; G.cam = -1; click(); if (G.inside) G.insideT = Math.min(G.insideT, .3); $('#fnWrap').classList.remove('cam'); $('#fnCam').hidden = true; }
+  // latarka kamery: świeci tam, gdzie patrzy aktualna kamera; dodatkowo zjada prąd
+  function flSet(on) {
+    if (on && (G.cam < 0 || G.out)) return; G.fl = !!on; $('#fnFl').classList.toggle('on', G.fl); if (on) click();
+    if (!G.flL && on) { G.flL = new T.SpotLight(0xf2f6ff, 0, 30, .42, .45, 1.1); scene.add(G.flL, G.flL.target); }
+    if (G.flL) G.flL.intensity = G.fl ? 55 : 0; flAim();
+  }
+  function flAim() { if (!G.fl || !G.flL || G.cam < 0) return; const c = G.cams[G.cam].c, d = new T.Vector3(); c.getWorldDirection(d); G.flL.position.copy(c.position); G.flL.target.position.copy(c.position).addScaledVector(d, 12); G.flL.target.updateMatrixWorld(); }
+  function camClose() { if (G.cam < 0) return; G.cam = -1; click(); if (G.fl) flSet(false); if (G.inside) G.insideT = Math.min(G.insideT, .3); $('#fnWrap').classList.remove('cam'); $('#fnCam').hidden = true; }
   function camStatic() { const n = $('#fnCamS'); n.classList.remove('burst'); void n.offsetWidth; n.classList.add('burst'); if (!audio) return; const { ac, master } = audio, b = ac.createBuffer(1, ac.sampleRate * .25, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = .12; s.buffer = b; s.connect(g).connect(master); s.start(); }
   function camNoise() { const c = $('#fnCamS'), x = c.getContext('2d'), w = c.width = 192, h = c.height = 108, im = x.createImageData(w, h), d = im.data; for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; } x.putImageData(im, 0, 0); $('#fnCamT').textContent = $('#fnClk').firstChild ? $('#fnClk').firstChild.textContent : ''; }
 
@@ -1465,7 +1472,7 @@ const FN = (() => {
     enLoad(['dzik']).catch(() => {}); // szef zmiany – potrzebny dopiero, gdy zabraknie prądu
     G.night = n; G.t = 0; G.yaw = 0; G.st = 'ring'; G.ringFor = 0; ringT = .8; ov('');
     // reset stanu nocy
-    G.pow = 100; G.prn = PRN_T; G.turn = null; if (ARM) ARM.visible = false; if (SEAT) cam.position.copy(SEAT); G.door = false; G.dA = 0; G.light = false; G.inside = null; G.out = null; G.sc = null; G.stung = false;
+    G.pow = 100; G.fl = false; if (G.flL) G.flL.intensity = 0; G.prn = PRN_T; G.turn = null; if (ARM) ARM.visible = false; if (SEAT) cam.position.copy(SEAT); G.door = false; G.dA = 0; G.light = false; G.inside = null; G.out = null; G.sc = null; G.stung = false;
     cam.fov = 68; cam.updateProjectionMatrix(); if (G.redL) G.redL.intensity = 0; if (phone.spot) phone.spot.intensity = 0; btnUpd();
     (G.L || []).forEach(l => { if (l.userData.i0 != null) l.intensity = l.userData.i0; }); if (G.hemi) G.hemi.intensity = .22; (G.scrM || []).forEach(m => m.color.set(0xffffff));
     if (ENC.dzik) { ENC.dzik.g.visible = false; scene.remove(ENC.dzik.g); }
@@ -1527,7 +1534,7 @@ const FN = (() => {
       if (phone.bL && ray.intersectObject(phone.bL, false).length) return lightSet(!G.light);
       if (ray.intersectObjects(phone.lap, false).length) camOpen();
     });
-    $('#fnCamX').onclick = camClose; $('#fnPrnBtn').onclick = prnHit; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
+    $('#fnCamX').onclick = camClose; $('#fnFl').onclick = () => flSet(!G.fl); $('#fnPrnBtn').onclick = prnHit; $('#fnCamBtn').onclick = () => G.cam >= 0 ? camClose() : camOpen();
     $('#fnMap').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) camOpen(+b.dataset.c); });
     document.addEventListener('keydown', e => { if (!G.open) return; const k = e.key.toLowerCase();
       if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'pageup', 'pagedown', 'home', 'end'].includes(k) && !e.target.closest('input,select,textarea')) e.preventDefault(); // bez przewijania strony w tle
@@ -1536,7 +1543,7 @@ const FN = (() => {
       if (k === 'escape' && G.cam >= 0) { e.preventDefault(); return camClose(); }
       if ((k === 'tab' || k === 'q') && ['night', 'call', 'ring'].includes(G.st)) { e.preventDefault(); G.cam >= 0 ? camClose() : camOpen(); }
       if (G.cam >= 0 && /^[1-7]$/.test(k)) camOpen(+k - 1);
-      if (k === 'e' && !e.repeat) doorToggle(); if (k === 'r' && !e.repeat) prnHit(); if (k === 'f' && !e.repeat) lightSet(!G.light);
+      if (k === 'e' && !e.repeat) doorToggle(); if (k === 'r' && !e.repeat) prnHit(); if (k === 'f' && !e.repeat) { if (G.cam >= 0) flSet(!G.fl); else lightSet(!G.light); }
       if (k === 'escape' && (G.st === 'night' || G.st === 'call' || G.st === 'ring')) { e.preventDefault(); menu(); } });
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'a', 'd'].includes(k)) G.look = 0; });
     $('#fn').addEventListener('cancel', e => { if (G.cam >= 0) { e.preventDefault(); camClose(); } else if (G.st !== 'menu') { e.preventDefault(); menu(); } });
