@@ -2360,7 +2360,7 @@ const WZ = (() => {
   function start() {
     aInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
     newMe(); G.st = 'run'; G.left = SHIFT; G.score = 0; G.dmg = 0; parts = []; ov(''); playRec('wz');
-    NPC = Array.from({ length: 4 }, () => npcNew());
+    NPC = Array.from({ length: 2 }, () => npcNew());
   }
   function npcNew() { const p = npcPt(); return { x: p[0], y: p[1], tx: 0, ty: 0, down: 0, c: ['#e3542b', '#2b7be3', '#3a3a3a', '#f0c419'][Math.floor(Math.random() * 4)], ph: Math.random() * 6 }; }
   function npcPt() { for (let i = 0; i < 200; i++) { const x = rnd(30, W - 30), y = rnd(30, H - 30); if (!blocked(x, y, 22)) return [x, y]; } return SPAWN.slice(); }
