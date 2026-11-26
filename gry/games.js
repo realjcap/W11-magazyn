@@ -199,7 +199,7 @@ function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
   $('#hubVc').hidden = lbMe() !== DELMA_UID; // Vice City – tylko konto delma
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
-  $('#hubDz').hidden = !DZ_OK(); // dzik.io – na razie delma i rudy
+  $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
   if (!$('#hubCan').src) $('#hubCan').src = FL_CAN;
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
@@ -2613,9 +2613,9 @@ const WZ = (() => {
 })();
 // ---------- dzik.io: wąż na wspólnej arenie (jak slither.io); boty dopełniają, gdy graczy jest mało ----------
 // Firebase (ROOT-dz): p/<id> – głowy graczy i botów, eat/<i> – pokolenie jedzenia, drop/<id> – resztki po zgonie. Bez bazy – tryb solo.
-const DZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // na razie delma i rudy
+const DZ_OK = () => true; // dla wszystkich
 const DZ = (() => {
-  const AR = 1500, NF = 340, SEG = 11, SPD = 155, BST = 300, TURN = 3.4, BOTS = 4;
+  const AR = 2600, NF = 1000, SEG = 11, SPD = 155, BST = 300, TURN = 3.4, BOTS = 10, TR = SPD / TURN;
   const HUES = [150, 190, 265, 320, 25, 50];
   const G = { open: false, st: 'menu', hue: 150, best: 0, god: false, online: false };
   const LB = LBX('dzlb', '#dzOv');
@@ -2697,12 +2697,20 @@ const DZ = (() => {
   // boty: jedzą najbliższe jedzenie, omijają ciała i ścianę
   function botStep(b, dt, all) {
     if (b.dead) { if ((b.dead -= dt) <= 0) Object.assign(b, newSnake(b.id, b.n, b.h)); return; }
-    let ta = b.a, best = 1e9;
-    for (let i = 0; i < NF; i += 2) { const f = food(i), d = Math.hypot(f.x - b.x, f.y - b.y); if (d < best && d < 520) { best = d; ta = Math.atan2(f.y - b.y, f.x - b.x); } }
-    for (const id in DROP) { const d0 = DROP[id]; if (d0 && d0.p) for (const q of d0.p) { const d = Math.hypot(q[0] - b.x, q[1] - b.y) * .7; if (d < best) { best = d; ta = Math.atan2(q[1] - b.y, q[0] - b.x); } } }
+    // cel: najtańsze jedzenie (odległość + kąt); pomija to, co leży w kółku skrętu – inaczej bot krąży wokół kulki w nieskończoność
+    let ta = null, best = 1e9;
+    const pick = (x, y, w) => { const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy); if (d > 650) return; const ang = Math.atan2(dy, dx); let th = ang - b.a; th = Math.abs(Math.atan2(Math.sin(th), Math.cos(th))); if (th > .25 && d < 2 * TR * Math.sin(th) * 1.15 + 6) return; const c = d * w * (1 + th * .8); if (c < best) { best = c; ta = ang; } };
+    if (b.wt > 0) b.wt -= dt; else {
+      for (let i = b.id.length % 2; i < NF; i += 2) { const f = food(i); pick(f.x, f.y, f.big ? .6 : 1); }
+      for (const id in DROP) { const d0 = DROP[id]; if (d0 && d0.p) d0.p.forEach((q, k) => { if (!(d0.e && d0.e[k])) pick(q[0], q[1], .7); }); }
+    }
+    // nic w zasięgu albo długo bez jedzenia – jedzie w losowym kierunku (bliżej środka, gdy przy ścianie)
+    if ((b.hg = (b.hg || 0) + dt) > 7) { b.hg = 0; b.wt = 2.5; b.wa = b.a + rnd(-1.5, 1.5); }
+    if (ta === null) { if (!(b.wt > 0)) { b.wt = 1.5; b.wa = b.a + rnd(-1, 1); } ta = Math.hypot(b.x, b.y) > AR * .8 ? Math.atan2(-b.y, -b.x) : b.wa; }
+    const L0 = b.L;
     const ahead = (ang, dist) => { const x = b.x + Math.cos(ang) * dist, y = b.y + Math.sin(ang) * dist; if (Math.hypot(x, y) > AR - 60) return true; for (const o of all) { if (o === b || o.dead) continue; const ob = o.bodyC || body(o); for (const q of ob) if (Math.hypot(q[0] - x, q[1] - y) < rad(o.L) + 18) return true; } return false; };
     if (ahead(b.a, 70) || ahead(ta, 70)) { for (const off of [.8, -.8, 1.6, -1.6, 2.4, -2.4]) if (!ahead(b.a + off, 70)) { ta = b.a + off; break; } }
-    stepE(b, dt, ta, false); eatAround(b);
+    stepE(b, dt, ta, false); eatAround(b); if (b.L > L0) b.hg = 0;
     const why = hits(b, all); if (why) { dropBody(b); boom(b); b.dead = 2.5; }
   }
   function update(dt) {
@@ -2710,7 +2718,7 @@ const DZ = (() => {
     // boty prowadzi jeden gracz (gospodarz); reszta widzi je jak zwykłych graczy
     if (isHost()) {
       const want = Math.max(0, BOTS - humans() + 1); let have = Object.keys(BOT).length;
-      while (have < want) { const id = 'bot' + have; BOT[id] = newSnake(id, ['Agenciak', 'Wózkowy', 'Brygadzista', 'Dzik Tropic', 'Kreatyna'][have % 5], HUES[(have + 2) % HUES.length] + 7 * have); have++; }
+      while (have < want) { const id = 'bot' + have; BOT[id] = newSnake(id, ['Agenciak', 'Wózkowy', 'Brygadzista', 'Dzik Tropic', 'Kreatyna', 'Paleciak', 'Zgrzewka', 'Kartoniarz', 'Ukrainka', 'Grzechu'][have % 10], HUES[(have + 2) % HUES.length] + 7 * have); have++; }
       while (have > want) { const id = 'bot' + (have - 1); delete BOT[id]; if (G.online) ref.child('p/' + id).remove().catch(() => {}); have--; }
       for (const k in BOT) delete R[k];
     } else if (Object.keys(BOT).length) BOT = {};
