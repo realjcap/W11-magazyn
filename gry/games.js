@@ -2326,14 +2326,14 @@ const WZ = (() => {
   }
   function tone(f, len, type = 'sine', v = .15, at = 0) { if (!audio) return; const { ac, m } = audio, t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + len); o.connect(g).connect(m); o.start(t); o.stop(t + len + .02); }
   function thud(v) { if (!audio) return; const { ac, m } = audio, t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .25); g.gain.setValueAtTime(.5 * v, t); g.gain.exponentialRampToValueAtTime(.001, t + .3); o.connect(g).connect(m); o.start(t); o.stop(t + .32); }
-  const horn = () => { tone(392, .35, 'square', .07); tone(494, .35, 'square', .06); };
+  const horn = (v = 1) => { tone(392, .35, 'square', .07 * v); tone(494, .35, 'square', .06 * v); };
   const ding = () => { tone(880, .25, 'sine', .18); tone(1320, .35, 'sine', .14, .12); };
   // ---------- wspólny stan (Firebase) ----------
   const isHost = () => { const now = Date.now(); return !G.online || Object.entries(P).filter(([k, p]) => p && now - (p.lt || 0) < 6000).map(([k]) => k).concat(uid()).sort()[0] === uid(); };
   function netOpen() {
     G.online = false; if (!db || !lbMe()) return;
     ref = db.ref(ROOT + '-wz'); pRef = ref.child('p'); oRef = ref.child('o');
-    pRef.on('value', s => { G.online = true; const v = s.val() || {}, now = Date.now(); for (const k in v) { if (k === uid()) continue; const n = v[k]; if (!n || typeof n.x !== 'number') continue; const p = P[k] || (P[k] = { x: n.x, y: n.y, a: n.a }); Object.assign(p, { tx: n.x, ty: n.y, ta: n.a, n: String(n.n || '?').slice(0, 20), c: n.c | 0, h: n.h || 0, lt: now }); } for (const k in P) if (!v[k]) delete P[k]; }, () => { G.online = false; });
+    pRef.on('value', s => { G.online = true; const v = s.val() || {}, now = Date.now(); for (const k in v) { if (k === uid()) continue; const n = v[k]; if (!n || typeof n.x !== 'number') continue; const p = P[k] || (P[k] = { x: n.x, y: n.y, a: n.a }); if (n.hn && p.hn !== undefined && n.hn !== p.hn && me) horn(Math.max(.15, 1 - Math.hypot(n.x - me.x, n.y - me.y) / 900)); p.hn = n.hn || 0; Object.assign(p, { tx: n.x, ty: n.y, ta: n.a, n: String(n.n || '?').slice(0, 20), c: n.c | 0, h: n.h || 0, lt: now }); } for (const k in P) if (!v[k]) delete P[k]; }, () => { G.online = false; });
     oRef.on('value', s => { const v = s.val() || {}; const n = {}; for (const k in v) { const o = v[k]; if (o && typeof o.x === 'number') n[k] = o; } O = n; }, () => {});
     try { pRef.child(uid()).onDisconnect().remove(); } catch (e) {}
   }
@@ -2421,7 +2421,7 @@ const WZ = (() => {
     // dźwięk silnika i piszczenie na wstecznym
     if (audio) { audio.eng.frequency.value = 45 + Math.abs(me.v) * .35; audio.eg.gain.value = G.open ? .035 + Math.abs(me.v) / 240 * .03 : 0; if (me.v < -5 && (beepT -= dt) <= 0) { beepT = .5; tone(1050, .2, 'square', .04); } }
     shake = Math.max(0, shake - dt * 40);
-    if ((sendT -= dt) <= 0 && G.online) { sendT = .1; pRef.child(uid()).set({ n: cap(user || 'gracz').slice(0, 30), x: Math.round(me.x), y: Math.round(me.y), a: +me.a.toFixed(2), c: me.c, h: me.carry || 0, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
+    if ((sendT -= dt) <= 0 && G.online) { sendT = .1; pRef.child(uid()).set({ n: cap(user || 'gracz').slice(0, 30), x: Math.round(me.x), y: Math.round(me.y), a: +me.a.toFixed(2), c: me.c, h: me.carry || 0, hn: G.hn || 0, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
   }
   // ---------- rysowanie 3D (three.js, ładowane dopiero przy otwarciu gry) ----------
   // 1 px logiki = 5 cm, wózek ok. 2,4 m
@@ -2480,6 +2480,9 @@ const WZ = (() => {
     const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js');
     const gl = await new GLTFLoader().loadAsync('gry/modele/fnad_magazyn.glb?v=' + WZ_V), hall = gl.scene; hall.scale.setScalar(K); scene.add(hall); hall.updateMatrixWorld(true);
     const bb = new T.Box3().setFromObject(hall); W = Math.round((bb.max.x - bb.min.x) / S); H = Math.round((bb.max.z - bb.min.z) / S);
+    // czerwony paleciak przy prawej ścianie zastawiał przejazd – usuwamy go z hali
+    for (const nm of ['fn_jack_electric.i.001', 'fn_jack_electrici001']) { const o = hall.getObjectByName(nm); if (o && o.parent) o.parent.remove(o); }
+    hall.updateMatrixWorld(true);
     const ox = (bb.min.x + bb.max.x) / 2, oz = (bb.min.z + bb.max.z) / 2; hall.position.x -= ox; hall.position.z -= oz; hall.updateMatrixWorld(true);
     // siatka przeszkód: trójkąty modelu na wysokości wózka (0,25–2 m), bez ścian, lamp i plakatów
     GW = Math.ceil(W / CELL); GH = Math.ceil(H / CELL); GRID = new Uint8Array(GW * GH);
@@ -2581,7 +2584,7 @@ const WZ = (() => {
     $('#wzOv').addEventListener('click', e => { if (e.target.closest('[data-go]')) start(); });
     document.addEventListener('keydown', e => {
       if (!G.open) return; const k = e.key.toLowerCase(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
-      keys[k] = true; if (k === ' ' && !e.repeat) action(); if (k === 'h' && !e.repeat) horn(); if (k === 'enter' && G.st !== 'run') start();
+      keys[k] = true; if (k === ' ' && !e.repeat) action(); if (k === 'h' && !e.repeat && G.st === 'run') { horn(); G.hn = Date.now(); sendT = 0; } if (k === 'enter' && G.st !== 'run') start();
     });
     document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
     $('#wz').addEventListener('close', () => { G.open = false; cancelAnimationFrame(raf); raf = 0; if (audio) audio.eg.gain.value = 0; if (G.st === 'run') end(); netClose(); LB.close(); keys = {}; });
