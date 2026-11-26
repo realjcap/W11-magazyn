@@ -2348,7 +2348,10 @@ const WZ = (() => {
     if (!isHost()) return; hostT -= dt; const n = Object.keys(O).length; if (n >= MAXO || (hostT > 0 && n > 0)) return; hostT = rnd(5, 9);
     const r = RAMPS[Math.floor(Math.random() * RAMPS.length)], s = ST[Math.floor(Math.random() * ST.length)], p = Math.floor(Math.random() * PROD.length);
     const id = 'o' + Date.now().toString(36) + Math.floor(Math.random() * 999);
-    oSet(id, { x: r.x + r.w / 2 + rnd(-8, 8), y: r.y + r.h / 2 + rnd(-8, 8), to: s.i, p, st: 'wait', born: Date.now() });
+    // palety na rampie w 2×2, żeby nie lądowały jedna na drugiej
+    const spots = [[-14, -14], [14, -14], [-14, 14], [14, 14]].map(([a, b]) => [r.x + r.w / 2 + a, r.y + r.h / 2 + b]), fr = spots.find(q => !Object.values(O).some(o => Math.hypot(o.x - q[0], o.y - q[1]) < 20));
+    if (!fr) return;
+    oSet(id, { x: fr[0], y: fr[1], to: s.i, p, st: 'wait', born: Date.now() });
     // porzucone: ktoś „wiezie” paletę, a jego wózka już nie ma – paleta wraca na podłogę
     const now = Date.now(); for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by !== uid() && !(P[o.by] && now - P[o.by].lt < 8000)) oSet(k, { ...o, st: 'floor', by: null }); }
   }
@@ -2502,11 +2505,12 @@ const WZ = (() => {
     while (qu.length) { const k = qu.pop(), i = k % GW, j = (k - i) / GW; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + a, nj = j + b; if (ni < 0 || nj < 0 || ni >= GW || nj >= GH) continue; const nk = nj * GW + ni; if (pass[nk] && !reach[nk]) { reach[nk] = 1; qu.push(nk); } } }
     const ok = p => reach[Math.floor(p[1] / CELL) * GW + Math.floor(p[0] / CELL)] === 1;
     for (let k = free.length - 1; k >= 0; k--) if (!ok(free[k])) free.splice(k, 1);
-    const pick = (c, n) => { if (!c.length) return []; const out = [c.reduce((m, p) => p[0] < m[0] ? p : m)]; while (out.length < n) { let best = null, bd = -1; for (const p of c) { const d = Math.min(...out.map(q => Math.hypot(p[0] - q[0], p[1] - q[1]))); if (d > bd) { bd = d; best = p; } } if (bd < 60) break; out.push(best); } return out; };
+    const pick = (c, n, gap = 60) => { if (!c.length) return []; const out = [c.reduce((m, p) => p[0] < m[0] ? p : m)]; while (out.length < n) { let best = null, bd = -1; for (const p of c) { const d = Math.min(...out.map(q => Math.hypot(p[0] - q[0], p[1] - q[1]))); if (d > bd) { bd = d; best = p; } } if (bd < gap) break; out.push(best); } return out; };
     const half = H / 2, sz = Z * CELL;
-    const top = free.filter(p => p[1] < H * .3); // rampy jak najbliżej bram w górnej ścianie
-    RAMPS = pick(top.length >= 3 ? top : free.filter(p => p[1] < half), 4).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'Rampa ' + (i + 1) }));
-    ST = pick(free.filter(p => p[1] >= half), 6).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'St. ' + (i + 1) }));
+    // rampa = brama w prawym dolnym rogu hali (za kanciapą); tam przyjeżdżają palety
+    const gate = free.filter(p => p[0] > W - 260 && p[1] > H * .55), rest = free.filter(p => !(p[0] > W - 300 && p[1] > H * .45));
+    RAMPS = pick(gate.length ? gate : free.filter(p => p[1] < half), 3).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'Rampa ' + (i + 1) }));
+    ST = pick(rest.length >= 4 ? rest : free.filter(p => p[1] >= half), 6).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'St. ' + (i + 1) }));
     if (!RAMPS.length || !ST.length) throw new Error('Za mało miejsca na hali.');
     SPAWN = free.reduce((m, p) => Math.hypot(p[0] - W / 2, p[1] - H / 2) < Math.hypot(m[0] - W / 2, m[1] - H / 2) ? p : m, free[0]).slice();
     // oznaczenia ramp i stanowisk: pole na podłodze + tablica nad nim
