@@ -243,7 +243,32 @@ function vcOpen() { $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('
 $('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; });
 $('#vcX').onclick = () => $('#vc').close();
 $('#vcHub').onclick = () => { $('#vc').close(); hubOpen(); };
-$('#vcTab').onclick = () => { window.open(VC_URL, '_blank', 'noopener'); $('#vc').close(); };
+
+// gra z prywatnego R2 (przez worker, tylko delma): pobranie .zip i podanie go do importu w oknie gry, zamiast wskazywania folderu
+async function vcCloud() {
+  const btn = $('#vcCloud'); if (btn.disabled) return;
+  const doc = $('#vcF').contentDocument, inp = doc && doc.getElementById('game-zip-input');
+  if (!inp) return say('Poczekaj, aż okno gry się wczyta.');
+  if (!auth || !auth.currentUser || lbMe() !== DELMA_UID || !SL.url) return say('Chmura działa tylko na koncie delma z ustawionym workerem.');
+  btn.disabled = true;
+  try {
+    const tok = await auth.currentUser.getIdToken();
+    const r = await fetch(SL.url.replace(/\/+$/, '') + '/vc/game.zip', { headers: { Authorization: 'Bearer ' + tok } });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'HTTP ' + r.status); }
+    const tot = +r.headers.get('Content-Length') || 0, rd = r.body.getReader(); let blob = new Blob([]), buf = [], bl = 0, got = 0;
+    for (;;) {
+      const { done, value } = await rd.read(); if (done) break;
+      buf.push(value); bl += value.length; got += value.length;
+      if (bl > 64e6) { blob = new Blob([blob, ...buf]); buf = []; bl = 0; } // co 64 MB do Bloba (przeglądarka trzyma duże Bloby na dysku)
+      btn.textContent = '☁ Pobieranie… ' + (tot ? Math.floor(got / tot * 100) + '%' : Math.round(got / 1e6) + ' MB');
+    }
+    const file = new File([blob, ...buf], 'vicecity.zip', { type: 'application/zip' }), dt = new DataTransfer(); dt.items.add(file);
+    inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true }));
+    btn.textContent = '☁ Pobrano – trwa import w oknie gry';
+  } catch (e) { say('Nie udało się pobrać gry z chmury: ' + e.message); btn.textContent = '☁ Wczytaj z chmury'; }
+  btn.disabled = false;
+}
+$('#vcCloud').onclick = vcCloud;
 $('#gmHub').onclick = () => { $('#gm').close(); hubOpen(); };
 function snakeOpen() {
   gmImgs(); gmReset(); GM.run = false; $('#gmBest').textContent = GM.best;

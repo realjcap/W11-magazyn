@@ -1049,9 +1049,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gbt"><button type="button" id="slHub" class="e">← Game Hub</button><span class="mu">Esc – pauza</span><button type="button" id="slgX">Zamknij</button></div>
 </dialog>
 <dialog id="vc">
-  <div class="gh"><h2>GTA: Vice City</h2><span class="mu">Za pierwszym razem wskaż folder z zainstalowaną grą (albo .zip) · potem startuje od razu</span></div>
+  <div class="gh"><h2>GTA: Vice City</h2><span class="mu">Pierwszy raz na tym komputerze: „☁ Wczytaj z chmury” · potem startuje od razu</span></div>
   <div id="vcWrap"><iframe id="vcF" title="GTA: Vice City" allow="fullscreen; gamepad; autoplay; clipboard-write" allowfullscreen></iframe></div>
-  <div class="gbt"><button type="button" id="vcHub" class="e">← Game Hub</button><button type="button" id="vcTab" class="e">Nie ładuje się? Otwórz w nowej karcie</button><button type="button" id="vcX">Zamknij</button></div>
+  <div class="gbt"><button type="button" id="vcHub" class="e">← Game Hub</button><button type="button" id="vcCloud" class="e">☁ Wczytaj z chmury</button><button type="button" id="vcX">Zamknij</button></div>
 </dialog>
 <dialog id="fl">
   <div class="gh"><h2>Flappy Dzik</h2><span class="mu">Spacja / ↑ / klik – podskok</span></div>
@@ -3605,7 +3605,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '4a3b012c26'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '83e16a3772'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
