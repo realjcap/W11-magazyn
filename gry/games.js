@@ -254,8 +254,6 @@ function vcOpen() {
 }
 $('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; clearInterval(VCS.t); });
 $('#vcX').onclick = () => $('#vc').close();
-// „Quit Game” w grze – silnik w ramce wysyła { vc: 'quit' }, zamykamy okno
-window.addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.vc === 'quit' && $('#vc').open) $('#vc').close(); });
 $('#vcHub').onclick = () => { $('#vc').close(); hubOpen(); };
 // własny ekran startowy zamiast strony emulatora: stan importu czytany z ramki (ta sama domena), przyciski klikają jej przyciski
 const VCS = { t: 0, dl: '' };

@@ -7,8 +7,6 @@ Module["expectedDataFileDownloads"]++;
 var arguments_ = [];
 var thisProgram = "./this.program";
 var quit_ = (status, toThrow) => {
-    // W11: wyjście z gry (Quit Game) – daj znać stronie, żeby zamknęła okno
-    try { if (toThrow instanceof ExitStatus && parent !== window) parent.postMessage({ vc: 'quit' }, location.origin) } catch (e) {}
     throw toThrow
 };
 var _scriptName = globalThis.document?.currentScript?.src;
