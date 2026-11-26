@@ -2293,19 +2293,25 @@ function lbSave(score) {
 // Stan wspólny w Firebase (ROOT-wz): p/<uid> – pozycje wózków, o/<id> – zlecenia (palety), done – licznik zmiany.
 // Bez dostępu do bazy gra działa sama (tryb solo).
 const WZ = (() => {
-  const W = 1800, H = 1100, SHIFT = 300, MAXO = 4, PROD = [['Tropic', '#1d9fd8'], ['Classic', '#d8dde2'], ['Limitless', '#7a3cf0'], ['Kreatyna', '#f2c41b'], ['Batony', '#8a5a2b'], ['Wafle', '#f08a24']];
-  const RAMPS = [300, 650, 1000, 1350].map((x, i) => ({ i, x: x - 70, y: 26, w: 140, h: 70, n: 'Rampa ' + (i + 1) }));
-  const ST = [0, 1, 2, 3, 4, 5].map(i => ({ i, x: 140 + i * 280, y: H - 106, w: 130, h: 76, n: 'St. ' + (i + 1) }));
-  const OBS = [];
-  for (const y of [300, 500, 700]) for (const [a, b] of [[170, 640], [760, 1130], [1250, 1560]]) OBS.push({ x: a, y, w: b - a, h: 48, r: 1 });
-  OBS.push({ x: 1630, y: 430, w: 150, h: 130, k: 1 }); // kanciapa
+  const SHIFT = 300, MAXO = 4, PROD = [['Tropic', '#1d9fd8'], ['Classic', '#d8dde2'], ['Limitless', '#7a3cf0'], ['Kreatyna', '#f2c41b'], ['Batony', '#8a5a2b'], ['Wafle', '#f08a24']];
+  // hala z 5 nocek (fnad_magazyn.glb) powiększona 1,5×; przeszkody i miejsca ramp/stanowisk liczone z modelu po wczytaniu
+  const K = 1.5, CELL = 8; // CELL – kratka siatki przeszkód w px (8 px = 40 cm)
+  let W = 1510, H = 490, RAMPS = [], ST = [], GRID = null, GW = 0, GH = 0, SPAWN = [755, 245];
   const G = { open: false, st: 'menu', t: 0, left: SHIFT, score: 0, dmg: 0, god: false, online: false };
   const LB = LBX('wzlb', '#wzOv');
-  let cv, cx, raf = 0, last = 0, me = null, O = {}, P = {}, ref = null, oRef = null, pRef = null, sendT = 0, hostT = 0, keys = {}, parts = [], NPC = [], shake = 0, audio = null, beepT = 0, toastT = 0;
+  let cv, raf = 0, last = 0, me = null, O = {}, P = {}, ref = null, oRef = null, pRef = null, sendT = 0, hostT = 0, keys = {}, parts = [], NPC = [], shake = 0, audio = null, beepT = 0, toastT = 0;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const uid = () => lbMe() || 'solo';
   const inR = (x, y, r) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
+  const cellB = (i, j) => i < 0 || j < 0 || i >= GW || j >= GH || GRID[j * GW + i] === 1;
+  // czy koło (x, y, r) w px nachodzi na zajętą kratkę albo ścianę hali
+  function blocked(x, y, r) {
+    if (!GRID) return x < r || y < r || x > W - r || y > H - r;
+    const i0 = Math.floor((x - r) / CELL), i1 = Math.floor((x + r) / CELL), j0 = Math.floor((y - r) / CELL), j1 = Math.floor((y + r) / CELL);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cellB(i, j)) { const qx = clamp(x, i * CELL, i * CELL + CELL), qy = clamp(y, j * CELL, j * CELL + CELL); if (Math.hypot(x - qx, y - qy) < r) return true; }
+    return false;
+  }
   function ov(h) { const o = $('#wzOv'); o.innerHTML = h; o.hidden = !h; }
   function toast(t) { const e = $('#wzMsg'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 1800); }
   // ---------- dźwięk ----------
@@ -2340,19 +2346,19 @@ const WZ = (() => {
     if (!isHost()) return; hostT -= dt; const n = Object.keys(O).length; if (n >= MAXO || (hostT > 0 && n > 0)) return; hostT = rnd(5, 9);
     const r = RAMPS[Math.floor(Math.random() * RAMPS.length)], s = ST[Math.floor(Math.random() * ST.length)], p = Math.floor(Math.random() * PROD.length);
     const id = 'o' + Date.now().toString(36) + Math.floor(Math.random() * 999);
-    oSet(id, { x: r.x + r.w / 2 + rnd(-30, 30), y: r.y + r.h / 2 + 8, to: s.i, p, st: 'wait', born: Date.now() });
+    oSet(id, { x: r.x + r.w / 2 + rnd(-8, 8), y: r.y + r.h / 2 + rnd(-8, 8), to: s.i, p, st: 'wait', born: Date.now() });
     // porzucone: ktoś „wiezie” paletę, a jego wózka już nie ma – paleta wraca na podłogę
     const now = Date.now(); for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by !== uid() && !(P[o.by] && now - P[o.by].lt < 8000)) oSet(k, { ...o, st: 'floor', by: null }); }
   }
   // ---------- gra ----------
-  function newMe() { me = { x: 700 + rnd(-40, 40), y: 900, a: -Math.PI / 2, v: 0, carry: null, c: Math.floor(Math.random() * 360) }; }
+  function newMe() { let x = SPAWN[0], y = SPAWN[1]; for (let i = 0; i < 40 && blocked(x, y, 24); i++) [x, y] = npcPt(); me = { x, y, a: 0, v: 0, carry: null, c: Math.floor(Math.random() * 360) }; }
   function start() {
     aInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
     newMe(); G.st = 'run'; G.left = SHIFT; G.score = 0; G.dmg = 0; parts = []; ov(''); playRec('wz');
     NPC = Array.from({ length: 4 }, () => npcNew());
   }
   function npcNew() { const p = npcPt(); return { x: p[0], y: p[1], tx: 0, ty: 0, down: 0, c: ['#e3542b', '#2b7be3', '#3a3a3a', '#f0c419'][Math.floor(Math.random() * 4)], ph: Math.random() * 6 }; }
-  function npcPt() { for (let i = 0; i < 50; i++) { const x = rnd(80, W - 80), y = rnd(120, H - 140); if (!OBS.some(o => inR(x, y, { x: o.x - 20, y: o.y - 20, w: o.w + 40, h: o.h + 40 }))) return [x, y]; } return [900, 600]; }
+  function npcPt() { for (let i = 0; i < 200; i++) { const x = rnd(30, W - 30), y = rnd(30, H - 30); if (!blocked(x, y, 22)) return [x, y]; } return SPAWN.slice(); }
   function end() {
     G.st = 'over'; const sc = G.score; LB.save(sc); if (audio) audio.eg.gain.value = 0;
     if (me.carry && O[me.carry]) oSet(me.carry, { ...O[me.carry], st: 'floor', by: null, x: me.x, y: me.y });
@@ -2390,13 +2396,13 @@ const WZ = (() => {
     // jazda: wózek skręca tylnymi kołami – na wstecznym skręca „odwrotnie”, jak prawdziwy
     const thr = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), str = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
     me.v += thr * (thr * me.v < 0 ? 520 : 260) * dt; if (!thr) me.v *= Math.pow(.12, dt);
-    me.v = clamp(me.v, -110, me.carry ? 190 : 240);
+    me.v = clamp(me.v, -80, me.carry ? 140 : 180);
     me.a += str * clamp(me.v / 90, -1, 1) * 2.6 * dt;
-    let nx = me.x + Math.cos(me.a) * me.v * dt, ny = me.y + Math.sin(me.a) * me.v * dt; const R = 19;
-    let hit = false;
-    if (nx < R || nx > W - R) { nx = clamp(nx, R, W - R); hit = true; } if (ny < R || ny > H - R) { ny = clamp(ny, R, H - R); hit = true; }
-    for (const o of OBS) { const qx = clamp(nx, o.x, o.x + o.w), qy = clamp(ny, o.y, o.y + o.h), dx = nx - qx, dy = ny - qy, d = Math.hypot(dx, dy); if (d < R) { hit = true; if (d > 0) { nx = qx + dx / d * R; ny = qy + dy / d * R; } else { nx = me.x; ny = me.y; } } }
-    for (const k in P) { const p = P[k], dx = nx - p.x, dy = ny - p.y, d = Math.hypot(dx, dy); if (d < 36 && d > 0) { nx = p.x + dx / d * 36; ny = p.y + dy / d * 36; hit = true; } }
+    const R = 19, mx = Math.cos(me.a) * me.v * dt, my = Math.sin(me.a) * me.v * dt; let nx = me.x, ny = me.y, hit = false;
+    // ruch z ześlizgiwaniem po przeszkodach (najpierw całość, potem osobno x i y)
+    if (!blocked(me.x + mx, me.y + my, R)) { nx += mx; ny += my; }
+    else { hit = true; if (!blocked(me.x + mx, me.y, R)) nx += mx; else if (!blocked(me.x, me.y + my, R)) ny += my; }
+    for (const k in P) { const p = P[k], dx = nx - p.x, dy = ny - p.y, d = Math.hypot(dx, dy); if (d < 40 && d > 0) { const tx = p.x + dx / d * 40, ty = p.y + dy / d * 40; if (!blocked(tx, ty, R)) { nx = tx; ny = ty; } hit = true; } }
     if (hit) { const sp = Math.abs(me.v); if (sp > 90) crash(sp); me.v *= -.25; }
     me.x = nx; me.y = ny;
     // agenciaki chodzą po hali; potrącenie = minus
@@ -2404,7 +2410,7 @@ const WZ = (() => {
       if (n.down > 0) { n.down -= dt; if (n.down <= 0) Object.assign(n, npcNew()); continue; }
       if (!n.tx || Math.hypot(n.tx - n.x, n.ty - n.y) < 8) [n.tx, n.ty] = npcPt();
       const d = Math.hypot(n.tx - n.x, n.ty - n.y), s = 38 * dt; let x2 = n.x + (n.tx - n.x) / d * s, y2 = n.y + (n.ty - n.y) / d * s;
-      if (OBS.some(o => inR(x2, y2, { x: o.x - 8, y: o.y - 8, w: o.w + 16, h: o.h + 16 }))) { [n.tx, n.ty] = npcPt(); } else { n.x = x2; n.y = y2; } n.ph += dt * 8;
+      if (blocked(x2, y2, 8)) { [n.tx, n.ty] = npcPt(); } else { n.x = x2; n.y = y2; } n.ph += dt * 8;
       if (Math.hypot(n.x - me.x, n.y - me.y) < 26 && Math.abs(me.v) > 40) { n.down = 4; n.spin = 0; G.dmg += 2; G.score = Math.max(0, G.score - 1); thud(.8); tone(700, .4, 'sawtooth', .06); toast('Potrącony agenciak! −1 paleta, szkody +2'); me.v *= .3; }
     }
     // dźwięk silnika i piszczenie na wstecznym
@@ -2412,71 +2418,148 @@ const WZ = (() => {
     shake = Math.max(0, shake - dt * 40);
     if ((sendT -= dt) <= 0 && G.online) { sendT = .1; pRef.child(uid()).set({ n: cap(user || 'gracz').slice(0, 30), x: Math.round(me.x), y: Math.round(me.y), a: +me.a.toFixed(2), c: me.c, h: me.carry || 0, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
   }
-  // ---------- rysowanie ----------
-  function lift(g, x, y, a, hue, carry, name, self) {
-    g.save(); g.translate(x, y); g.rotate(a);
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-22, -15, 46, 32);
-    g.fillStyle = '#555'; g.fillRect(18, -11, 22, 4); g.fillRect(18, 7, 22, 4); // widły
-    if (carry) pallet(g, 30, 0, carry);
-    g.fillStyle = '#222'; for (const [wx, wy] of [[-14, -16], [-14, 12], [8, -16], [8, 12]]) g.fillRect(wx, wy, 10, 4); // koła
-    g.fillStyle = `hsl(${hue},75%,50%)`; g.fillRect(-22, -14, 38, 28);
-    g.fillStyle = `hsl(${hue},60%,30%)`; g.fillRect(-24, -12, 8, 24); // przeciwwaga
-    g.fillStyle = 'rgba(20,24,30,.85)'; g.fillRect(-10, -10, 18, 20); // kabina
-    g.fillStyle = '#9aa3ad'; g.fillRect(14, -14, 5, 28); // maszt
-    g.restore();
-    if (name) { g.font = '600 12px system-ui'; g.textAlign = 'center'; g.fillStyle = self ? '#ffe28a' : '#fff'; g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 3; g.strokeText(name, x, y - 30); g.fillText(name, x, y - 30); }
+  // ---------- rysowanie 3D (three.js, ładowane dopiero przy otwarciu gry) ----------
+  // 1 px logiki = 5 cm, wózek ok. 2,4 m
+  const S = .05, WZ_V = 'e53ddfc99b', URLS3 = ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js', 'https://unpkg.com/three@0.160.0/build/three.module.min.js'];
+  let T = null, R3 = null, scene = null, cam = null, myLift = null, arrow = null, cam0 = null;
+  const lifts = {}, pals = {}, npcM = [], partM = [];
+  async function load3() { if (T) return; for (const u of URLS3) { try { T = await import(u); return; } catch (e) {} } throw new Error('Nie udało się pobrać silnika 3D.'); }
+  const mat = (c, o = {}) => new T.MeshLambertMaterial({ color: c, ...o });
+  function box(w, h, d, m, x = 0, y = 0, z = 0, par = scene) { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x, y, z); par.add(b); return b; }
+  function label(text, w, h, col = '#fff', bg = null, size = 64) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w); const g = c.getContext('2d');
+    if (bg) { g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); } g.fillStyle = col; g.font = `900 ${size}px system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, c.width / 2, c.height / 2);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
   }
-  function pallet(g, x, y, o) {
-    const c = PROD[(o && o.p) | 0] || PROD[0];
-    g.fillStyle = '#b5844a'; g.fillRect(x - 13, y - 13, 26, 26); g.fillStyle = '#8a5f30'; for (const k of [-9, 0, 9]) g.fillRect(x - 13, y + k - 1.5, 26, 3);
-    g.fillStyle = c[1]; g.fillRect(x - 10, y - 10, 20, 20); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1; g.strokeRect(x - 10, y - 10, 20, 20); g.beginPath(); g.moveTo(x - 10, y); g.lineTo(x + 10, y); g.moveTo(x, y - 10); g.lineTo(x, y + 10); g.stroke();
+  function nameSprite(text, self) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d');
+    g.font = '700 34px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(text, 128, 32); g.fillStyle = self ? '#ffe28a' : '#fff'; g.fillText(text, 128, 32);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; const s = new T.Sprite(new T.SpriteMaterial({ map: t, depthTest: false })); s.scale.set(2.4, .6, 1); s.position.y = 3.3; s.renderOrder = 5; return s;
+  }
+  // wózek widłowy z brył (przód = +x); kolor wg gracza
+  function liftModel(hue) {
+    const g = new T.Group(), col = new T.Color().setHSL(hue / 360, .75, .5), dark = new T.Color().setHSL(hue / 360, .6, .28);
+    box(1.7, .7, 1.25, mat(col), -.15, .55, 0, g);                        // podwozie
+    box(.55, .9, 1.25, mat(dark), -.95, .75, 0, g);                       // przeciwwaga
+    box(.6, .12, .6, mat(0x222428), -.25, .95, 0, g);                     // fotel
+    for (const [x, z] of [[.35, .55], [.35, -.55], [-.75, .55], [-.75, -.55]]) box(.06, 1.3, .06, mat(0x2a2d33), x, 1.55, z, g); // słupki dachu
+    box(1.25, .07, 1.2, mat(0x2a2d33), -.2, 2.2, 0, g);                   // dach ochronny
+    const wm = mat(0x151515); for (const [x, z] of [[.45, .62], [.45, -.62], [-.7, .62], [-.7, -.62]]) { const w = new T.Mesh(new T.CylinderGeometry(.28, .28, .22, 14), wm); w.rotation.x = Math.PI / 2; w.position.set(x, .28, z); g.add(w); }
+    const mast = new T.Group(); mast.position.set(.75, 0, 0); g.add(mast);
+    box(.1, 2.4, .1, mat(0x8e969f), 0, 1.25, .38, mast); box(.1, 2.4, .1, mat(0x8e969f), 0, 1.25, -.38, mast); box(.08, .12, .86, mat(0x8e969f), 0, 2.4, 0, mast);
+    const car = new T.Group(); mast.add(car); car.position.y = .12;     // karetka z widłami (podnosi się z paletą)
+    box(.08, .5, .9, mat(0x4a4f56), .06, .25, 0, car); box(1.1, .05, .12, mat(0x55595f), .62, 0, .3, car); box(1.1, .05, .12, mat(0x55595f), .62, 0, -.3, car);
+    const slot = new T.Group(); slot.position.set(.62, .04, 0); car.add(slot);
+    g.userData = { car, slot }; return g;
+  }
+  function palletModel(p) {
+    const g = new T.Group(), c = PROD[p | 0] || PROD[0];
+    box(1.2, .14, 1.2, mat(0xb5844a), 0, .07, 0, g);
+    box(1.05, .85, 1.05, mat(c[1]), 0, .58, 0, g);
+    box(1.07, .05, .12, mat(0xffffff, { transparent: true, opacity: .6 }), 0, .9, 0, g); // taśma / folia
+    return g;
+  }
+  function npcModel(c) {
+    const g = new T.Group(); const body = new T.Mesh(new T.CylinderGeometry(.22, .25, 1.05, 10), mat(c)); body.position.y = .95; g.add(body);
+    const head = new T.Mesh(new T.SphereGeometry(.17, 12, 10), mat(0xe3b48f)); head.position.y = 1.65; g.add(head);
+    const lg = mat(0x2b2f36); const l1 = box(.12, .45, .12, lg, 0, .22, .1, g), l2 = box(.12, .45, .12, lg, 0, .22, -.1, g); g.userData = { l1, l2 }; return g;
+  }
+  const X3 = x => x * S - W * S / 2, Z3 = y => y * S - H * S / 2;
+  async function build3() {
+    R3 = new T.WebGLRenderer({ canvas: cv, antialias: true }); R3.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); R3.outputColorSpace = T.SRGBColorSpace; R3.toneMapping = T.ACESFilmicToneMapping; R3.toneMappingExposure = 1.15;
+    scene = new T.Scene(); scene.background = new T.Color(0x1b1f25); scene.fog = new T.Fog(0x1b1f25, 35, 95);
+    cam = new T.PerspectiveCamera(62, 16 / 10, .1, 200); cam0 = new T.Vector3();
+    scene.add(new T.HemisphereLight(0xffffff, 0x8a8070, 1.7)); const dl = new T.DirectionalLight(0xfff4e6, 1.3); dl.position.set(20, 40, 15); scene.add(dl);
+    for (const x of [-30, -10, 10, 30]) { const l = new T.PointLight(0xfff0d8, 40, 40, 1.4); l.position.set(x, 8, 0); scene.add(l); }
+    // hala z 5 nocek
+    const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js');
+    const gl = await new GLTFLoader().loadAsync('gry/modele/fnad_magazyn.glb?v=' + WZ_V), hall = gl.scene; hall.scale.setScalar(K); scene.add(hall); hall.updateMatrixWorld(true);
+    const bb = new T.Box3().setFromObject(hall); W = Math.round((bb.max.x - bb.min.x) / S); H = Math.round((bb.max.z - bb.min.z) / S);
+    const ox = (bb.min.x + bb.max.x) / 2, oz = (bb.min.z + bb.max.z) / 2; hall.position.x -= ox; hall.position.z -= oz; hall.updateMatrixWorld(true);
+    // siatka przeszkód: trójkąty modelu na wysokości wózka (0,25–2 m), bez ścian, lamp i plakatów
+    GW = Math.ceil(W / CELL); GH = Math.ceil(H / CELL); GRID = new Uint8Array(GW * GH);
+    const skip = o => { for (let p = o; p; p = p.parent) if (/^(fn_shell|lamp_fixture|fn_plakaty|fn_kanciapa_wnetrze|fn_gaming_chair)/.test(p.name || '')) return true; return false; };
+    const v = [new T.Vector3(), new T.Vector3(), new T.Vector3()];
+    hall.traverse(o => {
+      if (!o.isMesh || skip(o)) return; const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
+      for (let t = 0; t < n; t += 3) {
+        for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(o.matrixWorld);
+        const y0 = Math.min(v[0].y, v[1].y, v[2].y), y1 = Math.max(v[0].y, v[1].y, v[2].y); if (y1 < .25 || y0 > 2) continue;
+        const ax = (Math.min(v[0].x, v[1].x, v[2].x) + W * S / 2) / S, bx = (Math.max(v[0].x, v[1].x, v[2].x) + W * S / 2) / S, az = (Math.min(v[0].z, v[1].z, v[2].z) + H * S / 2) / S, bz = (Math.max(v[0].z, v[1].z, v[2].z) + H * S / 2) / S;
+        for (let j = Math.max(0, Math.floor(az / CELL)); j <= Math.min(GH - 1, Math.floor(bz / CELL)); j++) for (let i = Math.max(0, Math.floor(ax / CELL)); i <= Math.min(GW - 1, Math.floor(bx / CELL)); i++) GRID[j * GW + i] = 1;
+      }
+    });
+    for (let i = 0; i < GW; i++) for (const j of [0, 1, GH - 2, GH - 1]) GRID[j * GW + i] = 1; for (let j = 0; j < GH; j++) for (const i of [0, 1, GW - 2, GW - 1]) GRID[j * GW + i] = 1;
+    // wolne miejsca 2,8 × 2,8 m na rampy (północna połowa) i stanowiska (południowa); wybór deterministyczny – u wszystkich te same
+    const Z = 7, free = []; for (let j = 1; j + Z + 1 < GH; j += 2) for (let i = 1; i + Z + 1 < GW; i += 2) { let ok = true; for (let b = -1; b <= Z && ok; b++) for (let a = -1; a <= Z; a++) if (GRID[(j + b) * GW + i + a]) { ok = false; break; } if (ok) free.push([(i + Z / 2) * CELL, (j + Z / 2) * CELL]); }
+    const pick = (c, n) => { if (!c.length) return []; const out = [c.reduce((m, p) => p[0] < m[0] ? p : m)]; while (out.length < n) { let best = null, bd = -1; for (const p of c) { const d = Math.min(...out.map(q => Math.hypot(p[0] - q[0], p[1] - q[1]))); if (d > bd) { bd = d; best = p; } } if (bd < 60) break; out.push(best); } return out; };
+    const half = H / 2, sz = Z * CELL;
+    RAMPS = pick(free.filter(p => p[1] < half), 4).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'Rampa ' + (i + 1) }));
+    ST = pick(free.filter(p => p[1] >= half), 6).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'St. ' + (i + 1) }));
+    if (!RAMPS.length || !ST.length) throw new Error('Za mało miejsca na hali.');
+    SPAWN = free.reduce((m, p) => Math.hypot(p[0] - W / 2, p[1] - H / 2) < Math.hypot(m[0] - W / 2, m[1] - H / 2) ? p : m, free[0]).slice();
+    // oznaczenia ramp i stanowisk: pole na podłodze + tablica nad nim
+    const zone = (q, col) => {
+      const m = new T.Mesh(new T.PlaneGeometry(q.w * S, q.h * S), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: .35, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.set(X3(q.x + q.w / 2), .03, Z3(q.y + q.h / 2)); scene.add(m); q.m = m;
+      const sp = new T.Sprite(new T.SpriteMaterial({ map: label(q.n, 4, 1, '#fff', '#' + new T.Color(col).getHexString(), 150) })); sp.scale.set(2.6, .65, 1); sp.position.set(X3(q.x + q.w / 2), 3.2, Z3(q.y + q.h / 2)); scene.add(sp);
+    };
+    RAMPS.forEach(q => zone(q, 0x3c8ce6)); ST.forEach(q => zone(q, 0xe6b428));
+    arrow = new T.Mesh(new T.ConeGeometry(.35, 1, 12), new T.MeshBasicMaterial({ color: 0xffd23a })); arrow.rotation.z = -Math.PI / 2; const ag = new T.Group(); ag.add(arrow); scene.add(ag); arrow = ag;
+  }
+  // synchronizacja obiektów sceny ze stanem gry
+  function sync3(dt) {
+    if (me) { if (!myLift || myLift.userData.hue !== me.c) { if (myLift) scene.remove(myLift); myLift = liftModel(me.c); myLift.userData.hue = me.c; myLift.add(nameSprite(cap(user || 'Ty'), true)); scene.add(myLift); } myLift.position.set(X3(me.x), 0, Z3(me.y)); myLift.rotation.y = -me.a; }
+    for (const k in P) { const p = P[k]; let l = lifts[k]; if (!l) { l = lifts[k] = liftModel(p.c); l.add(nameSprite(p.n || '?')); scene.add(l); } l.position.set(X3(p.x), 0, Z3(p.y)); l.rotation.y = -p.a; }
+    for (const k in lifts) if (!P[k]) { scene.remove(lifts[k]); delete lifts[k]; }
+    // palety: na podłodze albo na widłach wózka, który je wiezie
+    for (const k in O) {
+      const o = O[k]; let m = pals[k]; if (!m) { m = pals[k] = palletModel(o.p); scene.add(m); }
+      const carrier = o.st === 'carry' ? (o.by === uid() ? myLift : lifts[o.by]) : null;
+      if (carrier) { if (m.parent !== carrier.userData.slot) { carrier.userData.slot.add(m); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); } }
+      else { if (m.parent !== scene) scene.add(m); m.position.set(X3(o.x), 0, Z3(o.y)); m.rotation.y = 0; }
+    }
+    for (const k in pals) if (!O[k]) { pals[k].parent && pals[k].parent.remove(pals[k]); delete pals[k]; }
+    // widły w górę, gdy coś wiozą
+    const up = (l, on) => { if (l) l.userData.car.position.y += ((on ? .45 : .12) - l.userData.car.position.y) * Math.min(1, dt * 6); };
+    up(myLift, me && me.carry); for (const k in lifts) up(lifts[k], P[k] && P[k].h);
+    // agenciaki
+    while (npcM.length < NPC.length) { const m = npcModel(NPC[npcM.length].c); npcM.push(m); scene.add(m); }
+    NPC.forEach((n, i) => { const m = npcM[i]; m.position.set(X3(n.x), 0, Z3(n.y)); if (n.down > 0) { m.rotation.z = Math.min(Math.PI / 2, (m.rotation.z || 0) + dt * 8); } else { m.rotation.z = 0; const s = Math.sin(n.ph) * .35; m.userData.l1.rotation.z = s; m.userData.l2.rotation.z = -s; if (n.tx) m.rotation.y = -Math.atan2(n.ty - n.y, n.tx - n.x); } });
+    // iskry / kartony przy zderzeniu
+    while (partM.length < parts.length) { const m = box(.25, .25, .25, mat(0xc9a56b)); partM.push(m); }
+    partM.forEach((m, i) => { const q = parts[i]; m.visible = !!q; if (q) { m.position.set(X3(q.x), .3 + q.l * 1.2, Z3(q.y)); m.material.color.set(q.c); m.rotation.x += dt * 6; } });
+    // stanowisko docelowe miga na zielono
+    const want = me && me.carry && O[me.carry] ? O[me.carry].to : -1;
+    ST.forEach(q => { q.m.material.color.set(q.i === want ? 0x3cdc6e : 0xe6b428); q.m.material.opacity = q.i === want ? (Math.floor(G.t * 4) % 2 ? .65 : .35) : .3; });
   }
   function draw() {
-    const r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
-    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    const g = cx, z = Math.min(w / 1100, h / 690), hw = w / 2 / z, hh = h / 2 / z; // kamera za wózkiem, bez wyjeżdżania poza halę
-    const cxm = W > hw * 2 ? clamp(me ? me.x : W / 2, hw, W - hw) : W / 2, cym = H > hh * 2 ? clamp(me ? me.y : H / 2, hh, H - hh) : H / 2;
-    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#15181d'; g.fillRect(0, 0, w, h);
-    g.setTransform(z, 0, 0, z, w / 2 - cxm * z + rnd(-shake, shake), h / 2 - cym * z + rnd(-shake, shake));
-    // posadzka
-    g.fillStyle = '#7c8086'; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 1; for (let x = 0; x <= W; x += 100) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); } for (let y = 0; y <= H; y += 100) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
-    g.strokeStyle = '#e8c42a'; g.lineWidth = 4; g.setLineDash([24, 16]); for (const y of [240, 410, 610, 810, 980]) { g.beginPath(); g.moveTo(60, y); g.lineTo(W - 60, y); g.stroke(); } g.setLineDash([]);
-    // rampy i stanowiska
-    for (const q of RAMPS) { g.fillStyle = 'rgba(60,140,230,.25)'; g.fillRect(q.x, q.y, q.w, q.h); g.strokeStyle = '#3c8ce6'; g.lineWidth = 3; g.strokeRect(q.x, q.y, q.w, q.h); g.fillStyle = '#2a2f36'; g.fillRect(q.x + 10, 0, q.w - 20, 12); g.fillStyle = '#d7ecff'; g.font = '700 16px system-ui'; g.textAlign = 'center'; g.fillText(q.n, q.x + q.w / 2, q.y + q.h + 18); }
-    const want = me && me.carry && O[me.carry] ? O[me.carry].to : -1;
-    for (const q of ST) { const on = q.i === want, bl = on && Math.floor(G.t * 4) % 2; g.fillStyle = on ? (bl ? 'rgba(60,220,110,.45)' : 'rgba(60,220,110,.25)') : 'rgba(230,180,40,.18)'; g.fillRect(q.x, q.y, q.w, q.h); g.strokeStyle = on ? '#3cdc6e' : '#e6b428'; g.lineWidth = 3; g.strokeRect(q.x, q.y, q.w, q.h); g.fillStyle = '#fff'; g.font = '800 20px system-ui'; g.textAlign = 'center'; g.fillText(q.n, q.x + q.w / 2, q.y + q.h / 2 + 7); }
-    // regały i kanciapa
-    for (const o of OBS) {
-      if (o.k) { g.fillStyle = '#e9ecef'; g.fillRect(o.x, o.y, o.w, o.h); g.strokeStyle = '#9aa3ad'; g.lineWidth = 3; g.strokeRect(o.x, o.y, o.w, o.h); g.fillStyle = '#444'; g.font = '800 15px system-ui'; g.textAlign = 'center'; g.fillText('KANCIAPA', o.x + o.w / 2, o.y + o.h / 2 + 5); continue; }
-      g.fillStyle = '#1f4fa8'; g.fillRect(o.x, o.y, o.w, o.h); g.fillStyle = '#e8661e'; g.fillRect(o.x, o.y, o.w, 6); g.fillRect(o.x, o.y + o.h - 6, o.w, 6);
-      for (let x = o.x + 6; x < o.x + o.w - 30; x += 34) { g.fillStyle = PROD[Math.floor((x * 7 + o.y) / 34) % PROD.length][1]; g.fillRect(x, o.y + 10, 28, o.h - 20); }
+    if (!R3) return;
+    const r = cv.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height);
+    if (w && (R3.domElement.width !== Math.round(w * R3.getPixelRatio()) || R3.domElement.height !== Math.round(h * R3.getPixelRatio()))) { R3.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+    const dt = Math.min(.05, G.dt || .016); sync3(dt);
+    // kamera za wózkiem
+    if (me) {
+      const fx = Math.cos(me.a), fz = Math.sin(me.a), tx = X3(me.x) - fx * 6.5, tz = Z3(me.y) - fz * 6.5;
+      cam0.set(tx, 4.2, tz); if (!G.camInit) { cam.position.copy(cam0); G.camInit = true; } else cam.position.lerp(cam0, Math.min(1, dt * 5));
+      cam.position.x += (Math.random() - .5) * shake * .03; cam.position.y += (Math.random() - .5) * shake * .03;
+      cam.lookAt(X3(me.x) + fx * 4, 1, Z3(me.y) + fz * 4);
     }
-    // palety na podłodze
-    for (const k in O) { const o = O[k]; if (o.st !== 'carry') { pallet(g, o.x, o.y, o); if (!me || !me.carry) { g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '700 11px system-ui'; g.textAlign = 'center'; g.fillText('→ ' + ST[o.to].n, o.x, o.y - 18); } } }
-    // agenciaki
-    for (const n of NPC) { g.save(); g.translate(n.x, n.y); if (n.down > 0) { g.rotate(1.4); g.globalAlpha = Math.min(1, n.down); } g.fillStyle = n.c; g.beginPath(); g.ellipse(0, 0, 9, 7, 0, 0, 7); g.fill(); g.fillStyle = '#e3b48f'; g.beginPath(); g.arc(0, 0, 5, 0, 7); g.fill(); if (!(n.down > 0)) { g.fillStyle = '#333'; g.fillRect(-3 + Math.sin(n.ph) * 3, 6, 3, 4); g.fillRect(1 - Math.sin(n.ph) * 3, 6, 3, 4); } g.restore(); }
-    // inne wózki i mój
-    for (const k in P) { const p = P[k]; lift(g, p.x, p.y, p.a, p.c, p.h && O[p.h] ? O[p.h] : (p.h ? { p: 0 } : null), p.n); }
-    if (me) lift(g, me.x, me.y, me.a, me.c, me.carry && O[me.carry] ? O[me.carry] : null, cap(user || 'Ty'), true);
-    for (const q of parts) { g.globalAlpha = q.l; g.fillStyle = q.c; g.fillRect(q.x - 3, q.y - 3, 6, 6); } g.globalAlpha = 1;
-    // strzałka do celu
-    if (me && G.st === 'run') {
-      let tx = null, ty = null; if (me.carry && O[me.carry]) { const s = ST[O[me.carry].to]; tx = s.x + s.w / 2; ty = s.y + s.h / 2; }
-      else { let bd = 1e9; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - me.x, o.y - me.y); if (d < bd) { bd = d; tx = o.x; ty = o.y; } } }
-      if (tx !== null && Math.hypot(tx - me.x, ty - me.y) > 120) { const an = Math.atan2(ty - me.y, tx - me.x); g.save(); g.translate(me.x + Math.cos(an) * 60, me.y + Math.sin(an) * 60); g.rotate(an); g.fillStyle = me.carry ? '#3cdc6e' : '#ffd23a'; g.beginPath(); g.moveTo(14, 0); g.lineTo(-8, -9); g.lineTo(-4, 0); g.lineTo(-8, 9); g.closePath(); g.fill(); g.restore(); }
-    }
-    // HUD
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); const mm = Math.floor(Math.max(0, G.left) / 60), ss = Math.floor(Math.max(0, G.left) % 60);
+    // strzałka nad wózkiem do celu
+    let tx = null, ty = null;
+    if (me && G.st === 'run') { if (me.carry && O[me.carry]) { const s = ST[O[me.carry].to]; tx = s.x + s.w / 2; ty = s.y + s.h / 2; } else { let bd = 1e9; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - me.x, o.y - me.y); if (d < bd) { bd = d; tx = o.x; ty = o.y; } } } }
+    arrow.visible = tx !== null; if (arrow.visible) { arrow.position.set(X3(me.x), 3.4 + Math.sin(G.t * 4) * .12, Z3(me.y)); arrow.rotation.y = -Math.atan2(ty - me.y, tx - me.x); arrow.children[0].material.color.set(me.carry ? 0x3cdc6e : 0xffd23a); }
+    R3.render(scene, cam);
+    const mm = Math.floor(Math.max(0, G.left) / 60), ss = Math.floor(Math.max(0, G.left) % 60);
     $('#wzHud').innerHTML = G.st === 'run' ? `<b>📦 ${G.score}</b> palet · <b>💥 ${G.dmg}</b> szkód · ⏱ ${mm}:${String(ss).padStart(2, '0')}<br><small>${G.online ? '🟢 Zmiana wspólna: ' + (Object.keys(P).length + 1) + ' wózk.' : '⚪ Tryb solo'}${me.carry && O[me.carry] ? ' · wieziesz ' + PROD[O[me.carry].p][0] + ' → ' + ST[O[me.carry].to].n : ''}</small>` : '';
     $('#wzOrd').innerHTML = G.st === 'run' ? Object.values(O).map(o => `<div><i style="background:${PROD[o.p][1]}"></i>${PROD[o.p][0]} → ${ST[o.to].n}<small>${o.st === 'carry' ? (o.by === uid() ? ' (Ty)' : ' (' + esc((P[o.by] && P[o.by].n) || 'ktoś') + ')') : o.st === 'floor' ? ' (na podłodze)' : ''}</small></div>`).join('') : '';
   }
-  function loop(t) { raf = requestAnimationFrame(loop); const dt = Math.min(.05, (t - (last || t)) / 1000); last = t; update(dt); draw(); }
+  function loop(t) { raf = requestAnimationFrame(loop); const dt = Math.min(.05, (t - (last || t)) / 1000); last = t; G.dt = dt; update(dt); draw(); }
   function menu() {
     G.st = 'menu'; ov(`<b>Wózkowa pierdoła</b><span>Rozwoź palety z ramp na stanowiska. Każdy, kto wejdzie, jeździ z Tobą na tej samej zmianie.</span><span class="mu">W/S – gaz/wsteczny · A/D – skręt · Spacja – podnieś/odłóż · H – klakson</span><button type="button" class="p" data-go="1">Zacznij zmianę (5 min)</button>${LB.html()}`);
   }
   let built = false;
   function build() {
-    built = true; cv = $('#wzC'); cx = cv.getContext('2d');
+    built = true; cv = $('#wzC');
     $('#wzOv').addEventListener('click', e => { if (e.target.closest('[data-go]')) start(); });
     document.addEventListener('keydown', e => {
       if (!G.open) return; const k = e.key.toLowerCase(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
@@ -2486,8 +2569,10 @@ const WZ = (() => {
     $('#wz').addEventListener('close', () => { G.open = false; cancelAnimationFrame(raf); raf = 0; if (audio) audio.eg.gain.value = 0; if (G.st === 'run') end(); netClose(); LB.close(); keys = {}; });
     $('#wzX').onclick = () => $('#wz').close(); $('#wzHub').onclick = () => { $('#wz').close(); hubOpen(); };
   }
-  function open() {
-    if (!built) build(); G.open = true; $('#wz').showModal(); LB.open(); netOpen(); newMe(); menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  async function open() {
+    if (!built) build(); G.open = true; $('#wz').showModal(); LB.open(); netOpen(); newMe(); G.camInit = false;
+    if (!scene) { ov('<b>Ładowanie…</b><span>Przygotowuję halę</span>'); try { await load3(); await build3(); } catch (e) { ov('<b>Błąd</b><span>' + esc(e.message) + '</span>'); return; } if (!G.open) return; }
+    menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
   const dbg = { name: 'Wózkowa pierdoła', G, acts: [['+5 palet', () => { G.score += 5; }], ['+60 s zmiany', () => { G.left += 60; }], ['Koniec zmiany', () => { G.left = .01; }], ['Nowe zlecenie', () => { hostT = 0; const n = MAXO; spawnOrders(0); }]] };
   return { open, G, dbg };
