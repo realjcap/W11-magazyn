@@ -1036,7 +1036,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="hubg">
     <button type="button" class="hubt" data-g="snake"><span class="hubi"><img id="hubImg" alt=""></span><b>Dzik na batonach</b><small>Snake z power-upami</small><small id="hubBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
-    <button type="button" class="hubt" data-g="wz"><span class="hubi wzic">🚜</span><b>Wózkowa pierdoła</b><small>Rozwożenie palet – razem z każdym, kto wejdzie</small></button>
+    <button type="button" class="hubt" data-g="wz" id="hubWz" hidden><span class="hubi wzic">🚜</span><b>Wózkowa pierdoła</b><small>Rozwożenie palet – razem z każdym, kto wejdzie</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
     <button type="button" class="hubt" data-g="vc" id="hubVc" hidden><span class="hubi vcic">VC</span><b>GTA: Vice City</b><small>Silnik w przeglądarce · wskaż własną instalację z PC</small></button>
@@ -3622,7 +3622,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'd32a323ca1'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '9f45fbfd40'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

@@ -194,9 +194,11 @@ window.gmLaunch = async () => {
   try { await gmCongrats(); } finally { gmBusy = false; }
   hubOpen();
 };
+const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
   $('#hubVc').hidden = lbMe() !== DELMA_UID; // Vice City – tylko konto delma
+  $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
   if (!$('#hubCan').src) $('#hubCan').src = FL_CAN;
   $('#hubFlBest').textContent = FL.G.best ? 'Twój rekord: ' + FL.G.best : 'Jeszcze nie grałeś';
@@ -235,7 +237,7 @@ $('#hub').addEventListener('click', e => {
   if (t.dataset.g === 'fl') { $('#hub').close(); FL.open(); }
   if (t.dataset.g === 'sl') { $('#hub').close(); SL3.open(); }
   if (t.dataset.g === 'fn') { $('#hub').close(); FN.open(); }
-  if (t.dataset.g === 'wz') { $('#hub').close(); WZ.open(); }
+  if (t.dataset.g === 'wz' && WZ_OK()) { $('#hub').close(); WZ.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
