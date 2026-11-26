@@ -1638,13 +1638,14 @@ const FL = (() => {
   function spawnPipe() {
     const sc = G.score, d = Math.min(1, sc / 40);
     const gap = Math.round(150 - d * 38 + (Math.random() - .5) * 14);            // 150 → ok. 112
-    const lo = 80, hi = FLOOR - 60 - gap, jump = 90 + d * 170;                     // jak daleko może skoczyć przerwa względem poprzedniej
+    const move = sc >= 6 && Math.random() < .25 + d * .3 ? { amp: 16 + Math.random() * (12 + d * 14), sp: 1 + Math.random() * (.5 + d * .6), ph: Math.random() * 6.28 } : null; // ruchoma puszka: max ok. ±42 px
+    // jak daleko może skoczyć przerwa względem poprzedniej; ruchoma puszka bliżej poprzedniej, bo sama się przesuwa
+    const lo = 80, hi = FLOOR - 60 - gap, jump = (90 + d * 120) * (move || G.lastMove ? .55 : 1);
     const top = Math.max(lo, Math.min(hi, G.lastTop + (Math.random() * 2 - 1) * jump));
-    const move = sc >= 6 && Math.random() < .25 + d * .35 ? { amp: 22 + Math.random() * (25 + d * 30), sp: 1.2 + Math.random() * (1 + d * 1.3), ph: Math.random() * 6.28 } : null;
     G.pipes.push({ x: G.nextX, top, base: top, gap, move, done: false });
     // baton w przerwie (bonus +2) – czasem trochę z boku, żeby trzeba było po niego sięgnąć
     if (Math.random() < .3) G.bars.push({ x: G.nextX + PW / 2, y: top + gap / 2 + (Math.random() - .5) * gap * .5, got: false, pipe: G.pipes[G.pipes.length - 1] });
-    G.lastTop = top;
+    G.lastTop = top; G.lastMove = !!move;
     let sp = 215 - d * 45 + (Math.random() - .5) * 50;                            // odstęp: 215 → ok. 170, z wahaniem
     if (sc >= 10 && Math.random() < .18) sp = 150 + Math.random() * 20;            // seria – dwie puszki blisko siebie
     G.nextX += Math.max(140, sp);
