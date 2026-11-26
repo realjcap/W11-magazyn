@@ -2494,9 +2494,18 @@ const WZ = (() => {
     for (let i = 0; i < GW; i++) for (const j of [0, 1, GH - 2, GH - 1]) GRID[j * GW + i] = 1; for (let j = 0; j < GH; j++) for (const i of [0, 1, GW - 2, GW - 1]) GRID[j * GW + i] = 1;
     // wolne miejsca 2,8 × 2,8 m na rampy (północna połowa) i stanowiska (południowa); wybór deterministyczny – u wszystkich te same
     const Z = 7, free = []; for (let j = 1; j + Z + 1 < GH; j += 2) for (let i = 1; i + Z + 1 < GW; i += 2) { let ok = true; for (let b = -1; b <= Z && ok; b++) for (let a = -1; a <= Z; a++) if (GRID[(j + b) * GW + i + a]) { ok = false; break; } if (ok) free.push([(i + Z / 2) * CELL, (j + Z / 2) * CELL]); }
+    // dojazd: kratki, na których mieści się wózek (koło 20 px), osiągalne od środka hali
+    const pass = new Uint8Array(GW * GH); for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) pass[j * GW + i] = blocked((i + .5) * CELL, (j + .5) * CELL, 20) ? 0 : 1;
+    const reach = new Uint8Array(GW * GH); let seed = -1, sd = 1e9;
+    for (let k = 0; k < GW * GH; k++) if (pass[k]) { const d = Math.hypot((k % GW) * CELL - W / 2, Math.floor(k / GW) * CELL - H / 2); if (d < sd) { sd = d; seed = k; } }
+    const qu = [seed]; if (seed >= 0) reach[seed] = 1;
+    while (qu.length) { const k = qu.pop(), i = k % GW, j = (k - i) / GW; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + a, nj = j + b; if (ni < 0 || nj < 0 || ni >= GW || nj >= GH) continue; const nk = nj * GW + ni; if (pass[nk] && !reach[nk]) { reach[nk] = 1; qu.push(nk); } } }
+    const ok = p => reach[Math.floor(p[1] / CELL) * GW + Math.floor(p[0] / CELL)] === 1;
+    for (let k = free.length - 1; k >= 0; k--) if (!ok(free[k])) free.splice(k, 1);
     const pick = (c, n) => { if (!c.length) return []; const out = [c.reduce((m, p) => p[0] < m[0] ? p : m)]; while (out.length < n) { let best = null, bd = -1; for (const p of c) { const d = Math.min(...out.map(q => Math.hypot(p[0] - q[0], p[1] - q[1]))); if (d > bd) { bd = d; best = p; } } if (bd < 60) break; out.push(best); } return out; };
     const half = H / 2, sz = Z * CELL;
-    RAMPS = pick(free.filter(p => p[1] < half), 4).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'Rampa ' + (i + 1) }));
+    const top = free.filter(p => p[1] < H * .3); // rampy jak najbliżej bram w górnej ścianie
+    RAMPS = pick(top.length >= 3 ? top : free.filter(p => p[1] < half), 4).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'Rampa ' + (i + 1) }));
     ST = pick(free.filter(p => p[1] >= half), 6).sort((a, b) => a[0] - b[0]).map((p, i) => ({ i, x: p[0] - sz / 2, y: p[1] - sz / 2, w: sz, h: sz, n: 'St. ' + (i + 1) }));
     if (!RAMPS.length || !ST.length) throw new Error('Za mało miejsca na hali.');
     SPAWN = free.reduce((m, p) => Math.hypot(p[0] - W / 2, p[1] - H / 2) < Math.hypot(m[0] - W / 2, m[1] - H / 2) ? p : m, free[0]).slice();
@@ -2542,7 +2551,10 @@ const WZ = (() => {
     // kamera za wózkiem
     if (me) {
       const fx = Math.cos(me.a), fz = Math.sin(me.a), tx = X3(me.x) - fx * 6.5, tz = Z3(me.y) - fz * 6.5;
-      cam0.set(tx, 4.2, tz); if (!G.camInit) { cam.position.copy(cam0); G.camInit = true; } else cam.position.lerp(cam0, Math.min(1, dt * 5));
+      // kamera nie wchodzi w ściany ani regały: skracamy odległość do pierwszej przeszkody na siatce
+      let dist = 6.5; for (let d = .5; d <= 6.5; d += .25) { const px = me.x - fx * d / S, py = me.y - fz * d / S; if (blocked(px, py, 6)) { dist = Math.max(1.2, d - .6); break; } }
+      const cx2 = X3(me.x) - fx * dist, cz2 = Z3(me.y) - fz * dist;
+      cam0.set(cx2, 2.6 + dist * .25, cz2); if (!G.camInit) { cam.position.copy(cam0); G.camInit = true; } else cam.position.lerp(cam0, Math.min(1, dt * 9));
       cam.position.x += (Math.random() - .5) * shake * .03; cam.position.y += (Math.random() - .5) * shake * .03;
       cam.lookAt(X3(me.x) + fx * 4, 1, Z3(me.y) + fz * 4);
     }
@@ -2577,7 +2589,7 @@ const WZ = (() => {
     menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
   const dbg = { name: 'Wózkowa pierdoła', G, acts: [['+5 palet', () => { G.score += 5; }], ['+60 s zmiany', () => { G.left += 60; }], ['Koniec zmiany', () => { G.left = .01; }], ['Nowe zlecenie', () => { hostT = 0; const n = MAXO; spawnOrders(0); }]] };
-  return { open, G, dbg };
+  return { open, G, dbg, _g: () => ({ GW, GH, W, H, g: Array.from(GRID || []), R: RAMPS.map(q => [q.x, q.y]), S: ST.map(q => [q.x, q.y]), sp: SPAWN }) };
 })();
 // ---------- debug (tylko konto delma): F2 albo ` w każdej otwartej grze ----------
 const GM_DBG = { name: 'Snake', G: GM, acts: [
