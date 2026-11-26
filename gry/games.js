@@ -197,7 +197,7 @@ window.gmLaunch = async () => {
 const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
-  $('#hubVc').hidden = !VC_OK(); // Vice City – konta delma i rudy
+  $('#hubVc').hidden = !VC_OK(); // Vice City – konta z VC_OK
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
@@ -244,7 +244,9 @@ $('#hub').addEventListener('click', e => {
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: silnik w ramce (ładowany dopiero po otwarciu, czyszczony po zamknięciu), na wierzchu własny ekran startowy
 const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
-const VC_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
+const VC_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72', 'U3WcVET7VaOrk9ZgRYqE0PyyJT82', 'K1MHpkZBWbYTzJklCzCoXCsugUV2', 'KE9lF4D2O3a1ZfGNPa5dRIVgsB42'].includes(lbMe()); // delma, rudy, logistyka, zabieg, szwaja
+const VC_WORKER = 'https://w11-slack.kuba05cz.workers.dev'; // adres workera dla kont bez Slacka (gdy nie ma zapisanego adresu Slacka)
+const vcApi = () => SL.url || VC_WORKER;
 function vcOpen() {
   $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL;
   $('#vcP').hidden = false; VCS.dl = ''; vcUi(); $('#vc').showModal();
@@ -281,11 +283,11 @@ $('#vcPlay').onclick = () => {
 async function vcCloud() {
   const doc = $('#vcF').contentDocument, inp = doc && doc.getElementById('game-zip-input');
   if (!inp) return say('Poczekaj, aż okno gry się wczyta.');
-  if (!auth || !auth.currentUser || !VC_OK() || !SL.url) return say('Chmura działa tylko na kontach delma i rudy z ustawionym workerem.');
+  if (!auth || !auth.currentUser || !VC_OK() || !vcApi() || vcApi().includes('TWOJ-WORKER')) return say('Chmura nie jest dostępna dla tego konta albo brak adresu workera.');
   VCS.dl = 'Łączenie z chmurą…'; VCS.dlp = 0; vcUi();
   try {
     const tok = await auth.currentUser.getIdToken();
-    const r = await fetch(SL.url.replace(/\/+$/, '') + '/vc/game.zip', { headers: { Authorization: 'Bearer ' + tok } });
+    const r = await fetch(vcApi().replace(/\/+$/, '') + '/vc/game.zip', { headers: { Authorization: 'Bearer ' + tok } });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || 'HTTP ' + r.status); }
     const tot = +r.headers.get('Content-Length') || 0, rd = r.body.getReader(); let blob = new Blob([]), buf = [], bl = 0, got = 0;
     for (;;) {
