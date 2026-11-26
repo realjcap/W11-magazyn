@@ -709,6 +709,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
 #mapSvg{touch-action:pan-y}
 #mapSvg.ed,#mapSvg.zm{touch-action:none}
 #mapSvg.zm{cursor:grab}
+.mapold{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:16px;background:rgba(20,20,20,.45);color:#fff;pointer-events:none;border-radius:inherit}
+.mapold b{font-size:22px;background:#cf222e;padding:6px 14px;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.4)}
+.mapold span{font-size:14px;font-weight:600;text-shadow:0 1px 3px #000;max-width:320px}
 .mapbox{padding:8px;position:relative;overflow:hidden}
 .mapz{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px;z-index:1}
 .mapz button{width:38px;height:38px;padding:0;font-size:20px;line-height:1;border-radius:8px;background:var(--card);box-shadow:0 1px 4px rgba(0,0,0,.18)}
@@ -840,7 +843,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 <section id="vMap" hidden>
   <div class="bar"><input type="search" id="mapQ" placeholder="Nazwa lub SKU, np. Bluza albo B1" autocomplete="off"></div>
   <div id="mapRes"></div>
-  <div class="panel mapbox"><svg id="mapSvg" viewBox="-38.3 -6 221.6 277" role="img" aria-label="Mapa magazynu"></svg>
+  <div class="panel mapbox"><div class="mapold"><b>⚠ Mapa jest nieaktualna</b><span>Układ magazynu się zmienił – miejsca na mapie mogą się nie zgadzać.</span></div><svg id="mapSvg" viewBox="-38.3 -6 221.6 277" role="img" aria-label="Mapa magazynu"></svg>
     <div class="mapz"><button type="button" id="mzIn" aria-label="Przybliż" title="Przybliż">＋</button><button type="button" id="mzOut" aria-label="Oddal" title="Oddal">−</button><button type="button" id="mzR" aria-label="Cała mapa" title="Pokaż całą halę">⤢</button><small id="mzL">100%</small><button type="button" id="mzH" aria-label="Legenda mapy" title="Legenda — co oznaczają kolory">?</button></div></div>
   <p id="mapInfo" class="mapinfo"></p>
   <div class="panel" id="mapZone" hidden></div>
