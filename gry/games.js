@@ -1041,7 +1041,10 @@ const FN = (() => {
   function mixGo(e) { const p = e.g.position; e.run = { i: 0, x: e.sp[0], z: e.sp[1] + .9 }; e.g.visible = true; e.g.position.set(e.run.x, 0, e.run.z); if (G.cam === 1) camStatic(); steps(.25); }
   function mixRun(e, dt) {
     const R2 = e.run, tgt = MX_RUN[R2.i]; let dx = tgt[0] - R2.x, dz = tgt[1] - R2.z, d = Math.hypot(dx, dz), st = 7.5 * dt;
-    if (d <= st) { R2.x = tgt[0]; R2.z = tgt[1]; R2.i++; if (R2.i === 2) steps(.7); if (R2.i >= MX_RUN.length) return mixHit(e); }
+    // ok. 2 s przed drzwiami słychać tupanie biegnącego – coraz głośniej
+    let rem = d; for (let k = R2.i + 1; k < MX_RUN.length; k++) rem += Math.hypot(MX_RUN[k][0] - MX_RUN[k - 1][0], MX_RUN[k][1] - MX_RUN[k - 1][1]);
+    if (!R2.snd && rem / 7.5 <= 1.9) { R2.snd = true; runSteps(rem / 7.5); }
+    if (d <= st) { R2.x = tgt[0]; R2.z = tgt[1]; R2.i++; if (R2.i >= MX_RUN.length) return mixHit(e); }
     else { R2.x += dx / d * st; R2.z += dz / d * st; }
     e.g.position.x = R2.x; e.g.position.z = R2.z; e.g.rotation.y = Math.atan2(dx, dz);
   }
@@ -1263,6 +1266,7 @@ const FN = (() => {
   function thump(t, f = 70, v = .4, len = .16) { if (!audio) return; const { ac, master } = audio, o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(f * 1.6, t); o.frequency.exponentialRampToValueAtTime(f * .6, t + len); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .008); g.gain.exponentialRampToValueAtTime(.001, t + len); o.connect(g).connect(master); o.start(t); o.stop(t + len + .02); }
   function noiseHit(t, v, len, freq = 900, q = .8) { if (!audio) return; const { ac, master } = audio, b = ac.createBuffer(1, Math.ceil(ac.sampleRate * len), ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = v; s.buffer = b; s.connect(f).connect(g).connect(master); s.start(t); }
   function steps(v) { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 4; i++) { thump(t0 + i * .42, 55, .22 * v, .12); noiseHit(t0 + i * .42, .15 * v, .08, 500); } }
+  function runSteps(dur) { if (!audio) return; const t0 = audio.ac.currentTime, n = Math.max(3, Math.round(dur / .15)); for (let i = 0; i < n; i++) { const k = (i + 1) / n, t = t0 + i * dur / n; thump(t, 62, .15 + .55 * k, .1); noiseHit(t, .1 + .4 * k, .07, 650 + 400 * k); } }
   function knock(v) { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 2; i++) { thump(t0 + i * .2, 95, .35 * v); noiseHit(t0 + i * .2, .3 * v, .1, 1200); } }
   function bang() { if (!audio) return; const t0 = audio.ac.currentTime; for (let i = 0; i < 4; i++) { thump(t0 + i * .17, 60, .8, .22); noiseHit(t0 + i * .17, .6, .15, 700, .5); } }
   function doorSfx() { if (!audio) return; const t0 = audio.ac.currentTime; noiseHit(t0, .35, .35, 300, .6); thump(t0 + .22, 48, .7, .3); }
