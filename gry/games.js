@@ -1646,9 +1646,9 @@ const FL = (() => {
     // baton w przerwie (bonus +2) – czasem trochę z boku, żeby trzeba było po niego sięgnąć
     if (Math.random() < .3) G.bars.push({ x: G.nextX + PW / 2, y: top + gap / 2 + (Math.random() - .5) * gap * .5, got: false, pipe: G.pipes[G.pipes.length - 1] });
     G.lastTop = top; G.lastMove = !!move;
-    let sp = 215 - d * 45 + (Math.random() - .5) * 50;                            // odstęp: 215 → ok. 170, z wahaniem
-    if (sc >= 10 && Math.random() < .18) sp = 150 + Math.random() * 20;            // seria – dwie puszki blisko siebie
-    G.nextX += Math.max(140, sp);
+    let sp = 225 - d * 10 + (Math.random() - .5) * 40;                            // odstęp ok. 215–235 px – przy większej prędkości puszki nie mogą się zbliżać
+    if (sc >= 10 && Math.random() < .12) sp = 185 + Math.random() * 15;            // seria – dwie puszki trochę bliżej
+    G.nextX += Math.max(185, sp);
   }
   function flap() {
     if (G.st === 'menu' || G.st === 'over') { if (G.st === 'over' && G.dead > 0) return; reset(); G.st = 'run'; ov(''); }
