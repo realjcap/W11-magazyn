@@ -206,6 +206,84 @@ function hubOpen() {
   $('#hubBest').textContent = GM.best ? 'Twój rekord: ' + GM.best : 'Jeszcze nie grałeś';
   $('#hub').showModal();
   playsShow();
+  vcGift();
+}
+// Vice City – prezent: przy pierwszym otwarciu huba po dodaniu VC (konta z VC_OK) kafelek jest zapakowany; klik – trzęsie się, świeci i wybucha fajerwerkami
+const VCG_KEY = () => 'w11vcGift_' + lbMe();
+function vcGift() {
+  const t = $('#hubVc'); if (!VC_OK() || t.querySelector('.vcgift')) return;
+  try { if (localStorage.getItem(VCG_KEY())) return; } catch (e) { return; }
+  const g = document.createElement('div'); g.className = 'vcgift';
+  g.innerHTML = '<i class="vcgv"></i><i class="vcgh"></i><span class="vcgbow"><i></i><i></i><b></b></span><span class="vcgtxt">🎁 Nowa gra! Kliknij, żeby otworzyć</span>';
+  t.appendChild(g);
+  g.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); if (g.dataset.on) return; g.dataset.on = 1; vcGiftOpen(t, g); });
+}
+function vcGiftOpen(t, g) {
+  try { localStorage.setItem(VCG_KEY(), Date.now()); } catch (e) {}
+  const au = vcGiftAudio();
+  g.classList.add('s1'); au && au.rumble(1.8);
+  setTimeout(() => g.classList.add('s2'), 900);
+  setTimeout(() => {
+    const r = g.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    au && au.boom(1);
+    const fw = vcFireworks(); fw.burst(cx, cy, 220, true);
+    // kawałki papieru rozlatują się na boki
+    for (let i = 0; i < 14; i++) { const p = document.createElement('i'); p.className = 'vcgbit'; const a = Math.random() * 6.28, d = 140 + Math.random() * 220; p.style.cssText = `left:${cx}px;top:${cy}px;--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d - 80}px;--r:${(Math.random() * 2 - 1) * 720}deg;background:${['#e23d4e', '#ffd34d', '#b8202f'][i % 3]}`; $('#hub').appendChild(p); setTimeout(() => p.remove(), 1300); }
+    g.remove(); t.classList.add('vcrev'); setTimeout(() => t.classList.remove('vcrev'), 2600);
+    const W = innerWidth, H = innerHeight;
+    [[.2, .25], [.8, .2], [.35, .12], [.65, .3], [.5, .1], [.15, .45], [.85, .5]].forEach(([x, y], k) => setTimeout(() => { fw.rocket(cx, cy, W * x, H * y); }, 250 + k * 230));
+  }, 1900);
+}
+// fajerwerki na płótnie nad całym ekranem (w oknie huba, żeby było nad warstwą dialogu)
+function vcFireworks() {
+  let c = $('#vcFw');
+  if (!c) { c = document.createElement('canvas'); c.id = 'vcFw'; $('#hub').appendChild(c); }
+  const x = c.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1); c.width = innerWidth * dpr; c.height = innerHeight * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const P = [], R = [], HUE = [330, 190, 45, 280, 15, 160];
+  let raf = 0, last = performance.now(), idle = 0;
+  const au = vcGiftAudio();
+  function burst(bx, by, n, big) {
+    const h = HUE[Math.floor(Math.random() * HUE.length)], h2 = HUE[Math.floor(Math.random() * HUE.length)];
+    for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, s = (big ? 180 : 90) + Math.random() * (big ? 420 : 260); P.push({ x: bx, y: by, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 1, d: .5 + Math.random() * .7, h: Math.random() < .5 ? h : h2, z: 1.5 + Math.random() * 2.2, tw: Math.random() < .3 }); }
+    loop();
+  }
+  function rocket(sx, sy, tx, ty) { R.push({ x: sx, y: sy, sx, sy, tx, ty, t: 0, T: .55 + Math.random() * .25 }); au && au.whiz(); loop(); }
+  function loop() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); } }
+  function step(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    x.globalCompositeOperation = 'destination-out'; x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(0, 0, innerWidth, innerHeight);
+    x.globalCompositeOperation = 'lighter';
+    for (let i = R.length - 1; i >= 0; i--) {
+      const r = R[i]; r.t += dt; const k = Math.min(1, r.t / r.T), e = 1 - (1 - k) * (1 - k);
+      const nx = r.sx + (r.tx - r.sx) * e, ny = r.sy + (r.ty - r.sy) * e;
+      x.strokeStyle = 'rgba(255,220,160,.9)'; x.lineWidth = 2.2; x.beginPath(); x.moveTo(r.x, r.y); x.lineTo(nx, ny); x.stroke(); r.x = nx; r.y = ny;
+      if (k >= 1) { R.splice(i, 1); burst(r.x, r.y, 110 + Math.floor(Math.random() * 60), false); au && au.boom(.55); }
+    }
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i]; p.l -= dt * p.d; if (p.l <= 0) { P.splice(i, 1); continue; }
+      p.vx *= .985; p.vy = p.vy * .985 + 220 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      const a = p.tw ? p.l * (.4 + .6 * Math.abs(Math.sin(now / 40 + i))) : p.l;
+      x.fillStyle = `hsla(${p.h},100%,${60 + 25 * p.l}%,${a})`; x.beginPath(); x.arc(p.x, p.y, p.z * (.5 + p.l * .5), 0, 7); x.fill();
+    }
+    if (P.length || R.length) { idle = 0; raf = requestAnimationFrame(step); }
+    else if ((idle += dt) < .6) raf = requestAnimationFrame(step); else { raf = 0; x.clearRect(0, 0, innerWidth, innerHeight); }
+  }
+  return { burst, rocket };
+}
+// dźwięki prezentu (WebAudio, bez plików): narastający pomruk, wybuch, świst rakiety
+let vcGA = null;
+function vcGiftAudio() {
+  try {
+    if (vcGA) return vcGA;
+    const ac = new (window.AudioContext || window.webkitAudioContext)(), out = ac.createGain(); out.gain.value = .35; out.connect(ac.destination);
+    const noise = sec => { const b = ac.createBuffer(1, ac.sampleRate * sec, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = ac.createBufferSource(); s.buffer = b; return s; };
+    return vcGA = {
+      rumble(sec) { const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(55, t); o.frequency.exponentialRampToValueAtTime(220, t + sec); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.25, t + sec); g.gain.exponentialRampToValueAtTime(.001, t + sec + .1); const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900; o.connect(f).connect(g).connect(out); o.start(t); o.stop(t + sec + .15); },
+      boom(v) { const t = ac.currentTime, s = noise(1.6), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'lowpass'; f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(120, t + 1.2); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.5); s.connect(f).connect(g).connect(out); s.start(t);
+        for (let k = 0; k < 10; k++) { const c = noise(.05), cg = ac.createGain(), tt = t + .25 + Math.random() * .9; cg.gain.setValueAtTime(.25 * v, tt); cg.gain.exponentialRampToValueAtTime(.001, tt + .04); c.connect(cg).connect(out); c.start(tt); } },
+      whiz() { const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(500, t); o.frequency.exponentialRampToValueAtTime(1800, t + .55); g.gain.setValueAtTime(.06, t); g.gain.exponentialRampToValueAtTime(.001, t + .6); o.connect(g).connect(out); o.start(t); o.stop(t + .65); },
+    };
+  } catch (e) { return null; }
 }
 // kto w co grał: ROOT-plays/<gra>/<uid> = { name, n, last }. Zapis: każdy swój licznik; odczyt i podgląd w hubie: tylko delma
 function playRec(g) {
