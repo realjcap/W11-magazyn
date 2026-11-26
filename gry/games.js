@@ -927,6 +927,8 @@ const FN = (() => {
     mix: t => { const a = (Math.sin(t * 3.2) + 1) / 2, b = (Math.sin(t * 3.2 + 3.1) + 1) / 2; return { spine_01: [.42], neck_01: [.45, Math.sin(t * 1.3) * .1], upperarm_l: [-.25 - a * .35, -.12, -.88], upperarm_r: [-.25 - b * .35, .12, .88], lowerarm_l: EL(.35 + a * .5), lowerarm_r: ER(.35 + b * .5) }; },
     // stoi i patrzy (lekko przechylona głowa, czasem drgnie)
     stand: (t, look = 0) => { const tw = Math.sin(t * 13) * (Math.sin(t * .9) > .93 ? .12 : 0); return { spine_01: [.06], upperarm_l: [.05, 0, -.92], upperarm_r: [.05, 0, .92], lowerarm_l: EL(.12), lowerarm_r: ER(.12), neck_01: [-.04, look * .4, .1], head: [.12 + tw, look * .6 + tw, .26] }; },
+    // mixy przed biegiem: stoi prosto, gapi się w kamerę, głowa lekko przekrzywiona (bez ruchu – tylko minimalne drżenie)
+    stare: t => ({ spine_01: [.02], upperarm_l: [.08, 0, -.95], upperarm_r: [.08, 0, .95], lowerarm_l: EL(.08), lowerarm_r: ER(.08), neck_01: [-.06, 0, .14], head: [-.12 + Math.sin(t * 23) * .006, Math.sin(t * 19) * .006, .3] }),
     // dłonie na szybie kanciapy
     // pochylony nad monitorem za szybą, z otwartymi ustami
     peek: t => ({ spine_01: [.32], spine_02: [.1], neck_01: [.15, Math.sin(t * .5) * .1], head: [-.3, Math.sin(t * .8) * .12, .18], upperarm_l: [-1.35, -.1, -.6], upperarm_r: [-1.35, .1, .6], lowerarm_l: EL(.6), lowerarm_r: ER(.6) }),
@@ -940,6 +942,8 @@ const FN = (() => {
   const NEXT = { home: ['al'], al: ['al2'], al2: ['wy', 'st'], wy: ['pk'], st: ['pk', 'okno', 'szyba'], pk: ['okno', 'szyba', 'drzwi'], okno: ['drzwi', 'szyba'], szyba: ['drzwi'] };
   const ZG_SPOTS = [[-21.05, -3.6, -Math.PI / 2], [-20.4, -3.6, Math.PI / 2], [-21.05, 2.4, -Math.PI / 2], [-20.4, 2.4, Math.PI / 2]];
   const MX_SPOTS = [[-12.8, -5.35, Math.PI], [-10.6, -5.35, Math.PI]];
+  // gdzie staje agenciak z mixów, gdy odejdzie od stołu (bliżej kamery, żeby się nie zasłaniali)
+  const mxOut = e => e.sp === MX_SPOTS[0] ? [-8.9, -5.75] : [-8.2, -5.15];
   const MX_RUN = [[3.0, -5.4], [3.2, 5.0], [20.5, 5.0]];
   const AI = [null, { zg: [2, 3, 0], mx: [0, 1] }, { zg: [4, 5, 3], mx: [2, 1] }, { zg: [7, 6, 5], mx: [5, 3] }, { zg: [10, 9, 8], mx: [7, 6] }, { zg: [13, 12, 12], mx: [10, 9] }];
   const rnd = a => a[Math.floor(Math.random() * a.length)];
@@ -973,12 +977,12 @@ const FN = (() => {
   function nodeCam(e) { return e.run ? -2 : e.node === 'home' ? (e.kind === 'zg' ? 0 : 1) : NODES[e.node][2]; }
   function enPlace(e) {
     let x, z, ry;
-    if (e.node === 'home') { [x, z, ry] = e.sp; if (e.kind === 'mx' && e.stage >= 2) { z += .9; const c = G.cams[1].c.position; ry = Math.atan2(c.x - x, c.z - z); } }
+    if (e.node === 'home') { [x, z, ry] = e.sp; if (e.kind === 'mx' && e.stage >= 2) { [x, z] = mxOut(e); const c = G.cams[1].c.position; ry = Math.atan2(c.x - x, c.z - z); } }
     else {
       [x, z] = NODES[e.node]; const same = G.en.filter(o => o !== e && o.node === e.node && o.node !== 'home').length; x -= same * .7;
       const ci = NODES[e.node][2]; if (ci >= 0) { const c = G.cams[ci].c.position; ry = Math.atan2(c.x - x, c.z - z); } else ry = 0;
     }
-    e.g.position.set(x, 0, z); e.g.rotation.y = ry; e.g.visible = !(e.kind === 'mx' && e.stage === 3 && !e.run);
+    e.g.position.set(x, 0, z); e.g.rotation.y = ry; e.g.visible = !(e.kind === 'mx' && e.stage === 4 && !e.run);
   }
   function enAnim(e, dt) {
     e.t += dt; if (!e.g.visible || (G.sc && G.sc.e === e)) return;
@@ -987,14 +991,15 @@ const FN = (() => {
     else if (e.node === 'home' && e.kind === 'zg') s = AN.work(e.t);
     else if (e.node === 'home' && e.stage === 0) s = AN.mix(e.t);
     else if (e.node === 'home' && e.stage === 1) { const c = G.cams[1].c.position, p = e.g.position; let a = Math.atan2(c.x - p.x, c.z - p.z) - e.g.rotation.y; a = Math.atan2(Math.sin(a), Math.cos(a)); s = AN.stand(e.t, Math.max(-1.3, Math.min(1.3, a))); }
+    else if (e.node === 'home' && e.kind === 'mx' && e.stage === 3) { s = AN.stare(e.t); face(e, 'usta_krzyk', .8 + Math.sin(e.t * 1.7) * .1); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .45); }
     else if (e.node === 'okno') { s = AN.glass(e.t); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .6); }
     else if (e.node === 'szyba') { s = AN.peek(e.t); face(e, 'usta_krzyk', .85 + Math.sin(e.t * 2.3) * .15); face(e, 'oczy_szeroko', 1); face(e, 'wykrzywienie', .5); }
     else s = AN.stand(e.t);
-    if (e.node !== 'szyba') face(e, 'usta_krzyk', 0);
+    if (e.node !== 'szyba' && !(e.kind === 'mx' && e.stage === 3 && e.node === 'home')) face(e, 'usta_krzyk', 0);
     // przed kanciapą jest ciemno: bez lampy widać najwyżej zarys
     const dk = !G.light && !(G.sc && G.sc.e === e) && (FRONT.includes(e.node) || (e.run && e.g.position.x > 14 && e.g.position.z > 3.8)) ? .03 : 1;
     if (e.dk !== dk) { e.dk = dk; e.g.traverse(o => { if (!o.isMesh) return; [].concat(o.material).forEach(m => { if (!m.userData.c0) m.userData.c0 = m.color.clone(); m.color.copy(m.userData.c0).multiplyScalar(dk); }); }); }
-    if (e.node !== 'okno' && e.node !== 'szyba') { const z = e.node === 'drzwi' || (e.kind === 'mx' && e.stage === 2) ? .7 : e.node === 'home' ? 0 : .3; face(e, 'oczy_szeroko', z); face(e, 'wykrzywienie', z * .6); }
+    if (e.node !== 'okno' && e.node !== 'szyba' && !(e.kind === 'mx' && e.stage === 3 && e.node === 'home')) { const z = e.node === 'drzwi' || (e.kind === 'mx' && e.stage === 2) ? .7 : e.node === 'home' ? 0 : .3; face(e, 'oczy_szeroko', z); face(e, 'wykrzywienie', z * .6); }
     pose(e.r, s); e.g.position.y = e.run ? -.05 + Math.abs(Math.cos(e.t * 9.5)) * .06 : 0;
     // rekwizyt w rękach (zgrzewka między dłońmi / puszka w prawej)
     if (e.prop) {
@@ -1033,12 +1038,12 @@ const FN = (() => {
     if (e.run) return mixRun(e, dt);
     if (G.cam >= 0) e.watch = true; else if (e.watch) { e.watch = false; e.lock = 1 + Math.random() * 11; } // patrzenie w kamery uspokaja mixy
     if (e.lock > 0 && G.cam < 0) e.lock -= dt;
-    if (e.stage === 3) { if (G.cam === 1) e.runIn = Math.min(e.runIn, 1.4); if ((e.runIn -= dt) <= 0 && !G.out) mixGo(e); return; }
+    if (e.stage === 4) { if (G.cam === 1) e.runIn = Math.min(e.runIn, 1.4); if ((e.runIn -= dt) <= 0 && !G.out) mixGo(e); return; }
     if ((e.op -= dt) > 0) return; e.op = 5 + Math.random();
     if (G.cam >= 0 || e.lock > 0 || G.out) return;
-    if (Math.random() * 20 < e.ai + bonus) { e.stage++; if (e.stage === 3) { e.runIn = 20 + Math.random() * 8; if (G.cam === 1) camStatic(); } enPlace(e); }
+    if (Math.random() * 20 < e.ai + bonus) { e.stage++; if (e.stage === 4) { e.runIn = 20 + Math.random() * 8; if (G.cam === 1) camStatic(); } enPlace(e); }
   }
-  function mixGo(e) { const p = e.g.position; e.run = { i: 0, x: e.sp[0], z: e.sp[1] + .9 }; e.g.visible = true; e.g.position.set(e.run.x, 0, e.run.z); if (G.cam === 1) camStatic(); steps(.25); }
+  function mixGo(e) { const p = e.g.position; const o2 = mxOut(e); e.run = { i: 0, x: o2[0], z: o2[1] }; e.g.visible = true; e.g.position.set(e.run.x, 0, e.run.z); if (G.cam === 1) camStatic(); steps(.25); }
   function mixRun(e, dt) {
     const R2 = e.run, tgt = MX_RUN[R2.i]; let dx = tgt[0] - R2.x, dz = tgt[1] - R2.z, d = Math.hypot(dx, dz), st = 7.5 * dt;
     // ok. 2 s przed drzwiami słychać tupanie biegnącego – coraz głośniej
@@ -1366,7 +1371,7 @@ const FN = (() => {
   function prnJam() {
     G.prn = PRN_T; sting(); for (let i = 0; i < 6; i++) setTimeout(() => { if (audio) noiseHit(audio.ac.currentTime, .3, .12, 3000, 2); }, i * 120);
     G.pow = Math.max(0, G.pow - 3);
-    for (const e of G.en) { if (e.kind === 'zg') { if (!G.inside && e.node !== 'drzwi' && (e.node !== 'home' || Math.random() < .6)) enMove(e); } else if (!e.run && e.stage < 3) { e.stage++; if (e.stage === 3) e.runIn = 15 + Math.random() * 6; enPlace(e); } }
+    for (const e of G.en) { if (e.kind === 'zg') { if (!G.inside && e.node !== 'drzwi' && (e.node !== 'home' || Math.random() < .6)) enMove(e); } else if (!e.run && e.stage < 4) { e.stage++; if (e.stage === 4) e.runIn = 15 + Math.random() * 6; enPlace(e); } }
     const h = $('#fnHint'); h.textContent = '🖨️ Ukrainka się zacięła! Cała agencja to słyszała…'; h.classList.add('on'); clearTimeout(G.hintT); G.hintT = setTimeout(() => h.classList.remove('on'), 2600);
   }
   // ---------- pętla ----------
@@ -1556,7 +1561,7 @@ const FN = (() => {
     ['Test jumpscare', () => { const e = G.en[0]; if (e) { const g = G.god; G.god = false; scare(e); G.god = g; } }]
   ], rows: () => (G.en || []).map(e => [`${e.name} · ${e.kind === 'zg' ? 'zgrzewki' : 'mixy'} · AI ${e.ai} · ${e.run ? 'BIEGNIE' : e.node === 'in' ? 'W KANCIAPIE' : e.node}${e.kind === 'mx' ? ' · etap ' + e.stage : ''}`,
     [...(e.kind === 'zg' ? ['home', 'okno', 'szyba', 'drzwi'].map(n => [n === 'home' ? 'stół' : n, () => { if (e.node === 'in') G.inside = null; e.node = n; enPlace(e); if (FRONT.includes(n)) G.stung = false; }])
-      : [['stół', () => { e.run = null; e.node = 'home'; e.stage = 0; enPlace(e); }], ['etap+1', () => { if (e.stage < 3) { e.stage++; if (e.stage === 3) e.runIn = 20; enPlace(e); } }], ['bieg!', () => { e.stage = 3; e.node = 'home'; mixGo(e); }]]),
+      : [['stół', () => { e.run = null; e.node = 'home'; e.stage = 0; enPlace(e); }], ['etap+1', () => { if (e.stage < 4) { e.stage++; if (e.stage === 4) e.runIn = 20; enPlace(e); } }], ['bieg!', () => { e.stage = 4; e.node = 'home'; mixGo(e); }]]),
      ['AI+5', () => { e.ai = Math.min(20, e.ai + 5); }], ['AI 0', () => { e.ai = 0; }]]]) };
   return { open, G, dbg, _dbg: () => ({ scene, cam, R, ENC, prnHit, enLoad, enSpawn, enPlace, scare, blackout, pose, AN, mixGo, doorToggle, lightSet, step: (dt = .016, nr) => { if (G.st !== 'menu' && G.st !== 'end') update(dt); if (nr) return; resize(); R.render(scene, cam); } }) };
 })();
