@@ -895,6 +895,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <div class="sel"><div><div class="nm" id="opN"></div><div class="sku" id="opS"></div></div><button type="button" id="opBack">Zmień</button></div>
     <div id="opF"></div>
   </div>
+  <label class="f" id="opWhenW" hidden><small>Data i godzina dostawy (puste = teraz)</small><input type="datetime-local" id="opWhen"></label>
   <label class="f" id="opNoteW" hidden><small>Notatka do całej listy (opcjonalnie)</small><input id="opNote" maxlength="80" placeholder="np. numer dostawy, zamówienie"></label>
   <form method="dialog" class="btns">
     <button value="x">Anuluj</button>
@@ -1302,7 +1303,7 @@ function rebuild() {
   S.products = Object.entries(P).filter(([id, p]) => okId(id) && p && typeof p === 'object' && p.name)
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...zsanOld(p), ...oldSan(p), sew: posMap(p.sew), codes: codeSan(p.codes) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-  S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null }));
+  S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null })).sort((a, b) => (b.t || 0) - (a.t || 0)); // wg czasu – wpis z cofniętą datą trafia na swoje miejsce
   if (unlocked) { rr(); if (view === 'br') renderBraki(); }
 }
 function rr() { render(); maybeMigrate(); if (view === 'map') renderMap(); }
@@ -1515,7 +1516,7 @@ function setStep(step) {
   $('#opPick').hidden = step !== 'pick'; $('#opSel').hidden = step !== 'sizes';
   $('#opMore').hidden = step !== 'sizes';
   const can = step === 'sizes' || lines.length > 0;
-  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can || mode === 'set';
+  $('#opOk').hidden = !can; $('#opNoteW').hidden = !can || mode === 'set'; $('#opWhenW').hidden = !can || mode !== 'in' || user !== 'delma';
   renderLines();
 }
 // --- kody kreskowe: rozpoznanie, skaner USB (szybkie wpisywanie + Enter) i aparat telefonu
@@ -1821,7 +1822,7 @@ function openOp(m, id, kind) {
   $('#opT').textContent = opKind ? 'Liczenie / korekta' : MODES[m].t;
   $('#opOk').className = MODES[m].c;
   $('#opOk').textContent = MODES[m].ok;
-  $('#opNote').value = '';
+  $('#opNote').value = ''; $('#opWhen').value = '';
   $('#opQ').value = '';
   const p = id ? S.products.find(x => x.id === id) : null;
   if (p) pickItem(p); else showPick();
@@ -2000,6 +2001,7 @@ async function applyBatch(m, items, note, opt = {}) {
   if (m === 'in' && opKind === 'cnt') entry.kind = 'cnt';
   if (user) entry.by = user;
   if (note) entry.note = note;
+  if (opt.t) entry.t = opt.t;
   await R.child('log').push(entry);
   return true;
 }
@@ -2020,6 +2022,10 @@ $('#opOk').onclick = async e => {
     if (miss.length && !await ask('Nie wróciło: ' + miss.join('; ') + '. Te sztuki zostaną usunięte z eventu i nie wrócą do stanu magazynu. Kontynuować?')) return;
   }
   const opt = {};
+  if (mode === 'in' && user === 'delma' && $('#opWhen').value) { // delma: dostawa z inną datą/godziną
+    const tt = new Date($('#opWhen').value).getTime(); if (!(tt > 0)) return say('Nieprawidłowa data.');
+    if (tt > Date.now() + 60000 && !await ask('Ta data jest w przyszłości. Zapisać mimo to?')) return; opt.t = tt;
+  }
   if (mode === 'sewin') {
     const miss = [];
     lines.forEach(l => {
