@@ -197,7 +197,7 @@ window.gmLaunch = async () => {
 const WZ_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma, rudy
 function hubOpen() {
   if (!$('#hubImg').src) $('#hubImg').src = GM_BAR;
-  $('#hubVc').hidden = lbMe() !== DELMA_UID; // Vice City – tylko konto delma
+  $('#hubVc').hidden = !VC_OK(); // Vice City – delma i rudy
   $('#hubWz').hidden = !WZ_OK(); // Wózkowa pierdoła – na razie delma i rudy
   $('#hubDz').hidden = !DZ_OK(); // dzik.io – dla wszystkich
   if (!$('#hubFace').src) $('#hubFace').src = W3_FACE.c;
@@ -231,7 +231,7 @@ $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
   SFX.play('tick');
   // Vice City: zewnętrzna strona (port reVC na DOS.Zone), otwierana w nowej karcie – bez plików gry w repo
-  if (t.dataset.g === 'vc') { if (lbMe() === DELMA_UID) vcOpen(); return; }
+  if (t.dataset.g === 'vc') { if (VC_OK()) vcOpen(); return; }
   playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
@@ -244,6 +244,7 @@ $('#hub').addEventListener('click', e => {
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: silnik w ramce (ładowany dopiero po otwarciu, czyszczony po zamknięciu), na wierzchu własny ekran startowy
 const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
+const VC_OK = () => [DELMA_UID, '8atW48jZXFcEeW9lY5jPNJKpfk72'].includes(lbMe()); // delma i rudy; gra z chmury tylko dla delmy
 function vcOpen() {
   $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL;
   $('#vcP').hidden = false; VCS.dl = ''; vcUi(); $('#vc').showModal();
@@ -268,8 +269,8 @@ function vcUi() {
   $('#vcBar').hidden = bar === null; if (bar !== null) $('#vcBar i').style.width = Math.max(2, bar) + '%';
   const e = err && err.style.display === 'block' ? err.textContent.trim() : ''; $('#vcErr').hidden = !e; $('#vcErr').textContent = e ? 'Błąd: ' + e : '';
   $('#vcPlay').disabled = !ready;
-  $('#vcCloud').hidden = $('#vcNote').hidden = ready;
-  $('#vcCloud').disabled = !!(VCS.dl || busy);
+  const dm = lbMe() === DELMA_UID; $('#vcCloud').hidden = ready || !dm; $('#vcZip').hidden = ready || dm; $('#vcNote').hidden = ready;
+  $('#vcCloud').disabled = $('#vcZip').disabled = !!(VCS.dl || busy);
 }
 $('#vcPlay').onclick = () => {
   const d = $('#vcF').contentDocument, b = d && d.getElementById('click-to-play-button'); if (!b || b.disabled) return;
@@ -299,6 +300,8 @@ async function vcCloud() {
   VCS.dl = ''; vcUi();
 }
 $('#vcCloud').onclick = vcCloud;
+// pozostałe konta: własna gra spakowana do .zip – okno wyboru pliku z ramki
+$('#vcZip').onclick = () => { const d = $('#vcF').contentDocument, i = d && d.getElementById('game-zip-input'); if (i) i.click(); else say('Poczekaj, aż okno gry się wczyta.'); };
 $('#gmHub').onclick = () => { $('#gm').close(); hubOpen(); };
 function snakeOpen() {
   gmImgs(); gmReset(); GM.run = false; $('#gmBest').textContent = GM.best;

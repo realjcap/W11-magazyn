@@ -1102,6 +1102,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
       <div id="vcBar" hidden><i></i></div>
       <p id="vcErr" hidden></p>
       <button type="button" id="vcCloud" class="vcb">☁ Wgraj z chmury</button>
+      <button type="button" id="vcZip" class="vcb" hidden>📁 Wgraj grę z pliku .zip</button>
       <small id="vcNote">Tylko przy pierwszym uruchomieniu na tym komputerze i w tej przeglądarce. Może potrwać kilka minut – nie zamykaj okna i trzymaj kartę na wierzchu.</small>
       <button type="button" id="vcPlay" class="vcb vcgo" disabled>▶ Graj</button>
     </div></div>
@@ -3670,7 +3671,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '4eebc02cfc'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '98142a3f84'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
