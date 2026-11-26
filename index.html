@@ -527,6 +527,19 @@ dialog[open]{opacity:1;transform:none}
 #vc{width:min(1280px,calc(100vw - 16px));max-width:none;padding:12px;text-align:center}
 #vcWrap{width:min(100%,calc((100dvh - 130px) * 16 / 9));aspect-ratio:16/9;margin:0 auto;background:#000;border-radius:6px;overflow:hidden}
 #vcF{display:block;width:100%;height:100%;border:0}
+#vcWrap{position:relative}
+#vcP{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(circle at 30% 20%,#ff4fa3 0,transparent 45%),radial-gradient(circle at 80% 90%,#28d7e6 0,transparent 50%),linear-gradient(160deg,#1a0b2e,#0b1630);overflow:auto}
+#vcP[hidden]{display:none}
+.vccard{width:min(440px,100%);padding:26px 24px;border-radius:20px;background:rgba(14,10,30,.62);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);box-shadow:0 20px 60px rgba(0,0,0,.45);color:#fff;display:flex;flex-direction:column;gap:10px}
+.vccard h1{margin:0;font:italic 900 46px/1 system-ui,sans-serif;letter-spacing:-.02em;background:linear-gradient(90deg,#ff5fb0,#ffb86b 50%,#4fe3f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.vccard p{margin:0;color:#d9d3ee}#vcErr{color:#ff9ab0;font-weight:700;font-size:13px}
+.vccard small{color:#a99fc8;font-size:12px;line-height:1.4}
+#vcBar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}#vcBar[hidden]{display:none}#vcBar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff5fb0,#4fe3f0);transition:width .3s}
+.vcb{all:unset;box-sizing:border-box;cursor:pointer;width:100%;padding:12px;border-radius:999px;font:800 16px system-ui,sans-serif;text-align:center;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22)}
+.vcb:hover:not(:disabled){background:rgba(255,255,255,.18)}
+.vcb.vcgo{color:#1a0b2e;background:linear-gradient(90deg,#ff5fb0,#ffb86b);border:0;box-shadow:0 8px 24px rgba(255,95,176,.35)}
+.vcb[hidden],.vccard small[hidden]{display:none}
+.vcb:disabled{cursor:default;opacity:.35;filter:grayscale(1);box-shadow:none}
 #slWrap{position:relative;width:min(100%,calc((100dvh - 130px) * 16 / 9));aspect-ratio:16/9;margin:0 auto;background:#000;border-radius:6px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #slC{display:block;width:100%;height:100%;image-rendering:pixelated}
 #slNs{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none;mix-blend-mode:screen;image-rendering:pixelated}
@@ -1081,9 +1094,19 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gbt"><button type="button" id="slHub" class="e">← Game Hub</button><span class="mu">Esc – pauza</span><button type="button" id="slgX">Zamknij</button></div>
 </dialog>
 <dialog id="vc">
-  <div class="gh"><h2>GTA: Vice City</h2><span class="mu">Pierwszy raz na tym komputerze: „☁ Wczytaj z chmury” · potem startuje od razu</span></div>
-  <div id="vcWrap"><iframe id="vcF" title="GTA: Vice City" allow="fullscreen; gamepad; autoplay; clipboard-write" allowfullscreen></iframe></div>
-  <div class="gbt"><button type="button" id="vcHub" class="e">← Game Hub</button><button type="button" id="vcCloud" class="e">☁ Wczytaj z chmury</button><button type="button" id="vcX">Zamknij</button></div>
+  <div class="gh"><h2>GTA: Vice City</h2><span class="mu">Esc – menu gry · F11 – pełny ekran</span></div>
+  <div id="vcWrap"><iframe id="vcF" title="GTA: Vice City" allow="fullscreen; gamepad; autoplay; clipboard-write" allowfullscreen></iframe>
+    <div id="vcP"><div class="vccard">
+      <h1>Vice City</h1>
+      <p id="vcSt">Sprawdzanie plików gry…</p>
+      <div id="vcBar" hidden><i></i></div>
+      <p id="vcErr" hidden></p>
+      <button type="button" id="vcCloud" class="vcb">☁ Wgraj z chmury</button>
+      <small id="vcNote">Tylko przy pierwszym uruchomieniu na tym komputerze i w tej przeglądarce. Może potrwać kilka minut – nie zamykaj okna i trzymaj kartę na wierzchu.</small>
+      <button type="button" id="vcPlay" class="vcb vcgo" disabled>▶ Graj</button>
+    </div></div>
+  </div>
+  <div class="gbt"><button type="button" id="vcHub" class="e">← Game Hub</button><span></span><button type="button" id="vcX">Zamknij</button></div>
 </dialog>
 <dialog id="wz">
   <div class="gh"><h2>Wózkowa pierdoła</h2><span class="mu">W/S – gaz · A/D – skręt · Spacja – widły · H – klakson</span></div>
@@ -3647,7 +3670,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = 'cd0e9b836f'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '4eebc02cfc'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {

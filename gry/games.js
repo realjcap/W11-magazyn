@@ -242,20 +242,46 @@ $('#hub').addEventListener('click', e => {
   if (t.dataset.g === 'dz' && DZ_OK()) { $('#hub').close(); DZ.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
-// Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
+// Vice City: silnik w ramce (ładowany dopiero po otwarciu, czyszczony po zamknięciu), na wierzchu własny ekran startowy
 const VC_URL = 'gry/vc/'; // silnik w repo (bez plików gry) – gracz importuje własną instalację, dane w pamięci przeglądarki
-function vcOpen() { $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL; $('#vc').showModal(); setTimeout(() => f.focus(), 300); }
-$('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; });
+function vcOpen() {
+  $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL;
+  $('#vcP').hidden = false; VCS.dl = ''; vcUi(); $('#vc').showModal();
+  clearInterval(VCS.t); VCS.t = setInterval(vcUi, 400);
+}
+$('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; clearInterval(VCS.t); });
 $('#vcX').onclick = () => $('#vc').close();
 $('#vcHub').onclick = () => { $('#vc').close(); hubOpen(); };
+// własny ekran startowy zamiast strony emulatora: stan importu czytany z ramki (ta sama domena), przyciski klikają jej przyciski
+const VCS = { t: 0, dl: '' };
+const VC_PL = { 'progress.checking': 'Sprawdzanie plików gry…', 'progress.unpacking': 'Rozpakowywanie…', 'progress.converting': 'Wczytywanie plików gry', 'progress.resuming': 'Import się przerwał – wznawianie…', 'progress.verifying': 'Sprawdzanie zaimportowanych plików…', 'progress.complete': 'Gotowe.' };
+function vcUi() {
+  const d = $('#vcF').contentDocument, w = $('#vcF').contentWindow, g = id => d && d.getElementById(id);
+  const ready = !!(w && w.__gtaGameReady), prog = g('setup-progress'), err = g('setup-error'), lab = g('setup-progress-label'), pct = g('setup-progress-percent');
+  const busy = prog && prog.style.display === 'block' && !ready;
+  let st = 'Ładowanie…', bar = null;
+  if (VCS.dl) { st = VCS.dl; bar = VCS.dlp; }
+  else if (ready) st = 'Gra jest wgrana na tym komputerze.';
+  else if (busy) { const k = lab && lab.dataset.i18n; st = (VC_PL[k] || (lab && lab.textContent) || 'Import…'); const p = parseInt(pct && pct.textContent) || 0; if (k === 'progress.converting') st += ' – ' + p + '%'; bar = p; }
+  else if (g('click-to-play-button')) st = 'Gra nie jest jeszcze wgrana na tym komputerze.';
+  $('#vcSt').textContent = st;
+  $('#vcBar').hidden = bar === null; if (bar !== null) $('#vcBar i').style.width = Math.max(2, bar) + '%';
+  const e = err && err.style.display === 'block' ? err.textContent.trim() : ''; $('#vcErr').hidden = !e; $('#vcErr').textContent = e ? 'Błąd: ' + e : '';
+  $('#vcPlay').disabled = !ready;
+  $('#vcCloud').hidden = $('#vcNote').hidden = ready;
+  $('#vcCloud').disabled = !!(VCS.dl || busy);
+}
+$('#vcPlay').onclick = () => {
+  const d = $('#vcF').contentDocument, b = d && d.getElementById('click-to-play-button'); if (!b || b.disabled) return;
+  b.click(); $('#vcP').hidden = true; clearInterval(VCS.t); setTimeout(() => $('#vcF').focus(), 100);
+};
 
 // gra z prywatnego R2 (przez worker, tylko delma): pobranie .zip i podanie go do importu w oknie gry, zamiast wskazywania folderu
 async function vcCloud() {
-  const btn = $('#vcCloud'); if (btn.disabled) return;
   const doc = $('#vcF').contentDocument, inp = doc && doc.getElementById('game-zip-input');
   if (!inp) return say('Poczekaj, aż okno gry się wczyta.');
   if (!auth || !auth.currentUser || lbMe() !== DELMA_UID || !SL.url) return say('Chmura działa tylko na koncie delma z ustawionym workerem.');
-  btn.disabled = true;
+  VCS.dl = 'Łączenie z chmurą…'; VCS.dlp = 0; vcUi();
   try {
     const tok = await auth.currentUser.getIdToken();
     const r = await fetch(SL.url.replace(/\/+$/, '') + '/vc/game.zip', { headers: { Authorization: 'Bearer ' + tok } });
@@ -265,13 +291,12 @@ async function vcCloud() {
       const { done, value } = await rd.read(); if (done) break;
       buf.push(value); bl += value.length; got += value.length;
       if (bl > 64e6) { blob = new Blob([blob, ...buf]); buf = []; bl = 0; } // co 64 MB do Bloba (przeglądarka trzyma duże Bloby na dysku)
-      btn.textContent = '☁ Pobieranie… ' + (tot ? Math.floor(got / tot * 100) + '%' : Math.round(got / 1e6) + ' MB');
+      VCS.dlp = tot ? got / tot * 100 : 0; VCS.dl = 'Pobieranie z chmury – ' + (tot ? Math.floor(VCS.dlp) + '%' : Math.round(got / 1e6) + ' MB');
     }
     const file = new File([blob, ...buf], 'vicecity.zip', { type: 'application/zip' }), dt = new DataTransfer(); dt.items.add(file);
     inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true }));
-    btn.textContent = '☁ Pobrano – trwa import w oknie gry';
-  } catch (e) { say('Nie udało się pobrać gry z chmury: ' + e.message); btn.textContent = '☁ Wczytaj z chmury'; }
-  btn.disabled = false;
+  } catch (e) { say('Nie udało się pobrać gry z chmury: ' + e.message); }
+  VCS.dl = ''; vcUi();
 }
 $('#vcCloud').onclick = vcCloud;
 $('#gmHub').onclick = () => { $('#gm').close(); hubOpen(); };
