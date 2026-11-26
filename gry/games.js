@@ -235,6 +235,7 @@ $('#hub').addEventListener('click', e => {
   if (t.dataset.g === 'fl') { $('#hub').close(); FL.open(); }
   if (t.dataset.g === 'sl') { $('#hub').close(); SL3.open(); }
   if (t.dataset.g === 'fn') { $('#hub').close(); FN.open(); }
+  if (t.dataset.g === 'wz') { $('#hub').close(); WZ.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
 // Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
@@ -2288,6 +2289,209 @@ function lbSave(score) {
   const cur = LB[me] && Number(LB[me].best) || 0; if (score <= cur) return;
   db.ref(ROOT + '-snake/' + me).set({ name: cap(user || 'gracz'), best: score, at: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
 }
+// ---------- Wózkowa pierdoła: rozwożenie palet wózkiem widłowym, wspólna zmiana dla wszystkich, którzy wejdą ----------
+// Stan wspólny w Firebase (ROOT-wz): p/<uid> – pozycje wózków, o/<id> – zlecenia (palety), done – licznik zmiany.
+// Bez dostępu do bazy gra działa sama (tryb solo).
+const WZ = (() => {
+  const W = 1800, H = 1100, SHIFT = 300, MAXO = 4, PROD = [['Tropic', '#1d9fd8'], ['Classic', '#d8dde2'], ['Limitless', '#7a3cf0'], ['Kreatyna', '#f2c41b'], ['Batony', '#8a5a2b'], ['Wafle', '#f08a24']];
+  const RAMPS = [300, 650, 1000, 1350].map((x, i) => ({ i, x: x - 70, y: 26, w: 140, h: 70, n: 'Rampa ' + (i + 1) }));
+  const ST = [0, 1, 2, 3, 4, 5].map(i => ({ i, x: 140 + i * 280, y: H - 106, w: 130, h: 76, n: 'St. ' + (i + 1) }));
+  const OBS = [];
+  for (const y of [300, 500, 700]) for (const [a, b] of [[170, 640], [760, 1130], [1250, 1560]]) OBS.push({ x: a, y, w: b - a, h: 48, r: 1 });
+  OBS.push({ x: 1630, y: 430, w: 150, h: 130, k: 1 }); // kanciapa
+  const G = { open: false, st: 'menu', t: 0, left: SHIFT, score: 0, dmg: 0, god: false, online: false };
+  const LB = LBX('wzlb', '#wzOv');
+  let cv, cx, raf = 0, last = 0, me = null, O = {}, P = {}, ref = null, oRef = null, pRef = null, sendT = 0, hostT = 0, keys = {}, parts = [], NPC = [], shake = 0, audio = null, beepT = 0, toastT = 0;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const uid = () => lbMe() || 'solo';
+  const inR = (x, y, r) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
+  function ov(h) { const o = $('#wzOv'); o.innerHTML = h; o.hidden = !h; }
+  function toast(t) { const e = $('#wzMsg'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 1800); }
+  // ---------- dźwięk ----------
+  function aInit() {
+    if (audio) return; try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)(), m = ac.createGain(); m.gain.value = .5; m.connect(ac.destination);
+      const o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter(); o.type = 'sawtooth'; f.type = 'lowpass'; f.frequency.value = 380; g.gain.value = 0; o.connect(f).connect(g).connect(m); o.start();
+      audio = { ac, m, eng: o, eg: g };
+    } catch (e) {}
+  }
+  function tone(f, len, type = 'sine', v = .15, at = 0) { if (!audio) return; const { ac, m } = audio, t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + len); o.connect(g).connect(m); o.start(t); o.stop(t + len + .02); }
+  function thud(v) { if (!audio) return; const { ac, m } = audio, t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .25); g.gain.setValueAtTime(.5 * v, t); g.gain.exponentialRampToValueAtTime(.001, t + .3); o.connect(g).connect(m); o.start(t); o.stop(t + .32); }
+  const horn = () => { tone(392, .35, 'square', .07); tone(494, .35, 'square', .06); };
+  const ding = () => { tone(880, .25, 'sine', .18); tone(1320, .35, 'sine', .14, .12); };
+  // ---------- wspólny stan (Firebase) ----------
+  const isHost = () => { const now = Date.now(); return !G.online || Object.entries(P).filter(([k, p]) => p && now - (p.lt || 0) < 6000).map(([k]) => k).concat(uid()).sort()[0] === uid(); };
+  function netOpen() {
+    G.online = false; if (!db || !lbMe()) return;
+    ref = db.ref(ROOT + '-wz'); pRef = ref.child('p'); oRef = ref.child('o');
+    pRef.on('value', s => { G.online = true; const v = s.val() || {}, now = Date.now(); for (const k in v) { if (k === uid()) continue; const n = v[k]; if (!n || typeof n.x !== 'number') continue; const p = P[k] || (P[k] = { x: n.x, y: n.y, a: n.a }); Object.assign(p, { tx: n.x, ty: n.y, ta: n.a, n: String(n.n || '?').slice(0, 20), c: n.c | 0, h: n.h || 0, lt: now }); } for (const k in P) if (!v[k]) delete P[k]; }, () => { G.online = false; });
+    oRef.on('value', s => { const v = s.val() || {}; const n = {}; for (const k in v) { const o = v[k]; if (o && typeof o.x === 'number') n[k] = o; } O = n; }, () => {});
+    try { pRef.child(uid()).onDisconnect().remove(); } catch (e) {}
+  }
+  function netClose() { if (pRef) { pRef.off(); try { pRef.child(uid()).remove(); } catch (e) {} } if (oRef) oRef.off(); ref = pRef = oRef = null; G.online = false; P = {}; }
+  const oSet = (id, o) => { if (G.online) oRef.child(id).set(o).catch(() => {}); else if (o) O[id] = o; else delete O[id]; };
+  async function oTake(id) {
+    if (!G.online) { const o = O[id]; if (!o || o.st === 'carry') return false; o.st = 'carry'; o.by = uid(); return true; }
+    const r = await oRef.child(id).transaction(o => { if (!o || o.st === 'carry') return; o.st = 'carry'; o.by = uid(); return o; }).catch(() => null);
+    return !!(r && r.committed);
+  }
+  function spawnOrders(dt) {
+    if (!isHost()) return; hostT -= dt; const n = Object.keys(O).length; if (n >= MAXO || (hostT > 0 && n > 0)) return; hostT = rnd(5, 9);
+    const r = RAMPS[Math.floor(Math.random() * RAMPS.length)], s = ST[Math.floor(Math.random() * ST.length)], p = Math.floor(Math.random() * PROD.length);
+    const id = 'o' + Date.now().toString(36) + Math.floor(Math.random() * 999);
+    oSet(id, { x: r.x + r.w / 2 + rnd(-30, 30), y: r.y + r.h / 2 + 8, to: s.i, p, st: 'wait', born: Date.now() });
+    // porzucone: ktoś „wiezie” paletę, a jego wózka już nie ma – paleta wraca na podłogę
+    const now = Date.now(); for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by !== uid() && !(P[o.by] && now - P[o.by].lt < 8000)) oSet(k, { ...o, st: 'floor', by: null }); }
+  }
+  // ---------- gra ----------
+  function newMe() { me = { x: 700 + rnd(-40, 40), y: 900, a: -Math.PI / 2, v: 0, carry: null, c: Math.floor(Math.random() * 360) }; }
+  function start() {
+    aInit(); if (audio && audio.ac.state === 'suspended') audio.ac.resume();
+    newMe(); G.st = 'run'; G.left = SHIFT; G.score = 0; G.dmg = 0; parts = []; ov(''); playRec('wz');
+    NPC = Array.from({ length: 4 }, () => npcNew());
+  }
+  function npcNew() { const p = npcPt(); return { x: p[0], y: p[1], tx: 0, ty: 0, down: 0, c: ['#e3542b', '#2b7be3', '#3a3a3a', '#f0c419'][Math.floor(Math.random() * 4)], ph: Math.random() * 6 }; }
+  function npcPt() { for (let i = 0; i < 50; i++) { const x = rnd(80, W - 80), y = rnd(120, H - 140); if (!OBS.some(o => inR(x, y, { x: o.x - 20, y: o.y - 20, w: o.w + 40, h: o.h + 40 }))) return [x, y]; } return [900, 600]; }
+  function end() {
+    G.st = 'over'; const sc = G.score; LB.save(sc); if (audio) audio.eg.gain.value = 0;
+    if (me.carry && O[me.carry]) oSet(me.carry, { ...O[me.carry], st: 'floor', by: null, x: me.x, y: me.y });
+    ov(`<b>Koniec zmiany</b><span>Rozwiezione palety: ${sc} · szkody: ${G.dmg}</span><button type="button" class="p" data-go="1">Nowa zmiana</button>${LB.html()}`);
+  }
+  const forks = () => [me.x + Math.cos(me.a) * 30, me.y + Math.sin(me.a) * 30];
+  async function action() {
+    if (G.st !== 'run') return; const [fx, fy] = forks();
+    if (me.carry) { // odkładanie
+      const o = O[me.carry], id = me.carry; me.carry = null; if (!o) return;
+      const s = ST[o.to];
+      if (inR(fx, fy, { x: s.x - 10, y: s.y - 10, w: s.w + 20, h: s.h + 20 })) {
+        oSet(id, null); G.score++; ding(); toast('Dostarczone! +1 paleta'); for (let i = 0; i < 14; i++) parts.push({ x: fx, y: fy, vx: rnd(-90, 90), vy: rnd(-90, 90), l: 1, c: PROD[o.p][1] });
+        if (G.online) ref.child('done').transaction(n => (n || 0) + 1).catch(() => {});
+      } else { oSet(id, { ...o, st: 'floor', by: null, x: fx, y: fy }); tone(160, .15, 'square', .08); }
+      return;
+    }
+    let best = null, bd = 30; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - fx, o.y - fy); if (d < bd) { bd = d; best = k; } }
+    if (!best) return tone(120, .1, 'square', .05);
+    if (await oTake(best)) { me.carry = best; tone(220, .12, 'triangle', .12); tone(330, .1, 'triangle', .1, .08); }
+  }
+  function crash(sp) {
+    if (G.god) return; thud(Math.min(1, sp / 200)); shake = Math.min(14, sp / 14); G.dmg++;
+    for (let i = 0; i < 8; i++) parts.push({ x: me.x + rnd(-20, 20), y: me.y + rnd(-20, 20), vx: rnd(-120, 120), vy: rnd(-120, 120), l: 1, c: '#c9a56b' });
+    if (me.carry && sp > 150 && O[me.carry]) { const o = O[me.carry], [fx, fy] = forks(); oSet(me.carry, { ...o, st: 'floor', by: null, x: fx, y: fy }); me.carry = null; toast('Paleta spadła z wideł!'); }
+    else toast('Bum! Szkoda +1');
+  }
+  function update(dt) {
+    G.t += dt;
+    for (const k in P) { const p = P[k]; p.x += (p.tx - p.x) * Math.min(1, dt * 10); p.y += (p.ty - p.y) * Math.min(1, dt * 10); let d = p.ta - p.a; d = Math.atan2(Math.sin(d), Math.cos(d)); p.a += d * Math.min(1, dt * 10); }
+    parts = parts.filter(q => (q.l -= dt * 1.4) > 0); parts.forEach(q => { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= .94; q.vy *= .94; });
+    if (G.st !== 'run') return;
+    G.left -= dt; if (G.left <= 0) return end();
+    spawnOrders(dt);
+    // jazda: wózek skręca tylnymi kołami – na wstecznym skręca „odwrotnie”, jak prawdziwy
+    const thr = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), str = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+    me.v += thr * (thr * me.v < 0 ? 520 : 260) * dt; if (!thr) me.v *= Math.pow(.12, dt);
+    me.v = clamp(me.v, -110, me.carry ? 190 : 240);
+    me.a += str * clamp(me.v / 90, -1, 1) * 2.6 * dt;
+    let nx = me.x + Math.cos(me.a) * me.v * dt, ny = me.y + Math.sin(me.a) * me.v * dt; const R = 19;
+    let hit = false;
+    if (nx < R || nx > W - R) { nx = clamp(nx, R, W - R); hit = true; } if (ny < R || ny > H - R) { ny = clamp(ny, R, H - R); hit = true; }
+    for (const o of OBS) { const qx = clamp(nx, o.x, o.x + o.w), qy = clamp(ny, o.y, o.y + o.h), dx = nx - qx, dy = ny - qy, d = Math.hypot(dx, dy); if (d < R) { hit = true; if (d > 0) { nx = qx + dx / d * R; ny = qy + dy / d * R; } else { nx = me.x; ny = me.y; } } }
+    for (const k in P) { const p = P[k], dx = nx - p.x, dy = ny - p.y, d = Math.hypot(dx, dy); if (d < 36 && d > 0) { nx = p.x + dx / d * 36; ny = p.y + dy / d * 36; hit = true; } }
+    if (hit) { const sp = Math.abs(me.v); if (sp > 90) crash(sp); me.v *= -.25; }
+    me.x = nx; me.y = ny;
+    // agenciaki chodzą po hali; potrącenie = minus
+    for (const n of NPC) {
+      if (n.down > 0) { n.down -= dt; if (n.down <= 0) Object.assign(n, npcNew()); continue; }
+      if (!n.tx || Math.hypot(n.tx - n.x, n.ty - n.y) < 8) [n.tx, n.ty] = npcPt();
+      const d = Math.hypot(n.tx - n.x, n.ty - n.y), s = 38 * dt; let x2 = n.x + (n.tx - n.x) / d * s, y2 = n.y + (n.ty - n.y) / d * s;
+      if (OBS.some(o => inR(x2, y2, { x: o.x - 8, y: o.y - 8, w: o.w + 16, h: o.h + 16 }))) { [n.tx, n.ty] = npcPt(); } else { n.x = x2; n.y = y2; } n.ph += dt * 8;
+      if (Math.hypot(n.x - me.x, n.y - me.y) < 26 && Math.abs(me.v) > 40) { n.down = 4; n.spin = 0; G.dmg += 2; G.score = Math.max(0, G.score - 1); thud(.8); tone(700, .4, 'sawtooth', .06); toast('Potrącony agenciak! −1 paleta, szkody +2'); me.v *= .3; }
+    }
+    // dźwięk silnika i piszczenie na wstecznym
+    if (audio) { audio.eng.frequency.value = 45 + Math.abs(me.v) * .35; audio.eg.gain.value = G.open ? .035 + Math.abs(me.v) / 240 * .03 : 0; if (me.v < -5 && (beepT -= dt) <= 0) { beepT = .5; tone(1050, .2, 'square', .04); } }
+    shake = Math.max(0, shake - dt * 40);
+    if ((sendT -= dt) <= 0 && G.online) { sendT = .1; pRef.child(uid()).set({ n: cap(user || 'gracz').slice(0, 30), x: Math.round(me.x), y: Math.round(me.y), a: +me.a.toFixed(2), c: me.c, h: me.carry || 0, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
+  }
+  // ---------- rysowanie ----------
+  function lift(g, x, y, a, hue, carry, name, self) {
+    g.save(); g.translate(x, y); g.rotate(a);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-22, -15, 46, 32);
+    g.fillStyle = '#555'; g.fillRect(18, -11, 22, 4); g.fillRect(18, 7, 22, 4); // widły
+    if (carry) pallet(g, 30, 0, carry);
+    g.fillStyle = '#222'; for (const [wx, wy] of [[-14, -16], [-14, 12], [8, -16], [8, 12]]) g.fillRect(wx, wy, 10, 4); // koła
+    g.fillStyle = `hsl(${hue},75%,50%)`; g.fillRect(-22, -14, 38, 28);
+    g.fillStyle = `hsl(${hue},60%,30%)`; g.fillRect(-24, -12, 8, 24); // przeciwwaga
+    g.fillStyle = 'rgba(20,24,30,.85)'; g.fillRect(-10, -10, 18, 20); // kabina
+    g.fillStyle = '#9aa3ad'; g.fillRect(14, -14, 5, 28); // maszt
+    g.restore();
+    if (name) { g.font = '600 12px system-ui'; g.textAlign = 'center'; g.fillStyle = self ? '#ffe28a' : '#fff'; g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 3; g.strokeText(name, x, y - 30); g.fillText(name, x, y - 30); }
+  }
+  function pallet(g, x, y, o) {
+    const c = PROD[(o && o.p) | 0] || PROD[0];
+    g.fillStyle = '#b5844a'; g.fillRect(x - 13, y - 13, 26, 26); g.fillStyle = '#8a5f30'; for (const k of [-9, 0, 9]) g.fillRect(x - 13, y + k - 1.5, 26, 3);
+    g.fillStyle = c[1]; g.fillRect(x - 10, y - 10, 20, 20); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1; g.strokeRect(x - 10, y - 10, 20, 20); g.beginPath(); g.moveTo(x - 10, y); g.lineTo(x + 10, y); g.moveTo(x, y - 10); g.lineTo(x, y + 10); g.stroke();
+  }
+  function draw() {
+    const r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cx, z = Math.min(w / 1100, h / 690), hw = w / 2 / z, hh = h / 2 / z; // kamera za wózkiem, bez wyjeżdżania poza halę
+    const cxm = W > hw * 2 ? clamp(me ? me.x : W / 2, hw, W - hw) : W / 2, cym = H > hh * 2 ? clamp(me ? me.y : H / 2, hh, H - hh) : H / 2;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#15181d'; g.fillRect(0, 0, w, h);
+    g.setTransform(z, 0, 0, z, w / 2 - cxm * z + rnd(-shake, shake), h / 2 - cym * z + rnd(-shake, shake));
+    // posadzka
+    g.fillStyle = '#7c8086'; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 1; for (let x = 0; x <= W; x += 100) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); } for (let y = 0; y <= H; y += 100) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    g.strokeStyle = '#e8c42a'; g.lineWidth = 4; g.setLineDash([24, 16]); for (const y of [240, 410, 610, 810, 980]) { g.beginPath(); g.moveTo(60, y); g.lineTo(W - 60, y); g.stroke(); } g.setLineDash([]);
+    // rampy i stanowiska
+    for (const q of RAMPS) { g.fillStyle = 'rgba(60,140,230,.25)'; g.fillRect(q.x, q.y, q.w, q.h); g.strokeStyle = '#3c8ce6'; g.lineWidth = 3; g.strokeRect(q.x, q.y, q.w, q.h); g.fillStyle = '#2a2f36'; g.fillRect(q.x + 10, 0, q.w - 20, 12); g.fillStyle = '#d7ecff'; g.font = '700 16px system-ui'; g.textAlign = 'center'; g.fillText(q.n, q.x + q.w / 2, q.y + q.h + 18); }
+    const want = me && me.carry && O[me.carry] ? O[me.carry].to : -1;
+    for (const q of ST) { const on = q.i === want, bl = on && Math.floor(G.t * 4) % 2; g.fillStyle = on ? (bl ? 'rgba(60,220,110,.45)' : 'rgba(60,220,110,.25)') : 'rgba(230,180,40,.18)'; g.fillRect(q.x, q.y, q.w, q.h); g.strokeStyle = on ? '#3cdc6e' : '#e6b428'; g.lineWidth = 3; g.strokeRect(q.x, q.y, q.w, q.h); g.fillStyle = '#fff'; g.font = '800 20px system-ui'; g.textAlign = 'center'; g.fillText(q.n, q.x + q.w / 2, q.y + q.h / 2 + 7); }
+    // regały i kanciapa
+    for (const o of OBS) {
+      if (o.k) { g.fillStyle = '#e9ecef'; g.fillRect(o.x, o.y, o.w, o.h); g.strokeStyle = '#9aa3ad'; g.lineWidth = 3; g.strokeRect(o.x, o.y, o.w, o.h); g.fillStyle = '#444'; g.font = '800 15px system-ui'; g.textAlign = 'center'; g.fillText('KANCIAPA', o.x + o.w / 2, o.y + o.h / 2 + 5); continue; }
+      g.fillStyle = '#1f4fa8'; g.fillRect(o.x, o.y, o.w, o.h); g.fillStyle = '#e8661e'; g.fillRect(o.x, o.y, o.w, 6); g.fillRect(o.x, o.y + o.h - 6, o.w, 6);
+      for (let x = o.x + 6; x < o.x + o.w - 30; x += 34) { g.fillStyle = PROD[Math.floor((x * 7 + o.y) / 34) % PROD.length][1]; g.fillRect(x, o.y + 10, 28, o.h - 20); }
+    }
+    // palety na podłodze
+    for (const k in O) { const o = O[k]; if (o.st !== 'carry') { pallet(g, o.x, o.y, o); if (!me || !me.carry) { g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '700 11px system-ui'; g.textAlign = 'center'; g.fillText('→ ' + ST[o.to].n, o.x, o.y - 18); } } }
+    // agenciaki
+    for (const n of NPC) { g.save(); g.translate(n.x, n.y); if (n.down > 0) { g.rotate(1.4); g.globalAlpha = Math.min(1, n.down); } g.fillStyle = n.c; g.beginPath(); g.ellipse(0, 0, 9, 7, 0, 0, 7); g.fill(); g.fillStyle = '#e3b48f'; g.beginPath(); g.arc(0, 0, 5, 0, 7); g.fill(); if (!(n.down > 0)) { g.fillStyle = '#333'; g.fillRect(-3 + Math.sin(n.ph) * 3, 6, 3, 4); g.fillRect(1 - Math.sin(n.ph) * 3, 6, 3, 4); } g.restore(); }
+    // inne wózki i mój
+    for (const k in P) { const p = P[k]; lift(g, p.x, p.y, p.a, p.c, p.h && O[p.h] ? O[p.h] : (p.h ? { p: 0 } : null), p.n); }
+    if (me) lift(g, me.x, me.y, me.a, me.c, me.carry && O[me.carry] ? O[me.carry] : null, cap(user || 'Ty'), true);
+    for (const q of parts) { g.globalAlpha = q.l; g.fillStyle = q.c; g.fillRect(q.x - 3, q.y - 3, 6, 6); } g.globalAlpha = 1;
+    // strzałka do celu
+    if (me && G.st === 'run') {
+      let tx = null, ty = null; if (me.carry && O[me.carry]) { const s = ST[O[me.carry].to]; tx = s.x + s.w / 2; ty = s.y + s.h / 2; }
+      else { let bd = 1e9; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - me.x, o.y - me.y); if (d < bd) { bd = d; tx = o.x; ty = o.y; } } }
+      if (tx !== null && Math.hypot(tx - me.x, ty - me.y) > 120) { const an = Math.atan2(ty - me.y, tx - me.x); g.save(); g.translate(me.x + Math.cos(an) * 60, me.y + Math.sin(an) * 60); g.rotate(an); g.fillStyle = me.carry ? '#3cdc6e' : '#ffd23a'; g.beginPath(); g.moveTo(14, 0); g.lineTo(-8, -9); g.lineTo(-4, 0); g.lineTo(-8, 9); g.closePath(); g.fill(); g.restore(); }
+    }
+    // HUD
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); const mm = Math.floor(Math.max(0, G.left) / 60), ss = Math.floor(Math.max(0, G.left) % 60);
+    $('#wzHud').innerHTML = G.st === 'run' ? `<b>📦 ${G.score}</b> palet · <b>💥 ${G.dmg}</b> szkód · ⏱ ${mm}:${String(ss).padStart(2, '0')}<br><small>${G.online ? '🟢 Zmiana wspólna: ' + (Object.keys(P).length + 1) + ' wózk.' : '⚪ Tryb solo'}${me.carry && O[me.carry] ? ' · wieziesz ' + PROD[O[me.carry].p][0] + ' → ' + ST[O[me.carry].to].n : ''}</small>` : '';
+    $('#wzOrd').innerHTML = G.st === 'run' ? Object.values(O).map(o => `<div><i style="background:${PROD[o.p][1]}"></i>${PROD[o.p][0]} → ${ST[o.to].n}<small>${o.st === 'carry' ? (o.by === uid() ? ' (Ty)' : ' (' + esc((P[o.by] && P[o.by].n) || 'ktoś') + ')') : o.st === 'floor' ? ' (na podłodze)' : ''}</small></div>`).join('') : '';
+  }
+  function loop(t) { raf = requestAnimationFrame(loop); const dt = Math.min(.05, (t - (last || t)) / 1000); last = t; update(dt); draw(); }
+  function menu() {
+    G.st = 'menu'; ov(`<b>Wózkowa pierdoła</b><span>Rozwoź palety z ramp na stanowiska. Każdy, kto wejdzie, jeździ z Tobą na tej samej zmianie.</span><span class="mu">W/S – gaz/wsteczny · A/D – skręt · Spacja – podnieś/odłóż · H – klakson</span><button type="button" class="p" data-go="1">Zacznij zmianę (5 min)</button>${LB.html()}`);
+  }
+  let built = false;
+  function build() {
+    built = true; cv = $('#wzC'); cx = cv.getContext('2d');
+    $('#wzOv').addEventListener('click', e => { if (e.target.closest('[data-go]')) start(); });
+    document.addEventListener('keydown', e => {
+      if (!G.open) return; const k = e.key.toLowerCase(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+      keys[k] = true; if (k === ' ' && !e.repeat) action(); if (k === 'h' && !e.repeat) horn(); if (k === 'enter' && G.st !== 'run') start();
+    });
+    document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+    $('#wz').addEventListener('close', () => { G.open = false; cancelAnimationFrame(raf); raf = 0; if (audio) audio.eg.gain.value = 0; if (G.st === 'run') end(); netClose(); LB.close(); keys = {}; });
+    $('#wzX').onclick = () => $('#wz').close(); $('#wzHub').onclick = () => { $('#wz').close(); hubOpen(); };
+  }
+  function open() {
+    if (!built) build(); G.open = true; $('#wz').showModal(); LB.open(); netOpen(); newMe(); menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  }
+  const dbg = { name: 'Wózkowa pierdoła', G, acts: [['+5 palet', () => { G.score += 5; }], ['+60 s zmiany', () => { G.left += 60; }], ['Koniec zmiany', () => { G.left = .01; }], ['Nowe zlecenie', () => { hostT = 0; const n = MAXO; spawnOrders(0); }]] };
+  return { open, G, dbg };
+})();
 // ---------- debug (tylko konto delma): F2 albo ` w każdej otwartej grze ----------
 const GM_DBG = { name: 'Snake', G: GM, acts: [
   ['+5 pkt', () => { GM.score += 5; gmHud(); }], ['+1 ❤', () => { GM.lives = Math.min(3, GM.lives + 1); gmHud(); }],
@@ -2296,7 +2500,7 @@ const GM_DBG = { name: 'Snake', G: GM, acts: [
 ] };
 const DBG = (() => {
   let el = null, cur = null, tm = 0, fps = 0, fr = 0, ft = 0, raf = 0;
-  const list = () => [['#gm', GM_DBG], ['#w3', W3.dbg], ['#fl', FL.dbg], ['#sl', SL3.dbg], ['#fn', FN.dbg]];
+  const list = () => [['#gm', GM_DBG], ['#w3', W3.dbg], ['#fl', FL.dbg], ['#sl', SL3.dbg], ['#fn', FN.dbg], ['#wz', WZ.dbg]];
   function which() { for (const [sel, d] of list()) { const dl = $(sel); if (dl && dl.open && d) return { dl, d }; } return null; }
   const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(2)) : typeof v === 'boolean' ? (v ? '✔' : '–') : esc(String(v).slice(0, 24));
   function state(G) { return Object.entries(G).filter(([k, v]) => ['number', 'string', 'boolean'].includes(typeof v) && !/^(raf|last)$/.test(k)).map(([k, v]) => `<span><i>${esc(k)}</i>${fmt(v)}</span>`).join(''); }

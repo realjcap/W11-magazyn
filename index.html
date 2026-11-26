@@ -562,6 +562,17 @@ dialog[open]{opacity:1;transform:none}
 #sl .gbt{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px}
 .slic{display:block;width:16px;height:56px;margin:0 auto;background:linear-gradient(#f4f4f0 0 22%,#0b0b0d 22% 100%);border-radius:8px 8px 2px 2px;box-shadow:0 0 0 2px #333}
 #fl{width:min(420px,calc(100vw - 16px));padding:12px;text-align:center}
+#wz{width:min(1200px,calc(100vw - 16px));max-width:none;padding:12px;text-align:center}
+#wzWrap{position:relative;width:min(100%,calc((100dvh - 140px) * 16 / 10));aspect-ratio:16/10;margin:0 auto;border-radius:8px;overflow:hidden;background:#15181d;user-select:none;-webkit-user-select:none}
+#wzC{display:block;width:100%;height:100%}
+#wzHud{position:absolute;left:10px;top:8px;color:#fff;font:14px/1.35 system-ui,sans-serif;text-align:left;text-shadow:0 1px 3px #000;pointer-events:none}
+#wzHud small{color:#cfd6de}
+#wzOrd{position:absolute;right:10px;top:8px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;color:#fff;font:600 12px system-ui,sans-serif;pointer-events:none}
+#wzOrd div{background:rgba(0,0,0,.55);border-radius:5px;padding:3px 8px;display:flex;align-items:center;gap:6px}#wzOrd i{width:10px;height:10px;border-radius:2px;display:inline-block}#wzOrd small{color:#bbb;font-weight:400}
+#wzMsg{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#ffe28a;font:800 18px system-ui,sans-serif;padding:6px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}#wzMsg.on{opacity:1}
+#wzOv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.55);color:#fff;font-size:15px;padding:16px;overflow:auto}
+#wzOv[hidden]{display:none}#wzOv b{font-size:32px;font-weight:900;text-shadow:0 3px 0 #000}#wzOv .gmlb{max-width:360px;width:100%}
+.hubi.wzic{font-size:40px;line-height:1}
 #fl .gh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 #fl .gh h2{margin:0;font-size:18px}
 #flWrap{position:relative;width:min(100%,calc((100dvh - 140px) * 360 / 540));aspect-ratio:360/540;margin:0 auto;border-radius:10px;overflow:hidden;background:#2b3036;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer}
@@ -1025,6 +1036,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="hubg">
     <button type="button" class="hubt" data-g="snake"><span class="hubi"><img id="hubImg" alt=""></span><b>Dzik na batonach</b><small>Snake z power-upami</small><small id="hubBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="w3"><span class="hubi"><img id="hubFace" class="pix" alt=""></span><b>Owca WK 3D</b><small>Strzelanka w stylu Wolfensteina</small></button>
+    <button type="button" class="hubt" data-g="wz"><span class="hubi wzic">🚜</span><b>Wózkowa pierdoła</b><small>Rozwożenie palet – razem z każdym, kto wejdzie</small></button>
     <button type="button" class="hubt" data-g="fl"><span class="hubi"><img id="hubCan" class="can" alt=""></span><b>Flappy Dzik</b><small>Lot przez magazyn</small><small id="hubFlBest" class="hubs"></small></button>
     <button type="button" class="hubt" data-g="sl"><span class="hubi"><span class="slic"></span></span><b>Slender: Magazyn</b><small>Horror 3D – nie patrz na niego</small></button>
     <button type="button" class="hubt" data-g="vc" id="hubVc" hidden><span class="hubi vcic">VC</span><b>GTA: Vice City</b><small>Silnik w przeglądarce · wskaż własną instalację z PC</small></button>
@@ -1052,6 +1064,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <div class="gh"><h2>GTA: Vice City</h2><span class="mu">Pierwszy raz na tym komputerze: „☁ Wczytaj z chmury” · potem startuje od razu</span></div>
   <div id="vcWrap"><iframe id="vcF" title="GTA: Vice City" allow="fullscreen; gamepad; autoplay; clipboard-write" allowfullscreen></iframe></div>
   <div class="gbt"><button type="button" id="vcHub" class="e">← Game Hub</button><button type="button" id="vcCloud" class="e">☁ Wczytaj z chmury</button><button type="button" id="vcX">Zamknij</button></div>
+</dialog>
+<dialog id="wz">
+  <div class="gh"><h2>Wózkowa pierdoła</h2><span class="mu">W/S – gaz · A/D – skręt · Spacja – widły · H – klakson</span></div>
+  <div id="wzWrap"><canvas id="wzC"></canvas><div id="wzHud"></div><div id="wzOrd"></div><div id="wzMsg"></div><div id="wzOv"></div></div>
+  <div class="gbt"><button type="button" id="wzHub" class="e">← Game Hub</button><span></span><button type="button" id="wzX">Zamknij</button></div>
 </dialog>
 <dialog id="fl">
   <div class="gh"><h2>Flappy Dzik</h2><span class="mu">Spacja / ↑ / klik – podskok</span></div>
@@ -3488,7 +3505,7 @@ async function presLoadUsers() { // lista kont z datą ostatniego logowania – 
   try { presUsers = (await slApi('/users')).users || []; presRender(); } catch (e) { presUsers = null; clearTimeout(presLoadUsers.r); presLoadUsers.r = setTimeout(presLoadUsers, 20000); }
 }
 function presWhere() {
-  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: 5 nocek w kanciapie', vc: 'Gra: GTA Vice City', hub: 'Game Hub' };
+  const games = { gm: 'Gra: Dzik na batonach', w3: 'Gra: Owca WK 3D', fl: 'Gra: Flappy Dzik', sl: 'Gra: Slender: Magazyn', fn: 'Gra: 5 nocek w kanciapie', wz: 'Gra: Wózkowa pierdoła', vc: 'Gra: GTA Vice City', hub: 'Game Hub' };
   for (const [id, n] of Object.entries(games)) { const d = document.getElementById(id); if (d && d.open) return n; }
   const dl = { log: 'Historia', op: 'Dostawa / wysyłka / event', pd: 'Dodawanie / edycja modelu', scanD: 'Skaner kodów', exm: 'Eksport', prd: 'Druk etykiet', led: 'Edycja historii' };
   const base = { wh: 'Magazyn', st: 'Statystyki', br: 'Braki', map: 'Mapa' }[view] || 'Magazyn';
@@ -3605,7 +3622,7 @@ $('#lf').onsubmit = async e => {
   const draw = () => { x.clearRect(0, 0, 108, 60); im.legs.forEach(l => x.drawImage(l.im, l.x / 5, l.y / 5, l.w / 5, l.h / 5)); x.drawImage(im.body, 0, 0, 108, 60); document.documentElement.style.setProperty('--boarm', 'url(' + c.toDataURL() + ')'); };
   im.body.complete ? draw() : im.body.addEventListener('load', draw);
 })();
-const GAMES_V = '83e16a3772'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
+const GAMES_V = '0e2686ea04'; // zmienia się przy każdej zmianie games.js (omija cache przeglądarki)
 let gamesP = null;
 function loadGames() {
   return gamesP || (gamesP = new Promise((ok, no) => {
