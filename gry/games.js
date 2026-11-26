@@ -2383,8 +2383,9 @@ const WZ = (() => {
     }
     let best = null, bd = 30; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - fx, o.y - fy); if (d < bd) { bd = d; best = k; } }
     if (!best) return tone(120, .1, 'square', .05);
-    me.taking = best; const got = await oTake(best); me.taking = null; // w trakcie zapisu paleta nie jest jeszcze „moja”
-    if (got) { me.carry = best; tone(220, .12, 'triangle', .12); tone(330, .1, 'triangle', .1, .08); }
+    me.taking = best; me.carry = best; const got = await oTake(best); me.taking = null; // od razu na widłach; gdy ktoś był szybszy – cofamy
+    if (!got) { if (me.carry === best) me.carry = null; return tone(120, .1, 'square', .05); }
+    {  tone(220, .12, 'triangle', .12); tone(330, .1, 'triangle', .1, .08); }
   }
   function crash(sp) {
     if (G.god) return; thud(Math.min(1, sp / 200)); shake = Math.min(14, sp / 14); G.dmg++;
@@ -2406,7 +2407,7 @@ const WZ = (() => {
     me.v += thr * (thr * me.v < 0 ? 520 : 260) * dt; if (!thr) me.v *= Math.pow(.12, dt);
     me.v = clamp(me.v, -80, me.carry ? 140 : 180);
     me.a += str * clamp(me.v / 90, -1, 1) * 2.6 * dt;
-    const R = 19, mx = Math.cos(me.a) * me.v * dt, my = Math.sin(me.a) * me.v * dt; let nx = me.x, ny = me.y, hit = false;
+    const R = 16, mx = Math.cos(me.a) * me.v * dt, my = Math.sin(me.a) * me.v * dt; let nx = me.x, ny = me.y, hit = false;
     // ruch z ześlizgiwaniem po przeszkodach (najpierw całość, potem osobno x i y)
     if (!blocked(me.x + mx, me.y + my, R)) { nx += mx; ny += my; }
     else { hit = true; if (!blocked(me.x + mx, me.y, R)) nx += mx; else if (!blocked(me.x, me.y + my, R)) ny += my; }
@@ -2496,15 +2497,22 @@ const WZ = (() => {
       for (let t = 0; t < n; t += 3) {
         for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(o.matrixWorld);
         const y0 = Math.min(v[0].y, v[1].y, v[2].y), y1 = Math.max(v[0].y, v[1].y, v[2].y); if (y1 < .25 || y0 > 2) continue;
-        const ax = (Math.min(v[0].x, v[1].x, v[2].x) + W * S / 2) / S, bx = (Math.max(v[0].x, v[1].x, v[2].x) + W * S / 2) / S, az = (Math.min(v[0].z, v[1].z, v[2].z) + H * S / 2) / S, bz = (Math.max(v[0].z, v[1].z, v[2].z) + H * S / 2) / S;
-        for (let j = Math.max(0, Math.floor(az / CELL)); j <= Math.min(GH - 1, Math.floor(bz / CELL)); j++) for (let i = Math.max(0, Math.floor(ax / CELL)); i <= Math.min(GW - 1, Math.floor(bx / CELL)); i++) GRID[j * GW + i] = 1;
+        // rzut trójkąta na podłogę (w px) i zaznaczenie tylko kratek, które naprawdę przykrywa
+        const px = v.map(q => (q.x + W * S / 2) / S), pz = v.map(q => (q.z + H * S / 2) / S);
+        const mark = (x, z) => { const i = Math.floor(x / CELL), j = Math.floor(z / CELL); if (i >= 0 && j >= 0 && i < GW && j < GH) GRID[j * GW + i] = 1; };
+        const area = (px[1] - px[0]) * (pz[2] - pz[0]) - (px[2] - px[0]) * (pz[1] - pz[0]);
+        for (let e = 0; e < 3; e++) { const a = e, b = (e + 1) % 3, L = Math.hypot(px[b] - px[a], pz[b] - pz[a]), n = Math.max(1, Math.ceil(L / (CELL / 2))); for (let t2 = 0; t2 <= n; t2++) mark(px[a] + (px[b] - px[a]) * t2 / n, pz[a] + (pz[b] - pz[a]) * t2 / n); }
+        if (Math.abs(area) > CELL * CELL) {
+          const i0 = Math.max(0, Math.floor(Math.min(...px) / CELL)), i1 = Math.min(GW - 1, Math.floor(Math.max(...px) / CELL)), j0 = Math.max(0, Math.floor(Math.min(...pz) / CELL)), j1 = Math.min(GH - 1, Math.floor(Math.max(...pz) / CELL));
+          for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const cx = (i + .5) * CELL, cz = (j + .5) * CELL; const w0 = (px[1] - cx) * (pz[2] - cz) - (px[2] - cx) * (pz[1] - cz), w1 = (px[2] - cx) * (pz[0] - cz) - (px[0] - cx) * (pz[2] - cz), w2 = (px[0] - cx) * (pz[1] - cz) - (px[1] - cx) * (pz[0] - cz); if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) GRID[j * GW + i] = 1; }
+        }
       }
     });
     for (let i = 0; i < GW; i++) for (const j of [0, 1, GH - 2, GH - 1]) GRID[j * GW + i] = 1; for (let j = 0; j < GH; j++) for (const i of [0, 1, GW - 2, GW - 1]) GRID[j * GW + i] = 1;
     // wolne miejsca 2,8 × 2,8 m na rampy (północna połowa) i stanowiska (południowa); wybór deterministyczny – u wszystkich te same
     const Z = 7, free = []; for (let j = 1; j + Z + 1 < GH; j += 2) for (let i = 1; i + Z + 1 < GW; i += 2) { let ok = true; for (let b = -1; b <= Z && ok; b++) for (let a = -1; a <= Z; a++) if (GRID[(j + b) * GW + i + a]) { ok = false; break; } if (ok) free.push([(i + Z / 2) * CELL, (j + Z / 2) * CELL]); }
     // dojazd: kratki, na których mieści się wózek (koło 20 px), osiągalne od środka hali
-    const pass = new Uint8Array(GW * GH); for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) pass[j * GW + i] = blocked((i + .5) * CELL, (j + .5) * CELL, 20) ? 0 : 1;
+    const pass = new Uint8Array(GW * GH); for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) pass[j * GW + i] = blocked((i + .5) * CELL, (j + .5) * CELL, 17) ? 0 : 1;
     const reach = new Uint8Array(GW * GH); let seed = -1, sd = 1e9;
     for (let k = 0; k < GW * GH; k++) if (pass[k]) { const d = Math.hypot((k % GW) * CELL - W / 2, Math.floor(k / GW) * CELL - H / 2); if (d < sd) { sd = d; seed = k; } }
     const qu = [seed]; if (seed >= 0) reach[seed] = 1;
@@ -2535,7 +2543,7 @@ const WZ = (() => {
     // palety: na podłodze albo na widłach wózka, który je wiezie
     for (const k in O) {
       const o = O[k]; let m = pals[k]; if (!m) { m = pals[k] = palletModel(o.p); scene.add(m); }
-      const carrier = o.st === 'carry' ? (o.by === uid() ? (me && me.carry === k ? myLift : null) : lifts[o.by]) : null;
+      const carrier = me && me.carry === k ? myLift : o.st === 'carry' && o.by !== uid() ? lifts[o.by] : null;
       if (carrier) { if (m.parent !== carrier.userData.slot) { carrier.userData.slot.add(m); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); } }
       else { if (m.parent !== scene) scene.add(m); m.position.set(X3(o.x), 0, Z3(o.y)); m.rotation.y = 0; }
     }
@@ -2599,7 +2607,7 @@ const WZ = (() => {
     menu(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
   const dbg = { name: 'Wózkowa pierdoła', G, acts: [['+5 palet', () => { G.score += 5; }], ['+60 s zmiany', () => { G.left += 60; }], ['Koniec zmiany', () => { G.left = .01; }], ['Nowe zlecenie', () => { hostT = 0; const n = MAXO; spawnOrders(0); }]] };
-  return { open, G, dbg, _g: () => ({ GW, GH, W, H, g: Array.from(GRID || []), R: RAMPS.map(q => [q.x, q.y]), S: ST.map(q => [q.x, q.y]), sp: SPAWN }) };
+  return { open, G, dbg, _me: () => me, _O: () => O, _g: () => ({ GW, GH, W, H, g: Array.from(GRID || []), R: RAMPS.map(q => [q.x, q.y]), S: ST.map(q => [q.x, q.y]), sp: SPAWN }) };
 })();
 // ---------- debug (tylko konto delma): F2 albo ` w każdej otwartej grze ----------
 const GM_DBG = { name: 'Snake', G: GM, acts: [
