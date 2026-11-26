@@ -2383,7 +2383,8 @@ const WZ = (() => {
     }
     let best = null, bd = 30; for (const k in O) { const o = O[k]; if (o.st === 'carry') continue; const d = Math.hypot(o.x - fx, o.y - fy); if (d < bd) { bd = d; best = k; } }
     if (!best) return tone(120, .1, 'square', .05);
-    if (await oTake(best)) { me.carry = best; tone(220, .12, 'triangle', .12); tone(330, .1, 'triangle', .1, .08); }
+    me.taking = best; const got = await oTake(best); me.taking = null; // w trakcie zapisu paleta nie jest jeszcze „moja”
+    if (got) { me.carry = best; tone(220, .12, 'triangle', .12); tone(330, .1, 'triangle', .1, .08); }
   }
   function crash(sp) {
     if (G.god) return; thud(Math.min(1, sp / 200)); shake = Math.min(14, sp / 14); G.dmg++;
@@ -2398,7 +2399,7 @@ const WZ = (() => {
     if (G.st !== 'run') return;
     G.left -= dt; if (G.left <= 0) return end();
     // paleta zapisana jako „wieziona przeze mnie”, a nie mam jej na widłach (np. po nowej zmianie / odświeżeniu) – wraca na podłogę
-    for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by === uid() && me.carry !== k) oSet(k, { ...o, st: 'floor', by: null }); }
+    for (const k in O) { const o = O[k]; if (o.st === 'carry' && o.by === uid() && me.carry !== k && me.taking !== k) oSet(k, { ...o, st: 'floor', by: null }); }
     spawnOrders(dt);
     // jazda: wózek skręca tylnymi kołami – na wstecznym skręca „odwrotnie”, jak prawdziwy
     const thr = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), str = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
