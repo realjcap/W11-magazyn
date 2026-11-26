@@ -228,7 +228,7 @@ $('#hub').addEventListener('click', e => {
   const t = e.target.closest('.hubt[data-g]'); if (!t) return;
   SFX.play('tick');
   // Vice City: zewnętrzna strona (port reVC na DOS.Zone), otwierana w nowej karcie – bez plików gry w repo
-  if (t.dataset.g === 'vc') { if (lbMe() === DELMA_UID) window.open('https://dos.zone/revcdos', '_blank', 'noopener'); return; }
+  if (t.dataset.g === 'vc') { if (lbMe() === DELMA_UID) vcOpen(); return; }
   playRec(t.dataset.g);
   if (t.dataset.g === 'snake') { $('#hub').close(); snakeOpen(); }
   if (t.dataset.g === 'w3') { $('#hub').close(); W3.open(); }
@@ -237,6 +237,13 @@ $('#hub').addEventListener('click', e => {
   if (t.dataset.g === 'fn') { $('#hub').close(); FN.open(); }
 });
 $('#hubX').onclick = () => $('#hub').close();
+// Vice City: strona DOS.Zone w ramce w okienku (ładowana dopiero po otwarciu, czyszczona po zamknięciu)
+const VC_URL = 'https://dos.zone/revcdos';
+function vcOpen() { $('#hub').close(); const f = $('#vcF'); if (f.getAttribute('src') !== VC_URL) f.src = VC_URL; $('#vc').showModal(); setTimeout(() => f.focus(), 300); }
+$('#vc').addEventListener('close', () => { $('#vcF').src = 'about:blank'; });
+$('#vcX').onclick = () => $('#vc').close();
+$('#vcHub').onclick = () => { $('#vc').close(); hubOpen(); };
+$('#vcTab').onclick = () => { window.open(VC_URL, '_blank', 'noopener'); $('#vc').close(); };
 $('#gmHub').onclick = () => { $('#gm').close(); hubOpen(); };
 function snakeOpen() {
   gmImgs(); gmReset(); GM.run = false; $('#gmBest').textContent = GM.best;
