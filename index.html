@@ -39,7 +39,7 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .lg small b{color:var(--tx)}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .bar input[type=search]{flex:1 1 200px}
-.bar select{flex:0 0 auto;width:auto;max-width:100%}.fbar{margin-top:-8px}.fbar[hidden]{display:none}#fB.on{border-color:var(--ac,#2b7de9);color:var(--ac,#2b7de9)}@media(max-width:600px){.fbar select{flex:1 1 0;min-width:0}}.bar select.on{border-color:var(--ac,#2b7de9);box-shadow:0 0 0 1px var(--ac,#2b7de9)}
+.bar select{flex:0 0 auto;width:auto;max-width:100%}.fbar{margin-top:-8px;justify-content:flex-end}.fsel{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex:1 1 auto}.fsel[hidden]{display:none}#fB.on{border-color:var(--ac,#2b7de9);color:var(--ac,#2b7de9)}@media(max-width:600px){.fsel{flex-basis:100%;order:2}.fbar select{flex:1 1 0;min-width:0}}.bar select.on{border-color:var(--ac,#2b7de9);box-shadow:0 0 0 1px var(--ac,#2b7de9)}
 .ro .rw,body.ro .rw{display:none!important}
 .role{font-size:11px;border:1px solid rgba(255,255,255,.4);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
 .lblwrap{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0 0;overflow:hidden}
@@ -844,17 +844,19 @@ details[open]>summary .chev{transform:rotate(90deg)}
 
 <div class="bar">
   <span class="qw"><input type="search" id="q" placeholder="Nazwa, SKU lub kod"><button type="button" class="qsc" id="qScan" aria-label="Skanuj kod" title="Skanuj kod kreskowy"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
-  <button type="button" id="fB" aria-expanded="false" aria-controls="fBar">Filtrowanie</button>
   <button class="p rw" id="add">Dodaj model</button>
   <button id="logB">Historia</button>
   <button class="rw" id="stB" title="Ten komputer drukuje formatki zlecone z telefonów">Tryb drukarki</button>
   <button id="ex">Eksportuj</button>
   <label class="btn rw">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
-<div class="bar fbar" id="fBar" hidden>
+<div class="bar fbar">
+  <span class="fsel" id="fBar" hidden>
   <select id="fFil" aria-label="Filtr"><option value="">Wszystkie</option><option value="in">Na stanie</option><option value="low">Mało (≤ 5 szt.)</option><option value="gap">Brakuje rozmiaru</option><option value="none">Brak na stanie</option><option value="ev">Na evencie</option><option value="sew">W szwalni</option></select>
   <select id="fSz" aria-label="Rozmiar"><option value="">Każdy rozmiar</option></select>
   <select id="fSort" aria-label="Sortowanie"><option value="">Nazwa A–Z</option><option value="za">Nazwa Z–A</option><option value="hi">Najwięcej sztuk</option><option value="lo">Najmniej sztuk</option><option value="sku">SKU</option></select>
+  </span>
+  <button type="button" id="fB" aria-expanded="false" aria-controls="fBar">Filtrowanie</button>
 </div>
 
 <div class="grid" id="grid"></div>
