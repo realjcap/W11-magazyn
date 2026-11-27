@@ -4388,9 +4388,15 @@ window.addEventListener('message', e => {
   if (sig === brLastSig && at - prevAt < 2 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 2 min
   if ((at <= prevAt || at - prevAt < 2 * 60 * 1000) && sig === JSON.stringify(brOrders(true).map(o => ({ id: o.id, shop: o.shop, c: o.c, p: o.p, star: o.star })))) return;
   brLastSig = sig;
-  const prevIds = BR && BR.orders ? new Set(brOrders(true).map(o => o.id)) : null; // null = pierwszy odczyt, nie wiadomo, co jest nowe
-  db.ref(ROOT + '-braki').set({ at, by: user, orders }).catch(() => {});
-  if (prevIds) brAutoGreenNew(orders.filter(o => !prevIds.has(o.id)));
+  // historia widzianych zamówień (w bazie, wspólna): o<numer> → kiedy pierwszy raz pojawiło się na brakach; trzymamy, póki jest na liście, i 48 h po zniknięciu
+  // nowe = nigdy niewidziane, więc zamówienie, które na chwilę zniknęło z listy i wróciło, nie jest liczone jako nowe
+  const old = BR && BR.seen && typeof BR.seen === 'object' ? BR.seen : null, seen = {}, now = Date.now();
+  const cur = new Set(orders.map(o => 'o' + o.id));
+  if (old) Object.entries(old).forEach(([k, t]) => { if (/^o\d{1,15}$/.test(k) && Number(t) > 0 && (cur.has(k) || Number(t) > now - 48 * 3600 * 1000)) seen[k] = Number(t); }); // obecne na liście – zawsze
+  const news = old ? orders.filter(o => !seen['o' + o.id]) : []; // brak historii (pierwszy zapis) – nic nie traktujemy jako nowe
+  orders.forEach(o => { if (!seen['o' + o.id]) seen['o' + o.id] = now; });
+  db.ref(ROOT + '-braki').set({ at, by: user, orders, seen }).catch(() => {});
+  if (news.length) brAutoGreenNew(news);
 });
 </script>
 </body>
