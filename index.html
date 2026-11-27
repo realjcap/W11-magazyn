@@ -331,6 +331,21 @@ dialog[open]{opacity:1;transform:none}
 /* Braki z BaseLinkera */
 #brBadge{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
 .brhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:0 0 10px}
+.liadd{position:relative;display:flex;flex-direction:column;gap:10px;margin:0 0 14px;max-width:640px}.liadd .qw{flex:0 0 auto}
+.lisug{position:absolute;top:46px;left:0;right:0;z-index:20;background:var(--card,#fff);border:1px solid var(--bd,#ccd);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:320px;overflow:auto}
+.lisug[hidden],.lisel[hidden]{display:none}
+.lisug button{display:flex;gap:8px;align-items:baseline;width:100%;text-align:left;border:0;border-radius:0;background:none;padding:9px 12px;box-shadow:none}
+.lisug button:hover,.lisug button.on{background:color-mix(in srgb,var(--ac,#2b7de9) 12%,transparent)}
+.lisel{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--bd,#ccd);border-radius:12px}
+.lipr{display:flex;align-items:baseline;gap:8px}.lipr b{font-size:16px}.lipr button{margin-left:auto;padding:2px 9px}
+.liqs{display:flex;flex-wrap:wrap;gap:6px}.liqs button{flex:1 1 120px}.liqs button.on{background:var(--ac,#2b7de9);color:#fff;border-color:var(--ac,#2b7de9)}
+.liit{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--bd,#ccd);border-radius:12px;margin:0 0 8px}
+.liit .lim{flex:1 1 auto;min-width:0}.liit .lim b{display:block}.liit .lim small{color:var(--mu)}
+.liit .liz{font-weight:800;font-size:18px;min-width:44px;text-align:center}
+.liit .liqn{white-space:nowrap;font-weight:700}
+.liit .list{white-space:nowrap;text-align:right;font-size:13px}.liit .list b{font-size:17px}.liit .list.z b{color:#e74c3c}
+.liit .lix{padding:4px 10px}
+.liq1{color:#7f8c8d}.liq2{color:#2196f3}.liq3{color:#f39c12}.liq4{color:#e74c3c}
 .brgr{display:inline-flex!important;align-items:center;gap:6px;font-size:12px;color:var(--mu);cursor:pointer;margin:0 0 0 auto!important;white-space:nowrap;flex:0 0 auto;width:auto!important}
 .brgr input{width:auto!important;height:auto;margin:0!important;padding:0;flex:0 0 auto}
 .brord.gr{opacity:.6}
@@ -832,6 +847,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <button data-v="st">Statystyki</button>
   <button data-v="map">Gdzie ciuszek?</button>
   <button data-v="br" id="brTab" hidden>Braki<b id="brBadge" hidden></b></button>
+  <button data-v="li" id="liTab" hidden>Lista<b id="liBadge" hidden></b></button>
 </nav>
 
 <section id="vWh">
@@ -887,6 +903,20 @@ details[open]>summary .chev{transform:rotate(90deg)}
   </div>
 </section>
 
+<section id="vLi" hidden>
+  <div class="brhead"><b>Lista – do dołożenia</b><span id="liN" class="mu"></span></div>
+  <div class="liadd">
+    <span class="qw"><input type="search" id="liQ" placeholder="Szukaj modelu albo zeskanuj kod" autocomplete="off"><button type="button" class="qsc" id="liScan" aria-label="Skanuj kod" title="Skanuj kod kreskowy"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
+    <div id="liSug" class="lisug" hidden></div>
+    <div id="liSel" class="lisel" hidden>
+      <div class="lipr"><b id="liName"></b><small id="liSku" class="mu"></small><button type="button" id="liClr" class="e" aria-label="Wyczyść wybór">✕</button></div>
+      <label class="f"><small>Rozmiar</small><select id="liZ"></select></label>
+      <div class="liqs" id="liQs"></div>
+      <button type="button" class="p" id="liAdd">Dodaj do listy</button>
+    </div>
+  </div>
+  <div id="liList"></div>
+</section>
 <section id="vBr" hidden>
   <div class="brhead"><b>BRAK – do weryfikacji</b><span id="brAt" class="mu"></span><label class="brgr" title="Zamówienia, które w BaseLinkerze mają już zieloną gwiazdkę"><input type="checkbox" id="brGreen"> pokaż też z zieloną ★</label></div>
   <div id="brSum"></div>
@@ -1390,7 +1420,7 @@ function rebuild() {
     .map(([id, p]) => ({ id, name: txt(p.name, 120), sku: txt(p.sku, 60), sizes: numMap(p.sizes), ev: numMap(p.ev), photo: safePhoto(PH[id]), ...zsan(p.zones), ...zsanOld(p), ...oldSan(p), sew: posMap(p.sew), codes: codeSan(p.codes) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   S.log = Object.keys(LG).sort().reverse().map(k => ({ ...cleanLogEntry(LG[k] && typeof LG[k] === 'object' ? LG[k] : {}), k: okId(k) ? k : null })).sort((a, b) => (b.t || 0) - (a.t || 0)); // wg czasu – wpis z cofniętą datą trafia na swoje miejsce
-  if (unlocked) { rr(); if (view === 'br') renderBraki(); }
+  if (unlocked) { rr(); if (view === 'br') renderBraki(); liSweep(); if (view === 'li') renderLista(); }
 }
 function rr() { render(); maybeMigrate(); if (view === 'map') renderMap(); }
 // małe powiadomienia o zmianach zrobionych przez inne osoby
@@ -1481,6 +1511,8 @@ function startDb() {
   R.child('map/zones').on('value', s => { MZ = s.val() || {}; rebuild(); }, () => {});
   // braki: osobna gałąź poza magazynem – czytają ją tylko delma i rudy (reguły bazy)
   if (canEdit()) db.ref(ROOT + '-braki').on('value', s => { BR = s.val() || null; renderBraki(); brMapUpdate(); }, () => {});
+  // lista do dołożenia: osobna gałąź, tylko delma i rudy (reguły bazy)
+  if (slUser()) db.ref(ROOT + '-lista').on('value', s => { LI = s.val() || {}; liSweep(); renderLista(); }, () => {});
   subLog();
 }
 // ile wpisów historii trzymać na żywo (wybór w oknie historii, zapamiętany na urządzeniu)
@@ -1501,7 +1533,7 @@ $('#logN').onchange = () => {
 function stopDb() {
   if (!R) return;
   listening = false;
-  R.child('products').off(); R.child('photos').off(); R.child('map/zones').off(); db.ref(ROOT + '-braki').off(); if (logQ) logQ.off();
+  R.child('products').off(); R.child('photos').off(); R.child('map/zones').off(); db.ref(ROOT + '-braki').off(); db.ref(ROOT + '-lista').off(); LI = {}; if (logQ) logQ.off();
   P = {}; PH = {}; LG = {}; MZ = {}; loaded = false; migChecked = false; logSeen = null; $('#toasts').innerHTML = ''; rebuild();
 }
 if (R) {
@@ -1812,7 +1844,7 @@ function onCamCode(c) {
   if (camVote.n < (findCode(c) ? (camSlow ? 1 : 2) : (camSlow ? 2 : 4))) return;
   if (c === lastHit.c && now - lastHit.t < 1300) return; // ten sam kod: najwyżej co 1,3 s
   lastHit = { c, t: now }; camVote = { c: '', n: 0, t: 0 };
-  if (scanTarget === 'search') searchScan(c); else if (scanTarget === 'code') codeScan(c); else handleScan(c);
+  if (scanTarget === 'search') searchScan(c); else if (scanTarget === 'lista') liScanCode(c); else if (scanTarget === 'code') codeScan(c); else handleScan(c);
 }
 function loadZX() {
   if (window.ZXing) return Promise.resolve();
@@ -2921,10 +2953,12 @@ async function loadStats() {
 }
 function statsRefresh() { if (view === 'st' && unlocked) { clearTimeout(stTimer); stTimer = setTimeout(loadStats, 600); } }
 function resetStats() { stRecs = null; ['#stSum', '#stChart', '#stPer', '#stProd'].forEach(q => { $(q).innerHTML = ''; }); }
-const viewFromHash = () => location.hash === '#statystyki' ? 'st' : /^#mapa(\/|$)/.test(location.hash) ? 'map' : location.hash === '#braki' && canEdit() ? 'br' : 'wh';
+const viewFromHash = () => location.hash === '#statystyki' ? 'st' : /^#mapa(\/|$)/.test(location.hash) ? 'map' : location.hash === '#braki' && canEdit() ? 'br' : location.hash === '#lista' && slUser() ? 'li' : 'wh';
 function showView(v) {
   if (!unlocked) return;
-  view = v; $('#vWh').hidden = v !== 'wh'; $('#vSt').hidden = v !== 'st'; $('#vMap').hidden = v !== 'map'; $('#vBr').hidden = v !== 'br';
+  view = v; $('#vWh').hidden = v !== 'wh'; $('#vSt').hidden = v !== 'st'; $('#vMap').hidden = v !== 'map'; $('#vBr').hidden = v !== 'br'; $('#vLi').hidden = v !== 'li';
+  if (v === 'li' && !slUser()) { v = view = 'wh'; $('#vLi').hidden = true; $('#vWh').hidden = false; }
+  if (v === 'li') renderLista();
   if (v === 'br' && !canEdit()) { v = view = 'wh'; $('#vBr').hidden = true; $('#vWh').hidden = false; }
   if (v === 'br') renderBraki();
   if (v !== 'map') { mapMode = 'view'; mapDrag = null; mapZ = null; }
@@ -2937,7 +2971,7 @@ function showView(v) {
   if (v === 'st') { stAnim = true; if (stRecs) renderStats(); else $('#stPer').innerHTML = '<p class="mu" style="padding:12px;margin:0">Ładowanie…</p>'; loadStats(); }
 }
 window.addEventListener('hashchange', () => showView(viewFromHash()));
-document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) location.hash = { st: '#statystyki', map: '#mapa', wh: '#magazyn', br: '#braki' }[b.dataset.v]; };
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-v]'); if (b) location.hash = { st: '#statystyki', map: '#mapa', wh: '#magazyn', br: '#braki', li: '#lista' }[b.dataset.v]; };
 $('#stSeg').onclick = e => {
   const b = e.target.closest('button[data-p]'); if (!b) return;
   per = b.dataset.p; stAnim = true;
@@ -3593,7 +3627,7 @@ function showWho() {
   $('#rstBox').hidden = user !== 'delma';
   document.body.classList.toggle('ro', !!user && !canEdit());
   setTimeout(stApply, 0); setTimeout(audApply, 0);
-  $('#slH').hidden = $('#slDr').hidden = $('#slHB').hidden = !slUser(); $('#brTab').hidden = !canEdit(); $('#secB').hidden = user !== 'delma'; presPanel(user === 'delma'); if (!slUser()) slWipe(); else { slWipe(); slShow(false); }
+  $('#slH').hidden = $('#slDr').hidden = $('#slHB').hidden = !slUser(); $('#brTab').hidden = !canEdit(); $('#liTab').hidden = !slUser(); $('#secB').hidden = user !== 'delma'; presPanel(user === 'delma'); if (!slUser()) slWipe(); else { slWipe(); slShow(false); }
   $('#who').innerHTML = user ? 'Zalogowano jako <b>' + esc(cap(user)) + '</b>' + (canEdit() ? '' : '<span class="role">' + esc(roleName()) + '</span>') + ' · <a href="#" id="lo">Wyloguj</a>' : '';
 }
 // --- obecność: kto jest zalogowany i gdzie jest (zakładka / okno / gra). Zapis: każdy swój wpis; odczyt: tylko delma (reguły)
@@ -3684,7 +3718,7 @@ if (auth) {
       unlocked = true; showWho(); startDb(); rr(); showView(viewFromHash());
       if (ramNext) { ramNext = false; ramLogin().then(() => { if (user) lockUI(false); }); } else lockUI(false);
     } else {
-      presStop(); user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true; $('#vBr').hidden = true; BR = null; $('#brBadge').hidden = true;
+      presStop(); user = null; unlocked = false; showWho(); stopDb(); cardEls.clear(); resetStats(); view = 'wh'; $('#vWh').hidden = false; $('#vSt').hidden = true; $('#vMap').hidden = true; $('#vBr').hidden = true; $('#vLi').hidden = true; LI = {}; BR = null; $('#brBadge').hidden = true;
       mapMode = 'view'; mapSel = null; mapPend = null; mapZ = null; mapDrag = null; mapPick = null; mapVbReset(); $('#mapQ').value = ''; $('#mapZone').innerHTML = ''; $('#mapZone').hidden = true; $('#mapRes').innerHTML = ''; $('#mapSvg').innerHTML = ''; $('#mapSvg').__h = '';
       $('#grid').innerHTML = ''; $('#tot').hidden = true; ['cM', 'cS', 'cE'].forEach(id => { $('#' + id).__v = undefined; }); lockUI(true);
     }
@@ -4208,6 +4242,80 @@ function brAutoGreen(lines) {
     const ok = await ask('Zamówienia bez uwag sprzedawcy, z kilkoma modelami (w tym wysłanym teraz): ' + maybe.join(', ') + '. Nie wiadomo, którego modelu brakowało. Dać im zieloną gwiazdkę?');
     if (ok) maybe.forEach((id, i) => brSetStar(id, 'green', done.length + i + 1));
   }, done.length ? 600 : 0);
+}
+// --- Lista do dołożenia (delma i rudy): model + rozmiar + ile dołożyć; znika sama, gdy ten model i rozmiar pójdzie na wysyłkę
+let LI = {}, liP = null, liQn = 0, liSugI = -1;
+const LI_Q = ['', 'Trochę', 'Pół kuwety', 'Prawie cała kuweta', 'Cała kuweta'];
+const liItems = () => Object.entries(LI || {}).filter(([k, v]) => okId(k) && v && typeof v === 'object' && typeof v.pid === 'string').map(([k, v]) => ({ k, pid: v.pid, z: txt(v.z, 20), q: Math.min(4, Math.max(1, Number(v.q) || 1)), t: Number(v.t) || 0, by: txt(v.by, 40) })).sort((a, b) => a.t - b.t);
+$('#liQs').innerHTML = LI_Q.slice(1).map((l, i) => `<button type="button" data-q="${i + 1}" class="liq${i + 1}">${l}</button>`).join('');
+function renderLista() {
+  const its = liItems(), n = its.length;
+  $('#liBadge').hidden = !n; $('#liBadge').textContent = n;
+  if (view !== 'li') return;
+  $('#liN').textContent = n ? n + ' poz.' : '';
+  $('#liList').innerHTML = n ? its.map(it => {
+    const p = S.products.find(x => x.id === it.pid), st = p ? (p.sizes[it.z] || 0) : 0;
+    return `<div class="liit"><span class="liz">${esc(it.z || '–')}</span><span class="lim"><b>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${it.by ? ' · ' + esc(it.by) : ''}${it.t ? ' · ' + new Date(it.t).toLocaleString('pl-PL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</small></span><span class="liqn liq${it.q}">${LI_Q[it.q]}</span><span class="list${st ? '' : ' z'}">na stanie<br><b>${st}</b> szt.</span><button type="button" class="e lix" data-k="${esc(it.k)}" aria-label="Usuń z listy" title="Usuń z listy">✕</button></div>`;
+  }).join('') : '<p class="mu">Lista jest pusta. Wyszukaj model albo zeskanuj kod, żeby coś dodać.</p>';
+}
+function liPick(p, z) {
+  liP = p; $('#liSug').hidden = true; $('#liQ').value = '';
+  $('#liName').textContent = p.name; $('#liSku').textContent = p.sku;
+  const zs = sizesOf(p); $('#liZ').innerHTML = zs.map(k => `<option value="${esc(k)}">${esc(k)} – na stanie ${p.sizes[k] || 0}</option>`).join('');
+  if (z && z !== '*' && zs.includes(z)) $('#liZ').value = z;
+  $('#liSel').hidden = false; liQSet(liQn);
+}
+const liQSet = q => { liQn = q; $('#liQs').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.q === q)); $('#liAdd').disabled = !q; };
+function liSug() {
+  const q = $('#liQ').value.trim().toLowerCase(); liSugI = -1;
+  if (!q) { $('#liSug').hidden = true; return; }
+  const hs = S.products.filter(p => pmatch(p, q)).slice(0, 12);
+  $('#liSug').innerHTML = hs.length ? hs.map(p => `<button type="button" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small class="mu">${esc(p.sku)}</small></button>`).join('') : '<p class="mu" style="margin:0;padding:10px 12px">Nic nie pasuje.</p>';
+  $('#liSug').hidden = false;
+}
+function liScanCode(c) {
+  stopCam(); beep(); if ($('#scanD').open) $('#scanD').close();
+  const r = findCode(c); if (!r) { toast('Nieznany kod ' + c + '.'); return; }
+  liPick(r.p, r.size);
+}
+$('#liQ').oninput = liSug;
+(() => { let n = 0, t0 = 0, last = 0;
+  $('#liQ').addEventListener('keydown', e => {
+    const now = performance.now(), bs = [...$('#liSug').querySelectorAll('button')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!bs.length) return; e.preventDefault(); liSugI = (liSugI + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length; bs.forEach((b, i) => b.classList.toggle('on', i === liSugI)); return; }
+    if (e.key !== 'Enter') { if (e.key.length === 1) { if (now - last > 80) { n = 0; t0 = now; } n++; last = now; } return; }
+    e.preventDefault(); n = 0;
+    const v = $('#liQ').value.trim(), r = findCode(v);
+    if (r) return liPick(r.p, r.size); // kod ze skanera USB albo wpisany ręcznie
+    const b = bs[liSugI >= 0 ? liSugI : 0]; if (b) liPick(S.products.find(p => p.id === b.dataset.id));
+  });
+})();
+$('#liSug').onclick = e => { const b = e.target.closest('button[data-id]'); if (b) liPick(S.products.find(p => p.id === b.dataset.id)); };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.liadd')) $('#liSug').hidden = true; });
+$('#liScan').onclick = () => { scanTarget = 'lista'; $('#scanSlot').appendChild($('#scanBox')); $('#scanD').showModal(); startCam(); };
+$('#liClr').onclick = () => { liP = null; $('#liSel').hidden = true; $('#liQ').focus(); };
+$('#liQs').onclick = e => { const b = e.target.closest('button[data-q]'); if (b) liQSet(+b.dataset.q); };
+$('#liAdd').onclick = async () => {
+  if (!liP || !liQn || !slUser() || !online()) return;
+  const z = $('#liZ').value, dup = liItems().find(it => it.pid === liP.id && it.z === z);
+  try {
+    if (dup) await db.ref(ROOT + '-lista/' + dup.k).update({ q: liQn, t: firebase.database.ServerValue.TIMESTAMP, by: user }); // ten sam model i rozmiar – podmieniamy ilość
+    else await db.ref(ROOT + '-lista').push({ pid: liP.id, z, q: liQn, t: firebase.database.ServerValue.TIMESTAMP, by: user });
+    toast((dup ? 'Zmieniono na liście: ' : 'Dodano do listy: ') + liP.name + ' ' + z + ' – ' + LI_Q[liQn]);
+    liP = null; $('#liSel').hidden = true; liQSet(0); $('#liQ').focus();
+  } catch (x) { say('Nie udało się zapisać listy. Sprawdź reguły bazy (gałąź -lista).'); }
+};
+$('#liList').onclick = e => { const b = e.target.closest('.lix'); if (b && slUser()) db.ref(ROOT + '-lista/' + b.dataset.k).remove().catch(() => {}); };
+// wysyłka tego modelu i rozmiaru (po dodaniu do listy, nie cofnięta) → pozycja znika; robi to każda otwarta strona delmy/rudego
+function liSweep() {
+  if (!slUser() || !db || !S.log.length) return;
+  const its = liItems(); if (!its.length) return;
+  const undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
+  const outs = S.log.filter(l => l.m === 'out' && l.k && !undone.has(l.k) && l.t > 0);
+  its.forEach(it => {
+    if (outs.some(l => l.t > it.t && (l.items || [l]).some(x => (x.pid || ((S.products.find(p => x.sku && p.sku === x.sku) || {}).id)) === it.pid && Math.abs((x.d || {})[it.z] || 0) > 0)))
+      db.ref(ROOT + '-lista/' + it.k).remove().catch(() => {});
+  });
 }
 // nowe zamówienia na brakach: jeśli do 30 min przed ich pojawieniem się poszła wysyłka dokładnie tego modelu i rozmiaru – zielona gwiazdka
 // (wysłana sztuka „pokrywa” jedno zamówienie; cofnięte wysyłki się nie liczą; zamówienia bez uwag z kilkoma modelami – pomijane)
