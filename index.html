@@ -4209,6 +4209,35 @@ function brAutoGreen(lines) {
     if (ok) maybe.forEach((id, i) => brSetStar(id, 'green', done.length + i + 1));
   }, done.length ? 600 : 0);
 }
+// nowe zamówienia na brakach: jeśli do 30 min przed ich pojawieniem się poszła wysyłka dokładnie tego modelu i rozmiaru – zielona gwiazdka
+// (wysłana sztuka „pokrywa” jedno zamówienie; cofnięte wysyłki się nie liczą; zamówienia bez uwag z kilkoma modelami – pomijane)
+const BR_SHIP_WIN = 30 * 60 * 1000, brShipUsed = new Map(); // wpis historii|rozmiar → ile sztuk już przypisano zamówieniom
+function brAutoGreenNew(news) {
+  if (!slUser() || !news.length || !S.log.length) return;
+  const now = Date.now(), undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
+  const avail = new Map(); // model|rozmiar → [{ u: wpis|rozmiar, n: ile zostało }]
+  const pidOf = it => it.pid || ((S.products.find(p => it.sku && p.sku === it.sku) || {}).id); // starsze wpisy zbiorcze mogą nie mieć pid
+  S.log.filter(l => l.m === 'out' && l.k && !undone.has(l.k) && l.t > 0 && now - l.t <= BR_SHIP_WIN).forEach(l => (l.items || [l]).forEach((it, j) => { const pid = pidOf(it); if (pid) Object.entries(it.d || {}).forEach(([z, q]) => {
+    const u = l.k + '|' + j + '|' + z, n = Math.abs(q) - (brShipUsed.get(u) || 0); if (n <= 0) return;
+    const k = pid + '|' + z; if (!avail.has(k)) avail.set(k, []); avail.get(k).push({ u, n });
+  }); }));
+  if (!avail.size) return;
+  const left = k => (avail.get(k) || []).reduce((a, x) => a + x.n, 0), done = [];
+  news.filter(o => !o.star && brPend[o.id] === undefined && (o.c || o.p)).sort((a, b) => Number(a.id) - Number(b.id)).forEach(o => {
+    const { hs, unsure } = brHits(o); if (!hs.length || unsure) return;
+    const need = new Map();
+    for (const h of hs) {
+      const zs = h.sizes.size ? [...h.sizes] : (Object.keys(h.p.sizes || {}).length === 1 ? Object.keys(h.p.sizes) : null);
+      if (!zs) return; // brak rozmiaru w uwagach – nie zgadujemy
+      zs.forEach(z => need.set(h.p.id + '|' + z, (need.get(h.p.id + '|' + z) || 0) + 1));
+    }
+    for (const [k, n] of need) if (left(k) < n) return;
+    for (const [k, n0] of need) { let n = n0; for (const x of avail.get(k)) { const t = Math.min(n, x.n); x.n -= t; n -= t; brShipUsed.set(x.u, (brShipUsed.get(x.u) || 0) + t); if (!n) break; } }
+    done.push(o.id);
+  });
+  done.forEach((id, i) => brSetStar(id, 'green', i + 1));
+  if (done.length) toast('Braki: zielona gwiazdka dla ' + done.length + ' nowych zam. – ten model i rozmiar poszedł na wysyłkę w ostatnich 30 min (' + done.join(', ') + ')');
+}
 document.addEventListener('pointerdown', e => { if (!$('#brPick').hidden && !e.target.closest('#brPick, .brstar')) $('#brPick').hidden = true; });
 // wykonawca: tylko strona na komputerze z rozszerzeniem (konto z prawem edycji); kolejka po jednym poleceniu
 let brQ = [], brBusy = false, brWatch = false;
@@ -4251,7 +4280,9 @@ window.addEventListener('message', e => {
   if (sig === brLastSig && at - prevAt < 2 * 60 * 1000) return; // bez zmian: znacznik czasu odświeżamy co 2 min
   if ((at <= prevAt || at - prevAt < 2 * 60 * 1000) && sig === JSON.stringify(brOrders(true).map(o => ({ id: o.id, shop: o.shop, c: o.c, p: o.p, star: o.star })))) return;
   brLastSig = sig;
+  const prevIds = BR && BR.orders ? new Set(brOrders(true).map(o => o.id)) : null; // null = pierwszy odczyt, nie wiadomo, co jest nowe
   db.ref(ROOT + '-braki').set({ at, by: user, orders }).catch(() => {});
+  if (prevIds) brAutoGreenNew(orders.filter(o => !prevIds.has(o.id)));
 });
 </script>
 </body>
