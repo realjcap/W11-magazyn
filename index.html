@@ -4317,9 +4317,9 @@ function liSweep() {
       db.ref(ROOT + '-lista/' + it.k).remove().catch(() => {});
   });
 }
-// nowe zamówienia na brakach: jeśli do 30 min przed ich pojawieniem się poszła wysyłka dokładnie tego modelu i rozmiaru – zielona gwiazdka
+// nowe zamówienia na brakach: jeśli do 60 min przed ich pojawieniem się poszła wysyłka dokładnie tego modelu i rozmiaru – zielona gwiazdka
 // (wysłana sztuka „pokrywa” jedno zamówienie; cofnięte wysyłki się nie liczą; zamówienia bez uwag z kilkoma modelami – pomijane)
-const BR_SHIP_WIN = 30 * 60 * 1000, brShipUsed = new Map(); // wpis historii|rozmiar → ile sztuk już przypisano zamówieniom
+const BR_SHIP_WIN = 60 * 60 * 1000, brShipUsed = new Map(); // wpis historii|rozmiar → ile sztuk już przypisano zamówieniom
 function brAutoGreenNew(news) {
   if (!slUser() || !news.length || !S.log.length) return;
   const now = Date.now(), undone = new Set(S.log.filter(l => l.m === 'undo' && l.ref).map(l => l.ref));
@@ -4344,7 +4344,7 @@ function brAutoGreenNew(news) {
     done.push(o.id);
   });
   done.forEach((id, i) => brSetStar(id, 'green', i + 1));
-  if (done.length) toast('Braki: zielona gwiazdka dla ' + done.length + ' nowych zam. – ten model i rozmiar poszedł na wysyłkę w ostatnich 30 min (' + done.join(', ') + ')');
+  if (done.length) toast('Braki: zielona gwiazdka dla ' + done.length + ' nowych zam. – ten model i rozmiar poszedł na wysyłkę w ostatniej godzinie (' + done.join(', ') + ')');
 }
 document.addEventListener('pointerdown', e => { if (!$('#brPick').hidden && !e.target.closest('#brPick, .brstar')) $('#brPick').hidden = true; });
 // wykonawca: tylko strona na komputerze z rozszerzeniem (konto z prawem edycji); kolejka po jednym poleceniu
