@@ -331,6 +331,11 @@ dialog[open]{opacity:1;transform:none}
 /* Braki z BaseLinkera */
 #brBadge{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
 .brhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:0 0 10px}
+.dleft{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--bd,#ccd);background:color-mix(in srgb,#f39c12 10%,transparent)}
+.dleft[hidden]{display:none}.dleft.z{background:color-mix(in srgb,#2ecc71 10%,transparent)}
+.dlt{font-weight:700}.dlc{display:flex;align-items:center;gap:6px}
+.dlc button{width:40px;height:40px;padding:0;font-size:22px;line-height:1}
+.dlc input{width:72px;height:40px;text-align:center;font-size:22px;font-weight:800;padding:0}
 .liadd{position:relative;display:flex;flex-direction:column;gap:10px;margin:0 0 14px;max-width:640px}.liadd .qw{flex:0 0 auto}
 .lisug{position:absolute;top:46px;left:0;right:0;z-index:20;background:var(--card,#fff);border:1px solid var(--bd,#ccd);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:320px;overflow:auto}
 .lisug[hidden],.lisel[hidden]{display:none}
@@ -851,6 +856,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 </nav>
 
 <section id="vWh">
+<div class="dleft" id="dLeft" hidden><span class="dlt">📦 Dostawy przyjęte – niepoliczone</span><span class="dlc"><button type="button" id="dlM" aria-label="Mniej">−</button><input type="number" id="dlN" min="0" max="999" inputmode="numeric" aria-label="Liczba niepoliczonych dostaw"><button type="button" id="dlP" aria-label="Więcej">+</button></span><small id="dlI" class="mu"></small></div>
 <div class="bar big rw">
   <button class="g" id="bIn">Dostawa</button>
   <button class="r" id="bOut">Wysyłka na Mszczonowską</button>
@@ -1513,6 +1519,7 @@ function startDb() {
   if (canEdit()) db.ref(ROOT + '-braki').on('value', s => { BR = s.val() || null; renderBraki(); brMapUpdate(); }, () => {});
   // lista do dołożenia: osobna gałąź, tylko delma i rudy (reguły bazy)
   if (slUser()) db.ref(ROOT + '-lista').on('value', s => { LI = s.val() || {}; liSweep(); renderLista(); }, () => {});
+  if (slUser()) R.child('dleft').on('value', s => { DL = s.val() || null; dlShow(); }, () => {});
   subLog();
 }
 // ile wpisów historii trzymać na żywo (wybór w oknie historii, zapamiętany na urządzeniu)
@@ -1533,7 +1540,7 @@ $('#logN').onchange = () => {
 function stopDb() {
   if (!R) return;
   listening = false;
-  R.child('products').off(); R.child('photos').off(); R.child('map/zones').off(); db.ref(ROOT + '-braki').off(); db.ref(ROOT + '-lista').off(); LI = {}; if (logQ) logQ.off();
+  R.child('products').off(); R.child('photos').off(); R.child('map/zones').off(); db.ref(ROOT + '-braki').off(); db.ref(ROOT + '-lista').off(); R.child('dleft').off(); DL = null; $('#dLeft').hidden = true; LI = {}; if (logQ) logQ.off();
   P = {}; PH = {}; LG = {}; MZ = {}; loaded = false; migChecked = false; logSeen = null; $('#toasts').innerHTML = ''; rebuild();
 }
 if (R) {
@@ -4243,6 +4250,26 @@ function brAutoGreen(lines) {
     if (ok) maybe.forEach((id, i) => brSetStar(id, 'green', done.length + i + 1));
   }, done.length ? 600 : 0);
 }
+// --- dostawy przyjęte, jeszcze niepoliczone (delma i rudy): liczba w bazie (dleft), widoczna na głównej i w arkuszu
+let DL = null;
+function dlShow() {
+  const on = slUser() && unlocked; $('#dLeft').hidden = !on; if (!on) return;
+  const n = DL && Number(DL.n) >= 0 ? Number(DL.n) : 0;
+  if (document.activeElement !== $('#dlN')) $('#dlN').value = n;
+  $('#dLeft').classList.toggle('z', n === 0);
+  $('#dlI').textContent = DL && DL.t ? 'zmienił(a) ' + txt(DL.by, 40) + ', ' + new Date(Number(DL.t)).toLocaleString('pl-PL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+}
+function dlSet(n) {
+  n = Math.max(0, Math.min(999, Math.round(Number(n) || 0)));
+  if (!slUser() || !R || !online()) return dlShow();
+  if (DL && Number(DL.n) === n) return dlShow();
+  DL = { n, t: Date.now(), by: user }; dlShow();
+  R.child('dleft').set({ n, t: firebase.database.ServerValue.TIMESTAMP, by: user }).catch(() => say('Nie udało się zapisać. Sprawdź reguły bazy (dleft).'));
+}
+$('#dlM').onclick = () => dlSet((DL && Number(DL.n) || 0) - 1);
+$('#dlP').onclick = () => dlSet((DL && Number(DL.n) || 0) + 1);
+$('#dlN').addEventListener('change', () => dlSet($('#dlN').value));
+$('#dlN').addEventListener('keydown', e => { if (e.key === 'Enter') $('#dlN').blur(); });
 // --- Lista do dołożenia (delma i rudy): model + rozmiar + ile dołożyć; znika sama, gdy ten model i rozmiar pójdzie na wysyłkę
 let LI = {}, liP = null, liQn = 0, liSugI = -1;
 const LI_Q = ['', 'Trochę', 'Pół kuwety', 'Prawie cała kuweta', 'Cała kuweta'];
