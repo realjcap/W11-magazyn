@@ -353,7 +353,7 @@ dialog[open]{opacity:1;transform:none}
 .lizs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.lizs button{min-width:62px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;line-height:1.15}
 .lizs button b{font-size:16px}.lizs button small{font-size:11px;opacity:.75}.lizs button.on{background:var(--ac,#2b7de9);color:#fff;border-color:var(--ac,#2b7de9)}
 .ligr{padding:10px 12px;border:1px solid var(--bd,#ccd);border-radius:12px;margin:0 0 8px}
-.ligh{display:flex;align-items:baseline;gap:8px;margin:0 0 8px}.ligh b{font-size:16px}.ligh small{color:var(--mu)}.ligh .lix{margin-left:auto}
+.ligh{display:flex;align-items:baseline;gap:8px;margin:0 0 8px}.lign{cursor:pointer}.lign:hover{text-decoration:underline;color:var(--ac,#2b7de9)}.ligh b{font-size:16px}.ligh small{color:var(--mu)}.ligh .lix{margin-left:auto}
 .lirs{display:flex;flex-wrap:wrap;gap:6px}
 .lir{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border:1px solid var(--bd,#ccd);border-radius:10px;background:color-mix(in srgb,currentColor 3%,transparent)}
 .lir .liz{font-weight:800;font-size:17px}.lir .liqn{font-weight:700;font-size:13px}.lir .list{font-size:12px;color:var(--mu)}.lir .list.z b{color:#e74c3c}
@@ -4293,7 +4293,7 @@ function renderLista() {
   $('#liList').innerHTML = n ? [...gs].map(([pid, g]) => {
     const p = S.products.find(x => x.id === pid), last = g.reduce((a, b) => b.t > a.t ? b : a), by = [...new Set(g.map(x => x.by).filter(Boolean))].join(', ');
     g.sort((a, b) => bySize(a.z, b.z));
-    return `<div class="ligr"><div class="ligh"><b>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${by ? ' · ' + esc(by) : ''}${last.t ? ' · ' + hm(last.t) : ''}</small><button type="button" class="e lix" data-ks="${esc(g.map(x => x.k).join(','))}" aria-label="Usuń model z listy" title="Usuń cały model z listy">✕</button></div><div class="lirs">${g.map(it => {
+    return `<div class="ligr"><div class="ligh"><b${p ? ` class="lign" data-sku="${esc(p.sku)}" role="link" tabindex="0" title="Pokaż na stronie głównej"` : ''}>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${by ? ' · ' + esc(by) : ''}${last.t ? ' · ' + hm(last.t) : ''}</small><button type="button" class="e lix" data-ks="${esc(g.map(x => x.k).join(','))}" aria-label="Usuń model z listy" title="Usuń cały model z listy">✕</button></div><div class="lirs">${g.map(it => {
       const st = p ? (p.sizes[it.z] || 0) : 0;
       return `<span class="lir"><span class="liz">${esc(it.z || '–')}</span><span class="liqn liq${it.q}">${LI_Q[it.q]}</span><span class="list${st ? '' : ' z'}">stan <b>${st}</b></span><button type="button" class="e lix" data-ks="${esc(it.k)}" aria-label="Usuń rozmiar ${esc(it.z)}" title="Usuń ten rozmiar">✕</button></span>`;
     }).join('')}</div></div>`;
@@ -4354,7 +4354,10 @@ $('#liAdd').onclick = async () => {
     liP = null; $('#liSel').hidden = true; liQSet(0); $('#liQ').focus();
   } catch (x) { say('Nie udało się zapisać listy. Sprawdź reguły bazy (gałąź -lista).'); }
 };
-$('#liList').onclick = e => { const b = e.target.closest('.lix'); if (!b || !slUser()) return; const up = {}; b.dataset.ks.split(',').filter(okId).forEach(k => { up[k] = null; }); db.ref(ROOT + '-lista').update(up).catch(() => {}); };
+// klik w nazwę modelu – przejście na Magazyn z wyszukanym modelem (po SKU)
+function liGo(sku) { $('#q').value = sku; document.querySelector('nav [data-v="wh"], [data-v="wh"]').click(); render(); scrollTo({ top: 0, behavior: 'smooth' }); }
+$('#liList').addEventListener('keydown', e => { const n = e.target.closest('.lign'); if (n && e.key === 'Enter') liGo(n.dataset.sku); });
+$('#liList').onclick = e => { const n = e.target.closest('.lign'); if (n) return liGo(n.dataset.sku); const b = e.target.closest('.lix'); if (!b || !slUser()) return; const up = {}; b.dataset.ks.split(',').filter(okId).forEach(k => { up[k] = null; }); db.ref(ROOT + '-lista').update(up).catch(() => {}); };
 // wysyłka tego modelu i rozmiaru (po dodaniu do listy, nie cofnięta) → pozycja znika; robi to każda otwarta strona delmy/rudego
 function liSweep() {
   if (!slUser() || !db || !S.log.length) return;
