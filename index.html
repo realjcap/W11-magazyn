@@ -350,6 +350,14 @@ dialog[open]{opacity:1;transform:none}
 .liit .liqn{white-space:nowrap;font-weight:700}
 .liit .list{white-space:nowrap;text-align:right;font-size:13px}.liit .list b{font-size:17px}.liit .list.z b{color:#e74c3c}
 .liit .lix{padding:4px 10px}
+.lizs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.lizs button{min-width:62px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.lizs button b{font-size:16px}.lizs button small{font-size:11px;opacity:.75}.lizs button.on{background:var(--ac,#2b7de9);color:#fff;border-color:var(--ac,#2b7de9)}
+.ligr{padding:10px 12px;border:1px solid var(--bd,#ccd);border-radius:12px;margin:0 0 8px}
+.ligh{display:flex;align-items:baseline;gap:8px;margin:0 0 8px}.ligh b{font-size:16px}.ligh small{color:var(--mu)}.ligh .lix{margin-left:auto}
+.lirs{display:flex;flex-wrap:wrap;gap:6px}
+.lir{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border:1px solid var(--bd,#ccd);border-radius:10px;background:color-mix(in srgb,currentColor 3%,transparent)}
+.lir .liz{font-weight:800;font-size:17px}.lir .liqn{font-weight:700;font-size:13px}.lir .list{font-size:12px;color:var(--mu)}.lir .list.z b{color:#e74c3c}
+.lir .lix{padding:2px 8px}
 .liq1{color:#7f8c8d}.liq2{color:#2196f3}.liq3{color:#f39c12}.liq4{color:#e74c3c}
 .brgr{display:inline-flex!important;align-items:center;gap:6px;font-size:12px;color:var(--mu);cursor:pointer;margin:0 0 0 auto!important;white-space:nowrap;flex:0 0 auto;width:auto!important}
 .brgr input{width:auto!important;height:auto;margin:0!important;padding:0;flex:0 0 auto}
@@ -916,7 +924,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
     <div id="liSug" class="lisug" hidden></div>
     <div id="liSel" class="lisel" hidden>
       <div class="lipr"><b id="liName"></b><small id="liSku" class="mu"></small><button type="button" id="liClr" class="e" aria-label="Wyczyść wybór">✕</button></div>
-      <label class="f"><small>Rozmiar</small><select id="liZ"></select></label>
+      <div class="f"><small>Rozmiary (można kilka)</small><div class="lizs" id="liZ"></div></div>
       <div class="liqs" id="liQs"></div>
       <button type="button" class="p" id="liAdd">Dodaj do listy</button>
     </div>
@@ -4278,20 +4286,33 @@ function renderLista() {
   const its = liItems(), n = its.length;
   $('#liBadge').hidden = !n; $('#liBadge').textContent = n;
   if (view !== 'li') return;
-  $('#liN').textContent = n ? n + ' poz.' : '';
-  $('#liList').innerHTML = n ? its.map(it => {
-    const p = S.products.find(x => x.id === it.pid), st = p ? (p.sizes[it.z] || 0) : 0;
-    return `<div class="liit"><span class="liz">${esc(it.z || '–')}</span><span class="lim"><b>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${it.by ? ' · ' + esc(it.by) : ''}${it.t ? ' · ' + new Date(it.t).toLocaleString('pl-PL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</small></span><span class="liqn liq${it.q}">${LI_Q[it.q]}</span><span class="list${st ? '' : ' z'}">na stanie<br><b>${st}</b> szt.</span><button type="button" class="e lix" data-k="${esc(it.k)}" aria-label="Usuń z listy" title="Usuń z listy">✕</button></div>`;
+  // jedna karta na model, w niej wszystkie rozmiary z listy (kolejność modeli: kiedy pierwszy raz trafiły na listę)
+  const gs = new Map(); its.forEach(it => { if (!gs.has(it.pid)) gs.set(it.pid, []); gs.get(it.pid).push(it); });
+  $('#liN').textContent = n ? gs.size + ' mod. · ' + n + ' rozm.' : '';
+  const hm = t => new Date(t).toLocaleString('pl-PL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  $('#liList').innerHTML = n ? [...gs].map(([pid, g]) => {
+    const p = S.products.find(x => x.id === pid), last = g.reduce((a, b) => b.t > a.t ? b : a), by = [...new Set(g.map(x => x.by).filter(Boolean))].join(', ');
+    g.sort((a, b) => bySize(a.z, b.z));
+    return `<div class="ligr"><div class="ligh"><b>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${by ? ' · ' + esc(by) : ''}${last.t ? ' · ' + hm(last.t) : ''}</small><button type="button" class="e lix" data-ks="${esc(g.map(x => x.k).join(','))}" aria-label="Usuń model z listy" title="Usuń cały model z listy">✕</button></div><div class="lirs">${g.map(it => {
+      const st = p ? (p.sizes[it.z] || 0) : 0;
+      return `<span class="lir"><span class="liz">${esc(it.z || '–')}</span><span class="liqn liq${it.q}">${LI_Q[it.q]}</span><span class="list${st ? '' : ' z'}">stan <b>${st}</b></span><button type="button" class="e lix" data-ks="${esc(it.k)}" aria-label="Usuń rozmiar ${esc(it.z)}" title="Usuń ten rozmiar">✕</button></span>`;
+    }).join('')}</div></div>`;
   }).join('') : '<p class="mu">Lista jest pusta. Wyszukaj model albo zeskanuj kod, żeby coś dodać.</p>';
 }
 function liPick(p, z) {
+  // ten sam model zeskanowany jeszcze raz – dokłada rozmiar do zaznaczonych
+  const same = liP && liP.id === p.id && !$('#liSel').hidden;
   liP = p; $('#liSug').hidden = true; $('#liQ').value = '';
   $('#liName').textContent = p.name; $('#liSku').textContent = p.sku;
-  const zs = sizesOf(p); $('#liZ').innerHTML = zs.map(k => `<option value="${esc(k)}">${esc(k)} – na stanie ${p.sizes[k] || 0}</option>`).join('');
-  if (z && z !== '*' && zs.includes(z)) $('#liZ').value = z;
+  const on = new Set(same ? [...$('#liZ').querySelectorAll('button.on')].map(b => b.dataset.z) : []);
+  if (z && z !== '*') on.add(z);
+  const zs = sizesOf(p); if (zs.length === 1) on.add(zs[0]);
+  $('#liZ').innerHTML = zs.map(k => `<button type="button" data-z="${esc(k)}" class="${on.has(k) ? 'on' : ''}"><b>${esc(k)}</b><small>stan ${p.sizes[k] || 0}</small></button>`).join('');
   $('#liSel').hidden = false; liQSet(liQn);
 }
-const liQSet = q => { liQn = q; $('#liQs').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.q === q)); $('#liAdd').disabled = !q; };
+const liZs = () => [...$('#liZ').querySelectorAll('button.on')].map(b => b.dataset.z);
+$('#liZ').onclick = e => { const b = e.target.closest('button[data-z]'); if (b) { b.classList.toggle('on'); liQSet(liQn); } };
+const liQSet = q => { liQn = q; $('#liQs').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.q === q)); $('#liAdd').disabled = !q || !liZs().length; $('#liAdd').textContent = 'Dodaj do listy' + (liZs().length > 1 ? ' (' + liZs().length + ' rozm.)' : ''); };
 function liSug() {
   const q = $('#liQ').value.trim().toLowerCase(); liSugI = -1;
   if (!q) { $('#liSug').hidden = true; return; }
@@ -4323,15 +4344,17 @@ $('#liClr').onclick = () => { liP = null; $('#liSel').hidden = true; $('#liQ').f
 $('#liQs').onclick = e => { const b = e.target.closest('button[data-q]'); if (b) liQSet(+b.dataset.q); };
 $('#liAdd').onclick = async () => {
   if (!liP || !liQn || !slUser() || !online()) return;
-  const z = $('#liZ').value, dup = liItems().find(it => it.pid === liP.id && it.z === z);
+  const zs = liZs(); if (!zs.length) return;
+  const its = liItems(), up = {}, T = firebase.database.ServerValue.TIMESTAMP;
+  zs.forEach(z => { const dup = its.find(it => it.pid === liP.id && it.z === z); // ten sam model i rozmiar – podmieniamy ilość
+    up[dup ? dup.k : db.ref(ROOT + '-lista').push().key] = { pid: liP.id, z, q: liQn, t: T, by: user }; });
   try {
-    if (dup) await db.ref(ROOT + '-lista/' + dup.k).update({ q: liQn, t: firebase.database.ServerValue.TIMESTAMP, by: user }); // ten sam model i rozmiar – podmieniamy ilość
-    else await db.ref(ROOT + '-lista').push({ pid: liP.id, z, q: liQn, t: firebase.database.ServerValue.TIMESTAMP, by: user });
-    toast((dup ? 'Zmieniono na liście: ' : 'Dodano do listy: ') + liP.name + ' ' + z + ' – ' + LI_Q[liQn]);
+    await db.ref(ROOT + '-lista').update(up);
+    toast('Na liście: ' + liP.name + ' ' + zs.join(', ') + ' – ' + LI_Q[liQn]);
     liP = null; $('#liSel').hidden = true; liQSet(0); $('#liQ').focus();
   } catch (x) { say('Nie udało się zapisać listy. Sprawdź reguły bazy (gałąź -lista).'); }
 };
-$('#liList').onclick = e => { const b = e.target.closest('.lix'); if (b && slUser()) db.ref(ROOT + '-lista/' + b.dataset.k).remove().catch(() => {}); };
+$('#liList').onclick = e => { const b = e.target.closest('.lix'); if (!b || !slUser()) return; const up = {}; b.dataset.ks.split(',').filter(okId).forEach(k => { up[k] = null; }); db.ref(ROOT + '-lista').update(up).catch(() => {}); };
 // wysyłka tego modelu i rozmiaru (po dodaniu do listy, nie cofnięta) → pozycja znika; robi to każda otwarta strona delmy/rudego
 function liSweep() {
   if (!slUser() || !db || !S.log.length) return;
