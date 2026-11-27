@@ -39,6 +39,7 @@ header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-cont
 .lg small b{color:var(--tx)}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .bar input[type=search]{flex:1 1 200px}
+.bar select{flex:0 0 auto;width:auto;max-width:100%}.fbar{margin-top:-8px}@media(max-width:600px){.fbar select{flex:1 1 0;min-width:0}}.bar select.on{border-color:var(--ac,#2b7de9);box-shadow:0 0 0 1px var(--ac,#2b7de9)}
 .ro .rw,body.ro .rw{display:none!important}
 .role{font-size:11px;border:1px solid rgba(255,255,255,.4);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
 .lblwrap{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0 0;overflow:hidden}
@@ -849,6 +850,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
   <button id="ex">Eksportuj</button>
   <label class="btn rw">Wczytaj kopię<input type="file" id="im" accept=".json" hidden></label>
 </div>
+<div class="bar fbar">
+  <select id="fFil" aria-label="Filtr"><option value="">Wszystkie</option><option value="in">Na stanie</option><option value="low">Mało (≤ 5 szt.)</option><option value="gap">Brakuje rozmiaru</option><option value="none">Brak na stanie</option><option value="ev">Na evencie</option><option value="sew">W szwalni</option></select>
+  <select id="fSz" aria-label="Rozmiar"><option value="">Każdy rozmiar</option></select>
+  <select id="fSort" aria-label="Sortowanie"><option value="">Nazwa A–Z</option><option value="za">Nazwa Z–A</option><option value="hi">Najwięcej sztuk</option><option value="lo">Najmniej sztuk</option><option value="sku">SKU</option></select>
+</div>
 
 <div class="grid" id="grid"></div>
   <button type="button" id="gmB" title="Dzik Game Hub" aria-label="Dzik Game Hub"><i></i></button>
@@ -1523,9 +1529,38 @@ function cardInner(p) {
         </div>
       </div>`;
 }
+// filtrowanie i sortowanie listy modeli (wybór zapamiętany w tej przeglądarce)
+function fOk(p, fil, fsz) {
+  const t = sum(p), ks = Object.keys(p.sizes);
+  if (fsz && !((p.sizes[fsz] || 0) > 0)) return false;
+  switch (fil) {
+    case 'in': return t > 0;
+    case 'low': return ks.some(k => p.sizes[k] > 0 && p.sizes[k] <= 5);
+    case 'gap': return t > 0 && ks.some(k => !(p.sizes[k] > 0));
+    case 'none': return t === 0;
+    case 'ev': return evSum(p) > 0;
+    case 'sew': return sewSum(p) > 0;
+  }
+  return true;
+}
+const F_SORT = { za: (a, b) => b.name.localeCompare(a.name, 'pl'), hi: (a, b) => sum(b) - sum(a) || a.name.localeCompare(b.name, 'pl'), lo: (a, b) => sum(a) - sum(b) || a.name.localeCompare(b.name, 'pl'), sku: (a, b) => a.sku.localeCompare(b.sku, 'pl', { numeric: true }) };
+function fszOpts(cur) {
+  const all = [...new Set(S.products.flatMap(p => Object.keys(p.sizes)))].sort(bySize), el = $('#fSz'), key = all.join('|');
+  if (el.__k === key) return; el.__k = key;
+  el.innerHTML = '<option value="">Każdy rozmiar</option>' + all.map(k => `<option value="${esc(k)}">Rozmiar ${esc(k)}</option>`).join('');
+  el.value = all.includes(cur) ? cur : '';
+}
+['fFil', 'fSz', 'fSort'].forEach(id => {
+  try { const v = localStorage.getItem('w11_' + id); if (v) { const el = document.getElementById(id); if (id === 'fSz') { el.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">Rozmiar ${esc(v)}</option>`); } el.value = v; } } catch (e) {}
+  document.getElementById(id).addEventListener('change', e => { try { localStorage.setItem('w11_' + id, e.target.value); } catch (er) {} render(); });
+});
 function render() {
   const q = $('#q').value.trim().toLowerCase();
-  const list = S.products.filter(p => pmatch(p, q));
+  const fil = $('#fFil').value, fsz = $('#fSz').value, srt = $('#fSort').value;
+  fszOpts(fsz);
+  const list = S.products.filter(p => pmatch(p, q) && fOk(p, fil, fsz));
+  if (srt) list.sort(F_SORT[srt]);
+  $('#fFil').classList.toggle('on', !!fil); $('#fSz').classList.toggle('on', !!fsz); $('#fSort').classList.toggle('on', !!srt);
   const evT = S.products.reduce((a, p) => a + evSum(p), 0);
   $('#tot').hidden = false;
   countTo($('#cM'), S.products.length); countTo($('#cS'), S.products.reduce((a, p) => a + sum(p), 0));
@@ -1533,7 +1568,7 @@ function render() {
   const grid = $('#grid');
   if (!list.length) {
     cardEls.clear();
-    grid.innerHTML = '<p class="mu">' + (S.products.length ? 'Nic nie pasuje do wyszukiwania.' : 'Magazyn jest pusty. Kliknij „Dodaj model”, żeby dodać pierwsze ubranie.') + '</p>';
+    grid.innerHTML = '<p class="mu">' + (S.products.length ? (fil || fsz ? 'Nic nie pasuje do wyszukiwania i filtrów.' : 'Nic nie pasuje do wyszukiwania.') : 'Magazyn jest pusty. Kliknij „Dodaj model”, żeby dodać pierwsze ubranie.') + '</p>';
     return;
   }
   grid.querySelectorAll(':scope > p').forEach(x => x.remove());
