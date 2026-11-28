@@ -4279,6 +4279,7 @@ $('#dlN').addEventListener('change', () => dlSet($('#dlN').value));
 $('#dlN').addEventListener('keydown', e => { if (e.key === 'Enter') $('#dlN').blur(); });
 // --- Lista do dołożenia (delma i rudy): model + rozmiar + ile dołożyć; znika sama, gdy ten model i rozmiar pójdzie na wysyłkę
 let LI = {}, liP = null, liQn = 0, liSugI = -1;
+const liSkuT = p => p.sku + (p.oldSku ? ' · stare ' + p.oldSku : ''); // przy modelach ze starym SKU pokazujemy oba
 const LI_Q = ['', 'Trochę', 'Pół kuwety', 'Prawie cała kuweta', 'Cała kuweta'];
 const liItems = () => Object.entries(LI || {}).filter(([k, v]) => okId(k) && v && typeof v === 'object' && typeof v.pid === 'string').map(([k, v]) => ({ k, pid: v.pid, z: txt(v.z, 20), q: Math.min(4, Math.max(1, Number(v.q) || 1)), t: Number(v.t) || 0, by: txt(v.by, 40) })).sort((a, b) => a.t - b.t);
 $('#liQs').innerHTML = LI_Q.slice(1).map((l, i) => `<button type="button" data-q="${i + 1}" class="liq${i + 1}">${l}</button>`).join('');
@@ -4293,7 +4294,7 @@ function renderLista() {
   $('#liList').innerHTML = n ? [...gs].map(([pid, g]) => {
     const p = S.products.find(x => x.id === pid), last = g.reduce((a, b) => b.t > a.t ? b : a), by = [...new Set(g.map(x => x.by).filter(Boolean))].join(', ');
     g.sort((a, b) => bySize(a.z, b.z));
-    return `<div class="ligr"><div class="ligh"><b${p ? ` class="lign" data-sku="${esc(p.sku)}" role="link" tabindex="0" title="Pokaż na stronie głównej"` : ''}>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? p.sku : '')}${by ? ' · ' + esc(by) : ''}${last.t ? ' · ' + hm(last.t) : ''}</small><button type="button" class="e lix" data-ks="${esc(g.map(x => x.k).join(','))}" aria-label="Usuń model z listy" title="Usuń cały model z listy">✕</button></div><div class="lirs">${g.map(it => {
+    return `<div class="ligr"><div class="ligh"><b${p ? ` class="lign" data-sku="${esc(p.sku)}" role="link" tabindex="0" title="Pokaż na stronie głównej"` : ''}>${esc(p ? p.name : 'Usunięty model')}</b><small>${esc(p ? liSkuT(p) : '')}${by ? ' · ' + esc(by) : ''}${last.t ? ' · ' + hm(last.t) : ''}</small><button type="button" class="e lix" data-ks="${esc(g.map(x => x.k).join(','))}" aria-label="Usuń model z listy" title="Usuń cały model z listy">✕</button></div><div class="lirs">${g.map(it => {
       const st = p ? (p.sizes[it.z] || 0) : 0;
       return `<span class="lir"><span class="liz">${esc(it.z || '–')}</span><span class="liqn liq${it.q}">${LI_Q[it.q]}</span><span class="list${st ? '' : ' z'}">stan <b>${st}</b></span><button type="button" class="e lix" data-ks="${esc(it.k)}" aria-label="Usuń rozmiar ${esc(it.z)}" title="Usuń ten rozmiar">✕</button></span>`;
     }).join('')}</div></div>`;
@@ -4303,7 +4304,7 @@ function liPick(p, z) {
   // ten sam model zeskanowany jeszcze raz – dokłada rozmiar do zaznaczonych
   const same = liP && liP.id === p.id && !$('#liSel').hidden;
   liP = p; $('#liSug').hidden = true; $('#liQ').value = '';
-  $('#liName').textContent = p.name; $('#liSku').textContent = p.sku;
+  $('#liName').textContent = p.name; $('#liSku').textContent = liSkuT(p);
   const on = new Set(same ? [...$('#liZ').querySelectorAll('button.on')].map(b => b.dataset.z) : []);
   if (z && z !== '*') on.add(z);
   const zs = sizesOf(p); if (zs.length === 1) on.add(zs[0]);
@@ -4317,7 +4318,7 @@ function liSug() {
   const q = $('#liQ').value.trim().toLowerCase(); liSugI = -1;
   if (!q) { $('#liSug').hidden = true; return; }
   const hs = S.products.filter(p => pmatch(p, q)).slice(0, 12);
-  $('#liSug').innerHTML = hs.length ? hs.map(p => `<button type="button" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small class="mu">${esc(p.sku)}</small></button>`).join('') : '<p class="mu" style="margin:0;padding:10px 12px">Nic nie pasuje.</p>';
+  $('#liSug').innerHTML = hs.length ? hs.map(p => `<button type="button" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small class="mu">${esc(liSkuT(p))}</small></button>`).join('') : '<p class="mu" style="margin:0;padding:10px 12px">Nic nie pasuje.</p>';
   $('#liSug').hidden = false;
 }
 function liScanCode(c) {
