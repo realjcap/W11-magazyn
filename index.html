@@ -4203,9 +4203,15 @@ $('#brMove').onclick = async () => {
     const ref = db.ref(ROOT + '-brcmd').push();
     await ref.set({ id: ids[0], ids: ids.join(','), act: 'bok', by: user, at: firebase.database.ServerValue.TIMESTAMP });
     const done = () => { ids.forEach(id => brMoving.delete(id)); renderBraki(); };
-    const to = setTimeout(() => { ref.off(); done(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 120000);
+    let fin = false;
+    const to = setTimeout(async () => {
+      const r = await brCmdLate(ref, () => !ids.some(id => brOrders(true).some(o => o.id === id))); // wszystkie zeszły z braków = przeniesione
+      if (fin) return; fin = true; ref.child('res').off(); done();
+      if (r) { if (r.ok) toast('Przeniesiono do „BOK - brak towaru”: ' + ids.length + ' zam.'); else say((/^przeniesiono/.test(r.msg || '') ? '' : 'Nie udało się przenieść: ') + (r.msg || 'błąd')); return; }
+      ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.');
+    }, 120000);
     ref.child('res').on('value', s => {
-      const r = s.val(); if (!r) return;
+      const r = s.val(); if (!r || fin) return; fin = true;
       clearTimeout(to); ref.child('res').off(); done();
       if (r.ok) { toast('Przeniesiono do „BOK - brak towaru”: ' + ids.length + ' zam.'); SFX.play('tick'); }
       else say((/^przeniesiono/.test(r.msg || '') ? '' : 'Nie udało się przenieść: ') + (r.msg || 'błąd'));
@@ -4228,14 +4234,28 @@ $('#brPick').onclick = async e => {
   brSetStar(p.dataset.id, b.dataset.c);
 };
 // auto = true: gwiazdka ustawiana automatycznie po wysyłce (bez osobnych komunikatów o sukcesie, dłuższy czas oczekiwania – polecenia idą w kolejce)
+// czas oczekiwania minął: zanim pokażemy błąd – poczekaj na połączenie (telefon po wybudzeniu), sprawdź odpowiedź w bazie i stan braków
+async function brCmdLate(ref, done) {
+  for (let i = 0; i < 24 && !connected; i++) await new Promise(r => setTimeout(r, 5000)); // do 2 min na ponowne połączenie
+  await new Promise(r => setTimeout(r, 3000));
+  try { const s = await ref.child('res').once('value'); if (s.val()) return s.val(); } catch (e) {}
+  try { if (done()) return { ok: true }; } catch (e) {}
+  return null;
+}
 async function brSetStar(id, star, auto = 0) {
   brPend[id] = star; renderBraki();
   try {
     const ref = db.ref(ROOT + '-brcmd').push();
     await ref.set({ id, star, by: user, at: firebase.database.ServerValue.TIMESTAMP });
-    const to = setTimeout(() => { ref.off(); delete brPend[id]; renderBraki(); ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział' + (auto ? ' (zamówienie ' + id + ')' : '') + '. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.'); }, 45000 + (auto ? auto * 30000 : 0));
+    let fin = false;
+    const to = setTimeout(async () => {
+      const r = await brCmdLate(ref, () => { const o = brOrders(true).find(x => x.id === id); return o ? o.star === star : star === 'green'; }); // gwiazdka już jest / zamówienie zeszło z braków
+      if (fin) return; fin = true; ref.child('res').off(); delete brPend[id]; renderBraki();
+      if (r) { if (!r.ok) say('Nie udało się ustawić gwiazdki' + (auto ? ' (zamówienie ' + id + ')' : '') + ': ' + (r.msg || 'błąd')); return; }
+      ref.remove().catch(() => {}); say('BaseLinker nie odpowiedział' + (auto ? ' (zamówienie ' + id + ')' : '') + '. Sprawdź, czy na laptopie są otwarte BaseLinker (status BRAK) i W11 z rozszerzeniem.');
+    }, 45000 + (auto ? auto * 30000 : 0));
     ref.child('res').on('value', s => {
-      const r = s.val(); if (!r) return;
+      const r = s.val(); if (!r || fin) return; fin = true;
       clearTimeout(to); ref.child('res').off(); delete brPend[id];
       if (r.ok) { if (!auto) { toast(star === 'green' ? 'Oznaczono na zielono – zamówienie zniknie z braków.' : 'Gwiazdka ustawiona w BaseLinkerze.'); SFX.play('tick'); } }
       else say('Nie udało się ustawić gwiazdki' + (auto ? ' (zamówienie ' + id + ')' : '') + ': ' + (r.msg || 'błąd'));
@@ -4427,7 +4447,8 @@ function brWatchCmds() {
   if (brWatch || !canEdit() || document.documentElement.dataset.w11ext !== '1') return;
   brWatch = true;
   db.ref(ROOT + '-brcmd').on('child_added', s => {
-    const c = s.val(); if (!c || c.res) return;
+    const c = s.val(); if (!c) return;
+    if (c.res) { if (Date.now() - (Number(c.at) || 0) > 10 * 60 * 1000) s.ref.remove().catch(() => {}); return; } // stare wykonane – sprzątamy
     if (Date.now() - (Number(c.at) || 0) > 2 * 60 * 1000) { s.ref.remove().catch(() => {}); return; }
     brQ.push({ key: s.key, id: String(c.id || ''), star: BR_STARS.includes(c.star) ? c.star : '', act: c.act === 'bok' ? 'bok' : '', ids: String(c.ids || '').split(',').filter(x => /^\d{4,15}$/.test(x)).slice(0, 100) }); brNext();
   });
@@ -4445,7 +4466,7 @@ window.addEventListener('message', e => {
   brBusy = false;
   const ref = db.ref(ROOT + '-brcmd/' + r.key);
   ref.child('res').set({ ok: !!r.ok, msg: String(r.msg || '').slice(0, 200) }).catch(() => {});
-  setTimeout(() => ref.remove().catch(() => {}), 15000);
+  setTimeout(() => ref.remove().catch(() => {}), 5 * 60 * 1000); // odpowiedź zostaje 5 min – telefon w tle odczyta ją po wybudzeniu
   brNext();
 });
 setInterval(brWatchCmds, 5000);
